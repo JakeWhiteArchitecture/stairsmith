@@ -136,19 +136,20 @@ def _preview_straight(p):
     for i in range(num_treads):
         tread_y = i * going - nosing
         tread_z = (i + 1) * rise - tread_t
-        tread_length = going + nosing
+        tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
             width, tread_length, tread_t, "#c8a87c"
         ))
 
+    riser_h = rise - tread_t
     for i in range(num_risers):
         riser_y = i * going
         riser_z = i * rise
         if riser_t > 0:
             meshes.append(_box_mesh(
-                width / 2, riser_y + riser_t / 2, riser_z + rise / 2,
-                width, riser_t, rise, "#e8dcc8"
+                width / 2, riser_y + riser_t / 2, riser_z + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
             ))
 
     return meshes
@@ -177,18 +178,19 @@ def _preview_single_winder(p):
     for i in range(flight1_treads):
         tread_y = i * going - nosing
         tread_z = (i + 1) * rise - tread_t
-        tread_length = going + nosing
+        tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
             width, tread_length, tread_t, "#c8a87c"
         ))
 
     # Flight 1 risers
+    riser_h = rise - tread_t
     for i in range(flight1_treads + 1):
         if riser_t > 0:
             meshes.append(_box_mesh(
-                width / 2, i * going + riser_t / 2, i * rise + rise / 2,
-                width, riser_t, rise, "#e8dcc8"
+                width / 2, i * going + riser_t / 2, i * rise + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
             ))
 
     # Winder treads — pivot at the internal corner
@@ -220,7 +222,7 @@ def _preview_single_winder(p):
             tread_x = width + i * going + going / 2 - nosing / 2
         meshes.append(_box_mesh(
             tread_x, corner_y + width / 2, tread_z + tread_t / 2,
-            going + nosing, width, tread_t, "#c8a87c"
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
         ))
 
     return meshes
@@ -257,17 +259,18 @@ def _preview_double_winder(p):
     for i in range(flight1_treads):
         tread_y = i * going - nosing
         tread_z = (i + 1) * rise - tread_t
-        tread_length = going + nosing
+        tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
             width, tread_length, tread_t, "#c8a87c"
         ))
 
+    riser_h = rise - tread_t
     for i in range(flight1_treads + 1):
         if riser_t > 0:
             meshes.append(_box_mesh(
-                width / 2, i * going + riser_t / 2, i * rise + rise / 2,
-                width, riser_t, rise, "#e8dcc8"
+                width / 2, i * going + riser_t / 2, i * rise + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
             ))
 
     riser_idx = flight1_treads + 1
@@ -301,7 +304,7 @@ def _preview_double_winder(p):
             tread_x = width + i * going + going / 2 - nosing / 2
         meshes.append(_box_mesh(
             tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
-            going + nosing, width, tread_t, "#c8a87c"
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
         ))
 
     riser_idx += flight2_treads
@@ -349,7 +352,7 @@ def _preview_double_winder(p):
     for i in range(flight3_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         tread_y = flight3_start_y - (i + 1) * going - nosing
-        tread_length = going + nosing
+        tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
             width, tread_length, tread_t, "#c8a87c"

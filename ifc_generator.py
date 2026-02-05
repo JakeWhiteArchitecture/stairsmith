@@ -206,7 +206,7 @@ def generate_straight_flight(ifc, context, p):
     for i in range(num_risers):
         riser_z = i * rise
         riser_y = i * going
-        riser = _create_riser(ifc, context, f"Riser {i+1}", width, rise, riser_t,
+        riser = _create_riser(ifc, context, f"Riser {i+1}", width, rise, riser_t, tread_t,
                               position=(0.0, riser_y, riser_z))
         elements.append(riser)
 
@@ -219,12 +219,13 @@ def _create_stair_flight_element(ifc, context, name, num_treads, width, going, r
     """Create a stair flight as a series of treads combined into one element."""
     # We'll model each tread as part of the flight geometry
     # Profile for a single tread (in XY plane): rectangle with nosing
+    # Tread extends backward by riser_thickness so the riser above sits on top
     solids = []
 
     for i in range(num_treads):
         tread_y = i * going - nosing
         tread_z = (i + 1) * rise - tread_thickness
-        tread_length = going + nosing
+        tread_length = going + nosing + riser_thickness
 
         profile = [
             (0.0, 0.0),
@@ -262,10 +263,13 @@ def _create_stair_flight_element(ifc, context, name, num_treads, width, going, r
     return element
 
 
-def _create_riser(ifc, context, name, width, rise, riser_thickness, position):
-    """Create a riser as an IfcPlate."""
+def _create_riser(ifc, context, name, width, rise, riser_thickness, tread_thickness, position):
+    """Create a riser as an IfcPlate. Height is rise minus tread thickness so the
+    riser meets the underside of the tread above."""
     if riser_thickness <= 0:
         return None
+
+    riser_height = rise - tread_thickness
 
     profile = [
         (0.0, 0.0),
@@ -274,7 +278,7 @@ def _create_riser(ifc, context, name, width, rise, riser_thickness, position):
         (0.0, riser_thickness),
     ]
 
-    solid = _create_extruded_solid(ifc, context, profile, rise, position, direction=(0.0, 0.0, 1.0))
+    solid = _create_extruded_solid(ifc, context, profile, riser_height, position, direction=(0.0, 0.0, 1.0))
 
     element = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcPlate", name=name)
     rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
@@ -335,7 +339,7 @@ def generate_single_winder(ifc, context, p):
     for i in range(flight1_treads + 1):
         riser_z = i * rise
         riser_y = i * going
-        riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t,
+        riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t, tread_t,
                               position=(0.0, riser_y, riser_z))
         if riser:
             elements.append(riser)
@@ -387,8 +391,8 @@ def generate_single_winder(ifc, context, p):
 
         profile = [
             (0.0, 0.0),
-            (going + nosing, 0.0),
-            (going + nosing, width),
+            (going + nosing + riser_t, 0.0),
+            (going + nosing + riser_t, width),
             (0.0, width),
         ]
         solid = _create_extruded_solid(
@@ -517,7 +521,7 @@ def generate_double_winder(ifc, context, p):
 
     # Risers for flight 1
     for i in range(flight1_treads + 1):
-        riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t,
+        riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t, tread_t,
                               position=(0.0, i * going, i * rise))
         if riser:
             elements.append(riser)
@@ -562,8 +566,8 @@ def generate_double_winder(ifc, context, p):
 
         profile = [
             (0.0, 0.0),
-            (going + nosing, 0.0),
-            (going + nosing, width),
+            (going + nosing + riser_t, 0.0),
+            (going + nosing + riser_t, width),
             (0.0, width),
         ]
         solid = _create_extruded_solid(
@@ -640,8 +644,8 @@ def generate_double_winder(ifc, context, p):
         profile = [
             (0.0, 0.0),
             (width, 0.0),
-            (width, going + nosing),
-            (0.0, going + nosing),
+            (width, going + nosing + riser_t),
+            (0.0, going + nosing + riser_t),
         ]
 
         solid = _create_extruded_solid(
