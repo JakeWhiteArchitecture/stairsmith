@@ -101,6 +101,8 @@ def parse_params(params):
     p["turn1_winders"] = int(params.get("turn1_winders", 3))
     p["turn2_direction"] = params.get("turn2_direction", "left")
     p["turn2_winders"] = int(params.get("turn2_winders", 3))
+    p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
+    p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
 
     # Derived
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
@@ -340,13 +342,19 @@ def generate_single_winder(ifc, context, p):
 
     # Winder treads
     winder_start_riser = flight1_treads + 1
-    winder_start_z = flight1_treads * rise  # Z height at start of winders
-    winder_start_y = flight1_treads * going  # Y position at end of flight 1
+    turn1_enabled = p.get("turn1_enabled", True)
 
-    # Turn corner position
-    corner_y = winder_start_y + width  # the corner of the L
+    # If winders disabled, redistribute those treads to flights
+    if not turn1_enabled:
+        flight1_treads += winders // 2
+        flight2_treads += winders - winders // 2
+        winders = 0
 
-    angle_per_winder = (math.pi / 2) / winders  # 90° divided by number of winders
+    # Pivot at the internal corner of the stair (where inner strings meet)
+    corner_y = flight1_treads * going  # end of flight 1
+    corner_x = 0.0 if turn_dir == "left" else width
+
+    angle_per_winder = (math.pi / 2) / max(winders, 1)
 
     for i in range(winders):
         winder_z = (winder_start_riser + i) * rise
@@ -357,89 +365,49 @@ def generate_single_winder(ifc, context, p):
             angle_start=i * angle_per_winder,
             angle_end=(i + 1) * angle_per_winder,
             rise=rise,
-            corner_x=0.0 if turn_dir == "left" else width,
+            corner_x=corner_x,
             corner_y=corner_y,
             z_base=winder_z,
             turn_direction=turn_dir,
         )
         elements.append(winder_elements)
 
-    # Flight 2: after the turn, going along X axis (left turn) or -X axis (right turn)
+    # Flight 2: after the turn
     flight2_start_riser = winder_start_riser + winders
-    flight2_start_z = (flight2_start_riser - 1) * rise
 
-    if turn_dir == "left":
-        # After left turn, flight 2 goes along -X direction
-        flight2_start_x = 0.0
-        flight2_start_y = corner_y
-        flight2_rotation = math.pi  # facing -X (rotated 180° so +Y in local = -X in global...
-        # Actually: rotation = pi/2 for left turn means flight goes along -X
-        # Let's position flight 2 explicitly
-        for i in range(flight2_treads):
+    # Flight 2 runs perpendicular, Y range = [corner_y, corner_y + width]
+    flight2_solids = []
+    for i in range(flight2_treads):
+        tread_z = (flight2_start_riser + i) * rise - tread_t
+        if turn_dir == "left":
             tread_x = -(i * going) - going + nosing
-            tread_z = (flight2_start_riser + i) * rise - tread_t
-            tread_y = corner_y
-
-            profile = [
-                (0.0, 0.0),
-                (going + nosing, 0.0),
-                (going + nosing, width),
-                (0.0, width),
-            ]
-            solid = _create_extruded_solid(
-                ifc, context, profile, tread_t,
-                (tread_x, tread_y, tread_z),
-            )
-            if i == 0:
-                flight2_solids = [solid]
-            else:
-                flight2_solids.append(solid)
-
-        if flight2_treads > 0:
-            flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
-            rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
-            prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
-            flight2.Representation = prod_rep
-            origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
-            placement = ifc.createIfcAxis2Placement3D(origin, None, None)
-            local_placement = ifc.createIfcLocalPlacement(None, placement)
-            flight2.ObjectPlacement = local_placement
-            _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
-            elements.append(flight2)
-
-    else:
-        # Right turn: flight 2 goes along +X direction
-        for i in range(flight2_treads):
+        else:
             tread_x = width + i * going - nosing
-            tread_z = (flight2_start_riser + i) * rise - tread_t
-            tread_y = corner_y
+        tread_y = corner_y
 
-            profile = [
-                (0.0, 0.0),
-                (going + nosing, 0.0),
-                (going + nosing, width),
-                (0.0, width),
-            ]
-            solid = _create_extruded_solid(
-                ifc, context, profile, tread_t,
-                (tread_x, tread_y, tread_z),
-            )
-            if i == 0:
-                flight2_solids = [solid]
-            else:
-                flight2_solids.append(solid)
+        profile = [
+            (0.0, 0.0),
+            (going + nosing, 0.0),
+            (going + nosing, width),
+            (0.0, width),
+        ]
+        solid = _create_extruded_solid(
+            ifc, context, profile, tread_t,
+            (tread_x, tread_y, tread_z),
+        )
+        flight2_solids.append(solid)
 
-        if flight2_treads > 0:
-            flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
-            rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
-            prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
-            flight2.Representation = prod_rep
-            origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
-            placement = ifc.createIfcAxis2Placement3D(origin, None, None)
-            local_placement = ifc.createIfcLocalPlacement(None, placement)
-            flight2.ObjectPlacement = local_placement
-            _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
-            elements.append(flight2)
+    if flight2_treads > 0 and flight2_solids:
+        flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
+        rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
+        prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+        flight2.Representation = prod_rep
+        origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+        placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+        local_placement = ifc.createIfcLocalPlacement(None, placement)
+        flight2.ObjectPlacement = local_placement
+        _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
+        elements.append(flight2)
 
     return elements
 
@@ -448,54 +416,32 @@ def _create_winder_tread(ifc, context, name, width, tread_thickness, angle_start
                           rise, corner_x, corner_y, z_base, turn_direction):
     """
     Create a single winder tread as an IfcSlab.
-    The tread is a wedge-shaped extrusion centered on the turn corner.
+    Pivot at (corner_x, corner_y) — the internal corner of the stair.
+    Arc sweeps outward with radius = stair width.
+
+    For left turn: pivot at (0, corner_y)
+      angle 0 → outer at (width, corner_y) aligned with flight 1 outer wall
+      angle π/2 → outer at (0, corner_y + width) aligned with flight 2 extent
+
+    For right turn: pivot at (width, corner_y)
+      angle 0 → outer at (0, corner_y) aligned with flight 1 outer wall
+      angle π/2 → outer at (width, corner_y + width)
     """
     outer_radius = width
-    inner_radius = 0.0  # inner edge at the corner
-
-    # For a left turn, the pivot is at x=0 (inner string)
-    # The tread fans out from the pivot point
-
-    num_segments = 8  # segments for the arc approximation
+    num_segments = 8
     points_outer = []
-    points_inner = []
 
-    # We need to handle the winder geometry carefully
-    # The winder occupies a square region of width x width at the corner
-    # Each winder tread is a pie-slice of 90°/num_winders
+    for j in range(num_segments + 1):
+        t = angle_start + (angle_end - angle_start) * j / num_segments
+        if turn_direction == "left":
+            ox = corner_x + outer_radius * math.cos(t)
+            oy = corner_y + outer_radius * math.sin(t)
+        else:
+            ox = corner_x - outer_radius * math.cos(t)
+            oy = corner_y + outer_radius * math.sin(t)
+        points_outer.append((ox, oy))
 
-    if turn_direction == "left":
-        # Pivot at (corner_x, corner_y), treads fan from +Y to -X
-        # angle_start=0 means aligned with +Y (flight 1 direction)
-        # angle_end=pi/2 means aligned with -X (flight 2 direction)
-        for j in range(num_segments + 1):
-            t = angle_start + (angle_end - angle_start) * j / num_segments
-            # In the turn, 0 = going in +Y direction, pi/2 = going in -X direction
-            ox = corner_x - outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-            points_outer.append((ox, oy))
-
-            ix = corner_x - inner_radius * math.sin(t)
-            iy = corner_y + inner_radius * math.cos(t)
-            points_inner.append((ix, iy))
-    else:
-        # Right turn: pivot at (corner_x, corner_y), treads fan from +Y to +X
-        for j in range(num_segments + 1):
-            t = angle_start + (angle_end - angle_start) * j / num_segments
-            ox = corner_x + outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-            points_outer.append((ox, oy))
-
-            ix = corner_x + inner_radius * math.sin(t)
-            iy = corner_y + inner_radius * math.cos(t)
-            points_inner.append((ix, iy))
-
-    # Build profile: outer arc forward, then inner arc backward
-    profile_coords = points_outer + list(reversed(points_inner))
-
-    # Remove duplicate points (inner_radius=0 means all inner points are the same)
-    if inner_radius == 0:
-        profile_coords = points_outer + [(corner_x, corner_y)]
+    profile_coords = points_outer + [(corner_x, corner_y)]
 
     solid = _create_extruded_solid(
         ifc, context, profile_coords, tread_thickness,
@@ -537,14 +483,20 @@ def generate_double_winder(ifc, context, p):
     turn1_dir = p["turn1_direction"]
     turn2_dir = p["turn2_direction"]
 
-    total_winders = winders1 + winders2
+    turn1_enabled = p.get("turn1_enabled", True)
+    turn2_enabled = p.get("turn2_enabled", True)
+
+    # If winders disabled, redistribute those treads to flights
+    actual_winders1 = winders1 if turn1_enabled else 0
+    actual_winders2 = winders2 if turn2_enabled else 0
+    total_winders = actual_winders1 + actual_winders2
     straight_treads = num_treads - total_winders
     # Distribute: flight1, flight2 (middle), flight3
     flight1_treads = straight_treads // 3
     flight2_treads = straight_treads // 3
     flight3_treads = straight_treads - flight1_treads - flight2_treads
 
-    riser_idx = 0  # track current riser index for Z calculation
+    riser_idx = 0
 
     # ─── Flight 1: along +Y ───
     if flight1_treads > 0:
@@ -573,169 +525,124 @@ def generate_double_winder(ifc, context, p):
     riser_idx = flight1_treads + 1
 
     # ─── Turn 1 winders ───
-    corner1_y = flight1_treads * going + width
+    # Pivot at the internal corner (end of flight 1)
+    corner1_y = flight1_treads * going
+    corner1_x = 0.0 if turn1_dir == "left" else width
 
-    for i in range(winders1):
-        winder_z = (riser_idx + i) * rise
-        angle_per = (math.pi / 2) / winders1
+    if actual_winders1 > 0:
+        angle_per = (math.pi / 2) / actual_winders1
+        for i in range(actual_winders1):
+            winder_z = (riser_idx + i) * rise
+            winder = _create_winder_tread(
+                ifc, context, f"Turn1 Winder {i+1}",
+                width=width,
+                tread_thickness=tread_t,
+                angle_start=i * angle_per,
+                angle_end=(i + 1) * angle_per,
+                rise=rise,
+                corner_x=corner1_x,
+                corner_y=corner1_y,
+                z_base=winder_z,
+                turn_direction=turn1_dir,
+            )
+            elements.append(winder)
 
-        winder = _create_winder_tread(
-            ifc, context, f"Turn1 Winder {i+1}",
-            width=width,
-            tread_thickness=tread_t,
-            angle_start=i * angle_per,
-            angle_end=(i + 1) * angle_per,
-            rise=rise,
-            corner_x=0.0 if turn1_dir == "left" else width,
-            corner_y=corner1_y,
-            z_base=winder_z,
-            turn_direction=turn1_dir,
-        )
-        elements.append(winder)
-
-    riser_idx += winders1
+    riser_idx += actual_winders1
 
     # ─── Flight 2: perpendicular segment ───
-    flight2_start_z = (riser_idx - 1) * rise
+    # Flight 2 runs perpendicular, Y range = [corner1_y, corner1_y + width]
+    flight2_solids = []
+    for i in range(flight2_treads):
+        tread_z = (riser_idx + i) * rise - tread_t
+        if turn1_dir == "left":
+            tread_x = -(i * going) - going + nosing
+        else:
+            tread_x = width + i * going - nosing
+        tread_y = corner1_y
+
+        profile = [
+            (0.0, 0.0),
+            (going + nosing, 0.0),
+            (going + nosing, width),
+            (0.0, width),
+        ]
+        solid = _create_extruded_solid(
+            ifc, context, profile, tread_t,
+            (tread_x, tread_y, tread_z),
+        )
+        flight2_solids.append(solid)
+
+    if flight2_treads > 0 and flight2_solids:
+        flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
+        rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
+        prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+        flight2.Representation = prod_rep
+        origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+        placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+        local_placement = ifc.createIfcLocalPlacement(None, placement)
+        flight2.ObjectPlacement = local_placement
+        _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
+        elements.append(flight2)
 
     if turn1_dir == "left":
-        # Flight 2 goes along -X
-        flight2_solids = []
-        for i in range(flight2_treads):
-            tread_x = -(i * going) - going + nosing
-            tread_z = (riser_idx + i) * rise - tread_t
-            tread_y = corner1_y
-
-            profile = [
-                (0.0, 0.0),
-                (going + nosing, 0.0),
-                (going + nosing, width),
-                (0.0, width),
-            ]
-            solid = _create_extruded_solid(
-                ifc, context, profile, tread_t,
-                (tread_x, tread_y, tread_z),
-            )
-            flight2_solids.append(solid)
-
-        if flight2_treads > 0 and flight2_solids:
-            flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
-            rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
-            prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
-            flight2.Representation = prod_rep
-            origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
-            placement = ifc.createIfcAxis2Placement3D(origin, None, None)
-            local_placement = ifc.createIfcLocalPlacement(None, placement)
-            flight2.ObjectPlacement = local_placement
-            _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
-            elements.append(flight2)
-
         flight2_end_x = -(flight2_treads * going)
     else:
-        # Flight 2 goes along +X
-        flight2_solids = []
-        for i in range(flight2_treads):
-            tread_x = width + i * going - nosing
-            tread_z = (riser_idx + i) * rise - tread_t
-            tread_y = corner1_y
-
-            profile = [
-                (0.0, 0.0),
-                (going + nosing, 0.0),
-                (going + nosing, width),
-                (0.0, width),
-            ]
-            solid = _create_extruded_solid(
-                ifc, context, profile, tread_t,
-                (tread_x, tread_y, tread_z),
-            )
-            flight2_solids.append(solid)
-
-        if flight2_treads > 0 and flight2_solids:
-            flight2 = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcStairFlight", name="Flight 2")
-            rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", flight2_solids)
-            prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
-            flight2.Representation = prod_rep
-            origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
-            placement = ifc.createIfcAxis2Placement3D(origin, None, None)
-            local_placement = ifc.createIfcLocalPlacement(None, placement)
-            flight2.ObjectPlacement = local_placement
-            _add_pset_stair_flight(ifc, flight2, flight2_treads + 1, flight2_treads, rise, going)
-            elements.append(flight2)
-
         flight2_end_x = width + flight2_treads * going
 
     riser_idx += flight2_treads
 
     # ─── Turn 2 winders ───
-    if turn1_dir == "left":
-        corner2_x = flight2_end_x
-        corner2_y = corner1_y + width
-    else:
-        corner2_x = flight2_end_x
-        corner2_y = corner1_y + width
+    # Pivot at the internal corner of turn 2 (end of flight 2)
+    corner2_x = flight2_end_x
+    corner2_y = corner1_y  # same Y as turn 1 pivot (inner wall of F2)
 
-    for i in range(winders2):
-        winder_z = (riser_idx + i) * rise
-        angle_per = (math.pi / 2) / winders2
+    if actual_winders2 > 0:
+        angle_per2 = (math.pi / 2) / actual_winders2
+        for i in range(actual_winders2):
+            winder_z = (riser_idx + i) * rise
+            winder = _create_winder_tread_turn2(
+                ifc, context, f"Turn2 Winder {i+1}",
+                width=width,
+                tread_thickness=tread_t,
+                angle_start=i * angle_per2,
+                angle_end=(i + 1) * angle_per2,
+                rise=rise,
+                corner_x=corner2_x,
+                corner_y=corner2_y,
+                z_base=winder_z,
+                turn1_direction=turn1_dir,
+                turn2_direction=turn2_dir,
+            )
+            elements.append(winder)
 
-        # Turn 2 continues the rotation
-        winder = _create_winder_tread_turn2(
-            ifc, context, f"Turn2 Winder {i+1}",
-            width=width,
-            tread_thickness=tread_t,
-            angle_start=i * angle_per,
-            angle_end=(i + 1) * angle_per,
-            rise=rise,
-            corner_x=corner2_x,
-            corner_y=corner2_y,
-            z_base=winder_z,
-            turn1_direction=turn1_dir,
-            turn2_direction=turn2_dir,
-        )
-        elements.append(winder)
-
-    riser_idx += winders2
+    riser_idx += actual_winders2
 
     # ─── Flight 3: returns parallel to flight 1 but in -Y direction ───
+    # Flight 3 goes -Y, spanning x from corner2_x to corner2_x + width (or - width)
     if turn1_dir == "left" and turn2_dir == "left":
-        # Flight 3 goes along -Y, offset in X
         flight3_start_x = corner2_x - width
-        flight3_start_y = corner2_y + width
-    elif turn1_dir == "left" and turn2_dir == "right":
-        flight3_start_x = corner2_x
         flight3_start_y = corner2_y
     elif turn1_dir == "right" and turn2_dir == "right":
         flight3_start_x = corner2_x
+        flight3_start_y = corner2_y
+    elif turn1_dir == "left" and turn2_dir == "right":
+        flight3_start_x = corner2_x
         flight3_start_y = corner2_y + width
     else:
         flight3_start_x = corner2_x - width
-        flight3_start_y = corner2_y
+        flight3_start_y = corner2_y + width
 
     flight3_solids = []
     for i in range(flight3_treads):
         tread_z = (riser_idx + i) * rise - tread_t
-
-        if (turn1_dir == "left" and turn2_dir == "left"):
-            # Going in -Y direction
-            tread_x = flight3_start_x
-            tread_y = flight3_start_y - (i + 1) * going - nosing
-            profile = [
-                (0.0, 0.0),
-                (width, 0.0),
-                (width, going + nosing),
-                (0.0, going + nosing),
-            ]
-        else:
-            # Default: going in -Y direction
-            tread_x = flight3_start_x
-            tread_y = flight3_start_y - (i + 1) * going - nosing
-            profile = [
-                (0.0, 0.0),
-                (width, 0.0),
-                (width, going + nosing),
-                (0.0, going + nosing),
-            ]
+        tread_x = flight3_start_x
+        tread_y = flight3_start_y - (i + 1) * going - nosing
+        profile = [
+            (0.0, 0.0),
+            (width, 0.0),
+            (width, going + nosing),
+            (0.0, going + nosing),
+        ]
 
         solid = _create_extruded_solid(
             ifc, context, profile, tread_t,
@@ -760,34 +667,36 @@ def generate_double_winder(ifc, context, p):
 
 def _create_winder_tread_turn2(ifc, context, name, width, tread_thickness, angle_start, angle_end,
                                 rise, corner_x, corner_y, z_base, turn1_direction, turn2_direction):
-    """Create a winder tread for the second turn of a double-winder staircase."""
+    """
+    Create a winder tread for the second turn of a double-winder staircase.
+    Pivot at (corner_x, corner_y) — the internal corner where F2 meets the turn.
+
+    For left-left: pivot at (f2_end, corner1_y), arc sweeps from F2 outer wall
+    toward F3 outer wall.
+    """
     outer_radius = width
     num_segments = 8
     points_outer = []
 
-    if turn1_direction == "left" and turn2_direction == "left":
-        # Second left turn: coming from -X, turning to -Y
-        # Pivot at corner, treads fan from -X direction to -Y direction
-        for j in range(num_segments + 1):
-            t = angle_start + (angle_end - angle_start) * j / num_segments
-            ox = corner_x - outer_radius * math.cos(t)
-            oy = corner_y + outer_radius * math.sin(t)
-            points_outer.append((ox, oy))
-    elif turn1_direction == "right" and turn2_direction == "right":
-        for j in range(num_segments + 1):
-            t = angle_start + (angle_end - angle_start) * j / num_segments
-            ox = corner_x + outer_radius * math.cos(t)
-            oy = corner_y + outer_radius * math.sin(t)
-            points_outer.append((ox, oy))
-    else:
-        # Mixed turns
-        for j in range(num_segments + 1):
-            t = angle_start + (angle_end - angle_start) * j / num_segments
-            sign_x = -1 if turn1_direction == "left" else 1
-            sign_y = 1
-            ox = corner_x + sign_x * outer_radius * math.cos(t)
-            oy = corner_y + sign_y * outer_radius * math.sin(t)
-            points_outer.append((ox, oy))
+    for j in range(num_segments + 1):
+        t = angle_start + (angle_end - angle_start) * j / num_segments
+        if turn1_direction == "left" and turn2_direction == "left":
+            # Coming from -X, turning to go -Y
+            # angle 0: outer toward +Y (F2 outer wall at corner_y + width)
+            # angle π/2: outer toward -X (F3 outer wall)
+            ox = corner_x - outer_radius * math.sin(t)
+            oy = corner_y + outer_radius * math.cos(t)
+        elif turn1_direction == "right" and turn2_direction == "right":
+            # Coming from +X, turning to go -Y
+            ox = corner_x + outer_radius * math.sin(t)
+            oy = corner_y + outer_radius * math.cos(t)
+        elif turn1_direction == "left" and turn2_direction == "right":
+            ox = corner_x + outer_radius * math.sin(t)
+            oy = corner_y + outer_radius * math.cos(t)
+        else:
+            ox = corner_x - outer_radius * math.sin(t)
+            oy = corner_y + outer_radius * math.cos(t)
+        points_outer.append((ox, oy))
 
     profile_coords = points_outer + [(corner_x, corner_y)]
 
@@ -877,7 +786,9 @@ def check_building_regs(params):
     checks.append({"name": "Stair Width", "status": width_status, "message": width_msg, "value": round(width, 0)})
 
     # Winder going at narrow end: min 50mm
-    if p["staircase_type"] in ("single_winder", "double_winder"):
+    has_winders = (p["staircase_type"] in ("single_winder", "double_winder")
+                   and (p.get("turn1_enabled", True) or p.get("turn2_enabled", True)))
+    if has_winders:
         # Each turn is 90°. Winders per turn determines the angle per winder.
         winders_per_turn = p["turn1_winders"]  # use turn 1 as representative
         angle_per_winder = (math.pi / 2) / winders_per_turn

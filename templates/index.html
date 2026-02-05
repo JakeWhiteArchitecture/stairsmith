@@ -198,6 +198,31 @@
             display: block;
         }
 
+        .toggle-field {
+            margin-bottom: 8px;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .toggle-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+
+        .turn-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
         /* ─── DIMENSION ANNOTATIONS ─── */
         .dim-overlay {
             position: absolute;
@@ -288,34 +313,50 @@
         <!-- Winder Options -->
         <div class="section winder-options" id="winder-options">
             <h2>Turn 1</h2>
-            <div class="field-row">
-                <div class="field">
-                    <label>Direction</label>
-                    <select id="turn1_direction" onchange="updatePreview();">
-                        <option value="left" selected>Left</option>
-                        <option value="right">Right</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Winder Treads</label>
-                    <input type="number" id="turn1_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+            <div class="field toggle-field">
+                <label class="toggle-label">
+                    <input type="checkbox" id="turn1_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <span>Enable winder treads</span>
+                </label>
+            </div>
+            <div id="turn1-details">
+                <div class="field-row">
+                    <div class="field">
+                        <label>Direction</label>
+                        <select id="turn1_direction" onchange="updatePreview();">
+                            <option value="left" selected>Left</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Winder Treads</label>
+                        <input type="number" id="turn1_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="section turn2-options" id="turn2-options">
             <h2>Turn 2</h2>
-            <div class="field-row">
-                <div class="field">
-                    <label>Direction</label>
-                    <select id="turn2_direction" onchange="updatePreview();">
-                        <option value="left" selected>Left</option>
-                        <option value="right">Right</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label>Winder Treads</label>
-                    <input type="number" id="turn2_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+            <div class="field toggle-field">
+                <label class="toggle-label">
+                    <input type="checkbox" id="turn2_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <span>Enable winder treads</span>
+                </label>
+            </div>
+            <div id="turn2-details">
+                <div class="field-row">
+                    <div class="field">
+                        <label>Direction</label>
+                        <select id="turn2_direction" onchange="updatePreview();">
+                            <option value="left" selected>Left</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Winder Treads</label>
+                        <input type="number" id="turn2_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+                    </div>
                 </div>
             </div>
         </div>
@@ -433,8 +474,10 @@
                 staircase_type: document.getElementById('staircase_type').value,
                 turn1_direction: document.getElementById('turn1_direction').value,
                 turn1_winders: parseInt(document.getElementById('turn1_winders').value),
+                turn1_enabled: document.getElementById('turn1_enabled').checked,
                 turn2_direction: document.getElementById('turn2_direction').value,
                 turn2_winders: parseInt(document.getElementById('turn2_winders').value),
+                turn2_enabled: document.getElementById('turn2_enabled').checked,
             };
         }
 
@@ -467,6 +510,16 @@
 
             winderOpts.classList.toggle('visible', type !== 'straight');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
+
+            // Toggle detail visibility based on checkbox
+            updateToggleState();
+        }
+
+        function updateToggleState() {
+            const t1 = document.getElementById('turn1_enabled').checked;
+            const t2 = document.getElementById('turn2_enabled').checked;
+            document.getElementById('turn1-details').classList.toggle('turn-disabled', !t1);
+            document.getElementById('turn2-details').classList.toggle('turn-disabled', !t2);
         }
 
         // ─── 3D PREVIEW UPDATE ───
@@ -564,22 +617,34 @@
             const color = m.color;
 
             const shape = new THREE.Shape();
-            const turnDir = m.turnDirection || m.turn1Direction || 'left';
 
-            // Build 2D wedge shape in XZ plane (Three.js Y-up)
-            // Pivot at origin, fan outward
+            // Build 2D wedge shape — pivot at origin, arc outward.
+            // In Three.js Shape (XY plane), we draw in local coords relative to pivot.
+            // After extrusion, we rotate to horizontal and position.
+            //
+            // IFC coords: X right, Y forward, Z up.
+            // Three.js: X right, Y up, Z backward.
+            // Shape is drawn in a local 2D plane, then rotated.
+            //
+            // For the shape, we use (local_x, local_z) where:
+            //   local_x maps to IFC X offset from pivot
+            //   local_z maps to IFC Y offset from pivot (negated for Three.js Z)
+
             if (m.type === 'winder') {
-                // Start at pivot
+                const turnDir = m.turnDirection || 'left';
                 shape.moveTo(0, 0);
                 for (let i = 0; i <= segments; i++) {
                     const t = aStart + (aEnd - aStart) * i / segments;
                     let x, z;
                     if (turnDir === 'left') {
-                        x = -width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        // Left turn: outer arc at (width*cos(t), width*sin(t)) in IFC XY
+                        // In Three.js shape coords: x = IFC_dx, z = -IFC_dy
+                        x = width * Math.cos(t);
+                        z = -width * Math.sin(t);
                     } else {
-                        x = width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        // Right turn: outer arc at (-width*cos(t), width*sin(t))
+                        x = -width * Math.cos(t);
+                        z = -width * Math.sin(t);
                     }
                     shape.lineTo(x, z);
                 }
@@ -593,14 +658,19 @@
                     const t = aStart + (aEnd - aStart) * i / segments;
                     let x, z;
                     if (t1d === 'left' && t2d === 'left') {
-                        x = -width * Math.cos(t);
-                        z = width * Math.sin(t);
+                        // Coming from -X, turning to -Y
+                        // Arc: (-width*sin(t), width*cos(t)) relative to pivot
+                        x = -width * Math.sin(t);
+                        z = -width * Math.cos(t);
                     } else if (t1d === 'right' && t2d === 'right') {
-                        x = width * Math.cos(t);
-                        z = width * Math.sin(t);
+                        x = width * Math.sin(t);
+                        z = -width * Math.cos(t);
+                    } else if (t1d === 'left' && t2d === 'right') {
+                        x = width * Math.sin(t);
+                        z = -width * Math.cos(t);
                     } else {
-                        x = width * Math.cos(t);
-                        z = width * Math.sin(t);
+                        x = -width * Math.sin(t);
+                        z = -width * Math.cos(t);
                     }
                     shape.lineTo(x, z);
                 }
@@ -619,10 +689,7 @@
             });
             const mesh = new THREE.Mesh(geo, mat);
 
-            // Position: rotate extruded shape to be horizontal
-            // The shape is in XZ, extruded along Y. We need it extruded along Y (up).
-            // Actually ExtrudeGeometry extrudes along Z by default,
-            // so we rotate -90° around X to make it horizontal
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal.
             mesh.rotation.x = -Math.PI / 2;
             mesh.position.set(m.position[0], m.position[1], m.position[2]);
 
@@ -667,6 +734,7 @@
         // ─── INIT ───
         initThree();
         onTypeChange();
+        updateToggleState();
         updateDerived();
         updatePreview();
     </script>

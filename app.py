@@ -103,6 +103,8 @@ def _parse(params):
     p["turn1_winders"] = int(params.get("turn1_winders", 3))
     p["turn2_direction"] = params.get("turn2_direction", "left")
     p["turn2_winders"] = int(params.get("turn2_winders", 3))
+    p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
+    p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -164,8 +166,10 @@ def _preview_single_winder(p):
     num_treads = p["num_treads"]
     winders = p["turn1_winders"]
     turn_dir = p["turn1_direction"]
+    turn1_enabled = p.get("turn1_enabled", True)
 
-    straight_treads = num_treads - winders
+    actual_winders = winders if turn1_enabled else 0
+    straight_treads = num_treads - actual_winders
     flight1_treads = straight_treads // 2
     flight2_treads = straight_treads - flight1_treads
 
@@ -187,25 +191,17 @@ def _preview_single_winder(p):
                 width, riser_t, rise, "#e8dcc8"
             ))
 
-    # Winder treads (simplified as wedge approximations using custom geometry)
+    # Winder treads — pivot at the internal corner
     winder_start_riser = flight1_treads + 1
-    corner_y = flight1_treads * going + width
-    angle_per = (math.pi / 2) / winders
+    corner_y = flight1_treads * going  # pivot at end of flight 1
+    corner_x = 0 if turn_dir == "left" else width
+    angle_per = (math.pi / 2) / max(actual_winders, 1)
 
-    for i in range(winders):
+    for i in range(actual_winders):
         winder_z = (winder_start_riser + i) * rise
-        mid_angle = (i + 0.5) * angle_per
-
-        if turn_dir == "left":
-            cx = -width / 2 * math.sin(mid_angle)
-            cy = corner_y + width / 2 * math.cos(mid_angle) - width / 2
-        else:
-            cx = width + width / 2 * math.sin(mid_angle)
-            cy = corner_y + width / 2 * math.cos(mid_angle) - width / 2
-
         meshes.append({
             "type": "winder",
-            "position": [0 if turn_dir == "left" else width, winder_z, -corner_y],
+            "position": [corner_x, winder_z, -corner_y],
             "width": width,
             "thickness": tread_t,
             "angleStart": i * angle_per,
@@ -214,22 +210,18 @@ def _preview_single_winder(p):
             "turnDirection": turn_dir,
         })
 
-    # Flight 2 treads (perpendicular)
-    flight2_start_riser = winder_start_riser + winders
+    # Flight 2 treads (perpendicular) — Y range [corner_y, corner_y + width]
+    flight2_start_riser = winder_start_riser + actual_winders
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
             tread_x = -(i * going) - going / 2 + nosing / 2
-            meshes.append(_box_mesh(
-                tread_x, corner_y + width / 2, tread_z + tread_t / 2,
-                going + nosing, width, tread_t, "#c8a87c"
-            ))
         else:
             tread_x = width + i * going + going / 2 - nosing / 2
-            meshes.append(_box_mesh(
-                tread_x, corner_y + width / 2, tread_z + tread_t / 2,
-                going + nosing, width, tread_t, "#c8a87c"
-            ))
+        meshes.append(_box_mesh(
+            tread_x, corner_y + width / 2, tread_z + tread_t / 2,
+            going + nosing, width, tread_t, "#c8a87c"
+        ))
 
     return meshes
 
@@ -248,8 +240,12 @@ def _preview_double_winder(p):
     winders2 = p["turn2_winders"]
     turn1_dir = p["turn1_direction"]
     turn2_dir = p["turn2_direction"]
+    turn1_enabled = p.get("turn1_enabled", True)
+    turn2_enabled = p.get("turn2_enabled", True)
 
-    total_winders = winders1 + winders2
+    actual_winders1 = winders1 if turn1_enabled else 0
+    actual_winders2 = winders2 if turn2_enabled else 0
+    total_winders = actual_winders1 + actual_winders2
     straight_treads = num_treads - total_winders
     flight1_treads = straight_treads // 3
     flight2_treads = straight_treads // 3
@@ -276,15 +272,16 @@ def _preview_double_winder(p):
 
     riser_idx = flight1_treads + 1
 
-    # Turn 1 winders
-    corner1_y = flight1_treads * going + width
-    angle_per1 = (math.pi / 2) / winders1
+    # Turn 1 winders — pivot at internal corner
+    corner1_y = flight1_treads * going
+    corner1_x = 0 if turn1_dir == "left" else width
+    angle_per1 = (math.pi / 2) / max(actual_winders1, 1)
 
-    for i in range(winders1):
+    for i in range(actual_winders1):
         winder_z = (riser_idx + i) * rise
         meshes.append({
             "type": "winder",
-            "position": [0 if turn1_dir == "left" else width, winder_z, -corner1_y],
+            "position": [corner1_x, winder_z, -corner1_y],
             "width": width,
             "thickness": tread_t,
             "angleStart": i * angle_per1,
@@ -293,39 +290,33 @@ def _preview_double_winder(p):
             "turnDirection": turn1_dir,
         })
 
-    riser_idx += winders1
+    riser_idx += actual_winders1
 
-    # Flight 2 (perpendicular)
+    # Flight 2 (perpendicular) — Y range [corner1_y, corner1_y + width]
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
             tread_x = -(i * going) - going / 2 + nosing / 2
-            meshes.append(_box_mesh(
-                tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
-                going + nosing, width, tread_t, "#c8a87c"
-            ))
         else:
             tread_x = width + i * going + going / 2 - nosing / 2
-            meshes.append(_box_mesh(
-                tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
-                going + nosing, width, tread_t, "#c8a87c"
-            ))
+        meshes.append(_box_mesh(
+            tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
+            going + nosing, width, tread_t, "#c8a87c"
+        ))
 
     riser_idx += flight2_treads
 
-    # Turn 2 winders
+    # Turn 2 winders — pivot at end of flight 2
     if turn1_dir == "left":
         flight2_end_x = -(flight2_treads * going)
-        corner2_x = flight2_end_x
-        corner2_y = corner1_y + width
     else:
         flight2_end_x = width + flight2_treads * going
-        corner2_x = flight2_end_x
-        corner2_y = corner1_y + width
 
-    angle_per2 = (math.pi / 2) / winders2
+    corner2_x = flight2_end_x
+    corner2_y = corner1_y  # same Y as turn 1 inner wall
+    angle_per2 = (math.pi / 2) / max(actual_winders2, 1)
 
-    for i in range(winders2):
+    for i in range(actual_winders2):
         winder_z = (riser_idx + i) * rise
         meshes.append({
             "type": "winder_turn2",
@@ -339,35 +330,30 @@ def _preview_double_winder(p):
             "turn2Direction": turn2_dir,
         })
 
-    riser_idx += winders2
+    riser_idx += actual_winders2
 
     # Flight 3 (parallel to flight 1 but opposite direction)
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
-        flight3_start_y = corner2_y + width
+        flight3_start_y = corner2_y
     elif turn1_dir == "right" and turn2_dir == "right":
+        flight3_start_x = corner2_x
+        flight3_start_y = corner2_y
+    elif turn1_dir == "left" and turn2_dir == "right":
         flight3_start_x = corner2_x
         flight3_start_y = corner2_y + width
     else:
-        flight3_start_x = corner2_x
-        flight3_start_y = corner2_y
+        flight3_start_x = corner2_x - width
+        flight3_start_y = corner2_y + width
 
     for i in range(flight3_treads):
         tread_z = (riser_idx + i) * rise - tread_t
-        if turn1_dir == "left" and turn2_dir == "left":
-            tread_y = flight3_start_y - (i + 1) * going - nosing
-            tread_length = going + nosing
-            meshes.append(_box_mesh(
-                flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-                width, tread_length, tread_t, "#c8a87c"
-            ))
-        else:
-            tread_y = flight3_start_y - (i + 1) * going - nosing
-            tread_length = going + nosing
-            meshes.append(_box_mesh(
-                flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-                width, tread_length, tread_t, "#c8a87c"
-            ))
+        tread_y = flight3_start_y - (i + 1) * going - nosing
+        tread_length = going + nosing
+        meshes.append(_box_mesh(
+            flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c"
+        ))
 
     return meshes
 
