@@ -416,36 +416,78 @@ def generate_single_winder(ifc, context, p):
     return elements
 
 
+def _winder_kite_profile(corner_x, corner_y, width, angle_start, angle_end, turn_direction):
+    """Compute straight-edged winder kite profile for turn 1.
+
+    Instead of a curved arc, the outer edges are straight lines aligned with
+    the adjacent flight outer edges:
+      - Flight 1 outer edge: X = corner_x ± width (vertical line)
+      - Flight 2 outer edge: Y = corner_y + width (horizontal line)
+
+    Each radial from the pivot is clipped where it hits the nearer bounding line.
+    If the winder straddles 45°, a corner point is inserted.
+    """
+    quarter = math.pi / 4
+    eps = 1e-9
+    x_sign = 1.0 if turn_direction == "left" else -1.0
+
+    def _endpoint(angle):
+        if angle < eps:
+            return (corner_x + x_sign * width, corner_y)
+        if angle > math.pi / 2 - eps:
+            return (corner_x, corner_y + width)
+        if angle < quarter:
+            return (corner_x + x_sign * width, corner_y + width * math.tan(angle))
+        else:
+            return (corner_x + x_sign * width / math.tan(angle), corner_y + width)
+
+    profile = [(corner_x, corner_y)]
+    profile.append(_endpoint(angle_start))
+    if angle_start < quarter - eps and angle_end > quarter + eps:
+        profile.append((corner_x + x_sign * width, corner_y + width))
+    profile.append(_endpoint(angle_end))
+    return profile
+
+
+def _winder_kite_profile_turn2(corner_x, corner_y, width, angle_start, angle_end,
+                                turn1_direction, turn2_direction):
+    """Compute straight-edged winder kite profile for turn 2.
+
+    Turn 2 radial directions are rotated 90° from turn 1:
+      angle 0 → toward flight 2 outer edge (Y = corner_y + width)
+      angle π/2 → toward flight 3 outer edge (X = corner_x ± width)
+    """
+    quarter = math.pi / 4
+    eps = 1e-9
+    if (turn1_direction == "left" and turn2_direction == "left") or \
+       (turn1_direction == "right" and turn2_direction == "left"):
+        x_sign = -1.0
+    else:
+        x_sign = 1.0
+
+    def _endpoint(angle):
+        if angle < eps:
+            return (corner_x, corner_y + width)
+        if angle > math.pi / 2 - eps:
+            return (corner_x + x_sign * width, corner_y)
+        if angle < quarter:
+            return (corner_x + x_sign * width * math.tan(angle), corner_y + width)
+        else:
+            return (corner_x + x_sign * width, corner_y + width / math.tan(angle))
+
+    profile = [(corner_x, corner_y)]
+    profile.append(_endpoint(angle_start))
+    if angle_start < quarter - eps and angle_end > quarter + eps:
+        profile.append((corner_x + x_sign * width, corner_y + width))
+    profile.append(_endpoint(angle_end))
+    return profile
+
+
 def _create_winder_tread(ifc, context, name, width, tread_thickness, angle_start, angle_end,
                           rise, corner_x, corner_y, z_base, turn_direction):
-    """
-    Create a single winder tread as an IfcSlab.
-    Pivot at (corner_x, corner_y) — the internal corner of the stair.
-    Arc sweeps outward with radius = stair width.
-
-    For left turn: pivot at (0, corner_y)
-      angle 0 → outer at (width, corner_y) aligned with flight 1 outer wall
-      angle π/2 → outer at (0, corner_y + width) aligned with flight 2 extent
-
-    For right turn: pivot at (width, corner_y)
-      angle 0 → outer at (0, corner_y) aligned with flight 1 outer wall
-      angle π/2 → outer at (width, corner_y + width)
-    """
-    outer_radius = width
-    num_segments = 8
-    points_outer = []
-
-    for j in range(num_segments + 1):
-        t = angle_start + (angle_end - angle_start) * j / num_segments
-        if turn_direction == "left":
-            ox = corner_x + outer_radius * math.cos(t)
-            oy = corner_y + outer_radius * math.sin(t)
-        else:
-            ox = corner_x - outer_radius * math.cos(t)
-            oy = corner_y + outer_radius * math.sin(t)
-        points_outer.append((ox, oy))
-
-    profile_coords = points_outer + [(corner_x, corner_y)]
+    """Create a single winder tread as an IfcSlab with straight-edged kite profile."""
+    profile_coords = _winder_kite_profile(
+        corner_x, corner_y, width, angle_start, angle_end, turn_direction)
 
     solid = _create_extruded_solid(
         ifc, context, profile_coords, tread_thickness,
@@ -671,38 +713,9 @@ def generate_double_winder(ifc, context, p):
 
 def _create_winder_tread_turn2(ifc, context, name, width, tread_thickness, angle_start, angle_end,
                                 rise, corner_x, corner_y, z_base, turn1_direction, turn2_direction):
-    """
-    Create a winder tread for the second turn of a double-winder staircase.
-    Pivot at (corner_x, corner_y) — the internal corner where F2 meets the turn.
-
-    For left-left: pivot at (f2_end, corner1_y), arc sweeps from F2 outer wall
-    toward F3 outer wall.
-    """
-    outer_radius = width
-    num_segments = 8
-    points_outer = []
-
-    for j in range(num_segments + 1):
-        t = angle_start + (angle_end - angle_start) * j / num_segments
-        if turn1_direction == "left" and turn2_direction == "left":
-            # Coming from -X, turning to go -Y
-            # angle 0: outer toward +Y (F2 outer wall at corner_y + width)
-            # angle π/2: outer toward -X (F3 outer wall)
-            ox = corner_x - outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-        elif turn1_direction == "right" and turn2_direction == "right":
-            # Coming from +X, turning to go -Y
-            ox = corner_x + outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-        elif turn1_direction == "left" and turn2_direction == "right":
-            ox = corner_x + outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-        else:
-            ox = corner_x - outer_radius * math.sin(t)
-            oy = corner_y + outer_radius * math.cos(t)
-        points_outer.append((ox, oy))
-
-    profile_coords = points_outer + [(corner_x, corner_y)]
+    """Create a winder tread for the second turn with straight-edged kite profile."""
+    profile_coords = _winder_kite_profile_turn2(
+        corner_x, corner_y, width, angle_start, angle_end, turn1_direction, turn2_direction)
 
     solid = _create_extruded_solid(
         ifc, context, profile_coords, tread_thickness,
