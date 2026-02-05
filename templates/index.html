@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFC Staircase Generator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ─── LEFT PANEL ─── */
+        .panel {
+            width: 380px;
+            min-width: 380px;
+            background: #16213e;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid #0f3460;
+        }
+
+        .panel h1 {
+            font-size: 18px;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+
+        .panel .subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .section h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #e94560;
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 3px;
+        }
+
+        .field input, .field select {
+            width: 100%;
+            padding: 6px 10px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .field input:focus, .field select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .field .unit {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .field-row .field {
+            flex: 1;
+        }
+
+        .derived {
+            background: #1a1a2e;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .derived span {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        /* ─── COMPLIANCE PANEL ─── */
+        .checks {
+            margin-top: 10px;
+        }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 12px;
+            border-bottom: 1px solid #0f346033;
+        }
+
+        .check-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .check-dot.pass { background: #4caf50; }
+        .check-dot.warn { background: #ff9800; }
+        .check-dot.fail { background: #f44336; }
+        .check-dot.info { background: #2196f3; }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #d63851;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #1a4a80;
+        }
+
+        /* ─── 3D VIEWPORT ─── */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: #0a0a1a;
+        }
+
+        .viewport canvas {
+            display: block;
+        }
+
+        .viewport-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 11px;
+            color: #555;
+        }
+
+        .winder-options {
+            display: none;
+        }
+
+        .winder-options.visible {
+            display: block;
+        }
+
+        .turn2-options {
+            display: none;
+        }
+
+        .turn2-options.visible {
+            display: block;
+        }
+
+        /* ─── DIMENSION ANNOTATIONS ─── */
+        .dim-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.8;
+            border: 1px solid #0f3460;
+        }
+
+        .dim-overlay .dim-label {
+            color: #888;
+        }
+
+        .dim-overlay .dim-value {
+            color: #e94560;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h1>IFC Staircase Generator</h1>
+        <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
+
+        <!-- Staircase Type -->
+        <div class="section">
+            <h2>Staircase Type</h2>
+            <div class="field">
+                <select id="staircase_type" onchange="onTypeChange(); updatePreview();">
+                    <option value="straight">Straight Flight</option>
+                    <option value="single_winder">Single Winder (L-shape)</option>
+                    <option value="double_winder" selected>Double Winder (U-shape)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Global Parameters -->
+        <div class="section">
+            <h2>Dimensions</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Floor to Floor Height <span class="unit">mm</span></label>
+                    <input type="number" id="floor_to_floor" value="2600" min="2200" max="3200" step="10" oninput="updateDerived(); updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Number of Risers</label>
+                    <input type="number" id="num_risers" value="13" min="10" max="18" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Stair Width <span class="unit">mm</span></label>
+                    <input type="number" id="stair_width" value="810" min="600" max="1000" step="10" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Individual Going <span class="unit">mm</span></label>
+                    <input type="number" id="going" value="227" min="220" max="300" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Tread Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="tread_thickness" value="22" min="18" max="40" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Riser Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field">
+                <label>Nosing Overhang <span class="unit">mm</span></label>
+                <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+            </div>
+
+            <!-- Derived values -->
+            <div class="derived" id="derived-values">
+                <div><span class="dim-label">Individual Rise:</span> <span id="d-rise">200.0</span> mm</div>
+                <div><span class="dim-label">Pitch:</span> <span id="d-pitch">41.4</span>&deg;</div>
+                <div><span class="dim-label">2R + G:</span> <span id="d-2rg">627</span> mm</div>
+                <div><span class="dim-label">Total Going:</span> <span id="d-total-going">2724</span> mm</div>
+            </div>
+        </div>
+
+        <!-- Winder Options -->
+        <div class="section winder-options" id="winder-options">
+            <h2>Turn 1</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Direction</label>
+                    <select id="turn1_direction" onchange="updatePreview();">
+                        <option value="left" selected>Left</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Winder Treads</label>
+                    <input type="number" id="turn1_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+        </div>
+
+        <div class="section turn2-options" id="turn2-options">
+            <h2>Turn 2</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Direction</label>
+                    <select id="turn2_direction" onchange="updatePreview();">
+                        <option value="left" selected>Left</option>
+                        <option value="right">Right</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Winder Treads</label>
+                    <input type="number" id="turn2_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+        </div>
+
+        <!-- Building Regs -->
+        <div class="section">
+            <h2>Building Regs (Doc K)</h2>
+            <div class="checks" id="checks-container">
+                <div class="check-item"><div class="check-dot info"></div> Enter parameters to check compliance</div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="section">
+            <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
+        </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+        <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag</div>
+        <div class="dim-overlay" id="dim-overlay">
+            <div><span class="dim-label">Rise:</span> <span class="dim-value" id="dim-rise">200.0 mm</span></div>
+            <div><span class="dim-label">Going:</span> <span class="dim-value" id="dim-going">227 mm</span></div>
+            <div><span class="dim-label">Total Height:</span> <span class="dim-value" id="dim-height">2600 mm</span></div>
+            <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ─── THREE.JS SETUP ───
+        let scene, camera, renderer, controls;
+        let staircaseGroup = null;
+        let updateTimeout = null;
+
+        function initThree() {
+            const container = document.getElementById('viewport');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+
+            camera = new THREE.PerspectiveCamera(45, w / h, 1, 50000);
+            camera.position.set(2000, 2000, 2000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(400, 1000, -500);
+            controls.update();
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambient);
+
+            const dir1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir1.position.set(2000, 3000, 1000);
+            scene.add(dir1);
+
+            const dir2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+            dir2.position.set(-1000, 1000, -2000);
+            scene.add(dir2);
+
+            // Ground grid
+            const grid = new THREE.GridHelper(5000, 50, 0x222244, 0x111133);
+            scene.add(grid);
+
+            // Axes helper
+            const axes = new THREE.AxesHelper(500);
+            scene.add(axes);
+
+            window.addEventListener('resize', () => {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function resetCamera() {
+            camera.position.set(2000, 2000, 2000);
+            controls.target.set(400, 1000, -500);
+            controls.update();
+        }
+
+        // ─── PARAMETER GATHERING ───
+        function getParams() {
+            return {
+                floor_to_floor: parseFloat(document.getElementById('floor_to_floor').value),
+                stair_width: parseFloat(document.getElementById('stair_width').value),
+                num_risers: parseInt(document.getElementById('num_risers').value),
+                going: parseFloat(document.getElementById('going').value),
+                tread_thickness: parseFloat(document.getElementById('tread_thickness').value),
+                riser_thickness: parseFloat(document.getElementById('riser_thickness').value),
+                nosing: parseFloat(document.getElementById('nosing').value),
+                staircase_type: document.getElementById('staircase_type').value,
+                turn1_direction: document.getElementById('turn1_direction').value,
+                turn1_winders: parseInt(document.getElementById('turn1_winders').value),
+                turn2_direction: document.getElementById('turn2_direction').value,
+                turn2_winders: parseInt(document.getElementById('turn2_winders').value),
+            };
+        }
+
+        function updateDerived() {
+            const ftf = parseFloat(document.getElementById('floor_to_floor').value);
+            const risers = parseInt(document.getElementById('num_risers').value);
+            const going = parseFloat(document.getElementById('going').value);
+            const rise = ftf / risers;
+            const pitch = Math.atan2(rise, going) * 180 / Math.PI;
+            const twoRG = 2 * rise + going;
+            const treads = risers - 1;
+            const totalGoing = treads * going;
+
+            document.getElementById('d-rise').textContent = rise.toFixed(1);
+            document.getElementById('d-pitch').textContent = pitch.toFixed(1);
+            document.getElementById('d-2rg').textContent = twoRG.toFixed(0);
+            document.getElementById('d-total-going').textContent = totalGoing.toFixed(0);
+
+            // Dimension overlay
+            document.getElementById('dim-rise').textContent = rise.toFixed(1) + ' mm';
+            document.getElementById('dim-going').textContent = going + ' mm';
+            document.getElementById('dim-height').textContent = ftf + ' mm';
+            document.getElementById('dim-width').textContent = document.getElementById('stair_width').value + ' mm';
+        }
+
+        function onTypeChange() {
+            const type = document.getElementById('staircase_type').value;
+            const winderOpts = document.getElementById('winder-options');
+            const turn2Opts = document.getElementById('turn2-options');
+
+            winderOpts.classList.toggle('visible', type !== 'straight');
+            turn2Opts.classList.toggle('visible', type === 'double_winder');
+        }
+
+        // ─── 3D PREVIEW UPDATE ───
+        function updatePreview() {
+            // Debounce
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(_doUpdate, 150);
+        }
+
+        function _doUpdate() {
+            const params = getParams();
+
+            // Update building regs
+            fetch('/api/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) renderChecks(data.checks);
+            })
+            .catch(() => {});
+
+            // Update 3D preview
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) renderGeometry(data.geometry);
+            })
+            .catch(() => {});
+
+            updateDerived();
+        }
+
+        function renderChecks(checks) {
+            const container = document.getElementById('checks-container');
+            container.innerHTML = '';
+            checks.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'check-item';
+                div.innerHTML = `<div class="check-dot ${c.status}"></div><span>${c.message}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function renderGeometry(meshes) {
+            // Remove old geometry
+            if (staircaseGroup) {
+                scene.remove(staircaseGroup);
+                staircaseGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+
+            staircaseGroup = new THREE.Group();
+
+            meshes.forEach(m => {
+                if (m.type === 'box') {
+                    const geo = new THREE.BoxGeometry(m.size[0], m.size[1], m.size[2]);
+                    const mat = new THREE.MeshPhongMaterial({
+                        color: new THREE.Color(m.color),
+                        flatShading: true,
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(m.position[0], m.position[1], m.position[2]);
+                    staircaseGroup.add(mesh);
+
+                    // Wireframe edge
+                    const edges = new THREE.EdgesGeometry(geo);
+                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+                    line.position.copy(mesh.position);
+                    staircaseGroup.add(line);
+
+                } else if (m.type === 'winder' || m.type === 'winder_turn2') {
+                    const winderMesh = createWinderMesh(m);
+                    if (winderMesh) staircaseGroup.add(winderMesh);
+                }
+            });
+
+            scene.add(staircaseGroup);
+        }
+
+        function createWinderMesh(m) {
+            const width = m.width;
+            const thickness = m.thickness;
+            const aStart = m.angleStart;
+            const aEnd = m.angleEnd;
+            const segments = 12;
+            const color = m.color;
+
+            const shape = new THREE.Shape();
+            const turnDir = m.turnDirection || m.turn1Direction || 'left';
+
+            // Build 2D wedge shape in XZ plane (Three.js Y-up)
+            // Pivot at origin, fan outward
+            if (m.type === 'winder') {
+                // Start at pivot
+                shape.moveTo(0, 0);
+                for (let i = 0; i <= segments; i++) {
+                    const t = aStart + (aEnd - aStart) * i / segments;
+                    let x, z;
+                    if (turnDir === 'left') {
+                        x = -width * Math.sin(t);
+                        z = -width * Math.cos(t);
+                    } else {
+                        x = width * Math.sin(t);
+                        z = -width * Math.cos(t);
+                    }
+                    shape.lineTo(x, z);
+                }
+                shape.lineTo(0, 0);
+            } else {
+                // Turn 2 winder
+                const t1d = m.turn1Direction || 'left';
+                const t2d = m.turn2Direction || 'left';
+                shape.moveTo(0, 0);
+                for (let i = 0; i <= segments; i++) {
+                    const t = aStart + (aEnd - aStart) * i / segments;
+                    let x, z;
+                    if (t1d === 'left' && t2d === 'left') {
+                        x = -width * Math.cos(t);
+                        z = width * Math.sin(t);
+                    } else if (t1d === 'right' && t2d === 'right') {
+                        x = width * Math.cos(t);
+                        z = width * Math.sin(t);
+                    } else {
+                        x = width * Math.cos(t);
+                        z = width * Math.sin(t);
+                    }
+                    shape.lineTo(x, z);
+                }
+                shape.lineTo(0, 0);
+            }
+
+            const extrudeSettings = {
+                depth: thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // Position: rotate extruded shape to be horizontal
+            // The shape is in XZ, extruded along Y. We need it extruded along Y (up).
+            // Actually ExtrudeGeometry extrudes along Z by default,
+            // so we rotate -90° around X to make it horizontal
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(m.position[0], m.position[1], m.position[2]);
+
+            return mesh;
+        }
+
+        // ─── IFC DOWNLOAD ───
+        function downloadIFC() {
+            const params = getParams();
+            const btn = document.querySelector('.btn-primary');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+
+            fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Generation failed');
+                return response.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'staircase.ifc';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => {
+                alert('Error generating IFC: ' + err.message);
+            })
+            .finally(() => {
+                btn.textContent = 'Download IFC File';
+                btn.disabled = false;
+            });
+        }
+
+        // ─── INIT ───
+        initThree();
+        onTypeChange();
+        updateDerived();
+        updatePreview();
+    </script>
+</body>
+</html>
