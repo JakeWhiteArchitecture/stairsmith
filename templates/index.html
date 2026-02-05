@@ -626,27 +626,25 @@
             // Three.js: X right, Y up, Z backward.
             // Shape is drawn in a local 2D plane, then rotated.
             //
-            // For the shape, we use (local_x, local_z) where:
+            // For the shape, we use (local_x, local_y) where:
             //   local_x maps to IFC X offset from pivot
-            //   local_z maps to IFC Y offset from pivot (negated for Three.js Z)
+            //   local_y maps to IFC Y offset from pivot
+            // After rotation -90° around X: Shape Y → World -Z = IFC +Y
 
             if (m.type === 'winder') {
                 const turnDir = m.turnDirection || 'left';
                 shape.moveTo(0, 0);
                 for (let i = 0; i <= segments; i++) {
                     const t = aStart + (aEnd - aStart) * i / segments;
-                    let x, z;
+                    let x, y;
                     if (turnDir === 'left') {
-                        // Left turn: outer arc at (width*cos(t), width*sin(t)) in IFC XY
-                        // In Three.js shape coords: x = IFC_dx, z = -IFC_dy
                         x = width * Math.cos(t);
-                        z = -width * Math.sin(t);
+                        y = width * Math.sin(t);
                     } else {
-                        // Right turn: outer arc at (-width*cos(t), width*sin(t))
                         x = -width * Math.cos(t);
-                        z = -width * Math.sin(t);
+                        y = width * Math.sin(t);
                     }
-                    shape.lineTo(x, z);
+                    shape.lineTo(x, y);
                 }
                 shape.lineTo(0, 0);
             } else {
@@ -656,23 +654,21 @@
                 shape.moveTo(0, 0);
                 for (let i = 0; i <= segments; i++) {
                     const t = aStart + (aEnd - aStart) * i / segments;
-                    let x, z;
+                    let x, y;
                     if (t1d === 'left' && t2d === 'left') {
-                        // Coming from -X, turning to -Y
-                        // Arc: (-width*sin(t), width*cos(t)) relative to pivot
                         x = -width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        y = width * Math.cos(t);
                     } else if (t1d === 'right' && t2d === 'right') {
                         x = width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        y = width * Math.cos(t);
                     } else if (t1d === 'left' && t2d === 'right') {
                         x = width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        y = width * Math.cos(t);
                     } else {
                         x = -width * Math.sin(t);
-                        z = -width * Math.cos(t);
+                        y = width * Math.cos(t);
                     }
-                    shape.lineTo(x, z);
+                    shape.lineTo(x, y);
                 }
                 shape.lineTo(0, 0);
             }
