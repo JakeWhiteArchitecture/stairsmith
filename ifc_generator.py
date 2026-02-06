@@ -900,9 +900,20 @@ def check_building_regs(params):
         width_msg += " — Below minimum 600mm for private dwellings"
     checks.append({"name": "Stair Width", "status": width_status, "message": width_msg, "value": round(width, 0)})
 
-    # Winder going at narrow end: min 50mm
+    # Newel post size: min 75mm to meet 50mm + 25mm bearing requirement
     has_winders = (p["staircase_type"] in ("single_winder", "double_winder")
                    and (p.get("turn1_enabled", True) or p.get("turn2_enabled", True)))
+    if has_winders:
+        newel = p["newel_size"]
+        newel_status = "pass"
+        newel_msg = f"Newel post size: {newel:.0f}mm"
+        if newel < 75:
+            newel_status = "warn"
+            newel_msg += " — Below 75mm minimum (50mm bearing + 25mm corner wrap)"
+        checks.append({"name": "Newel Post Size", "status": newel_status, "message": newel_msg,
+                       "value": round(newel, 0)})
+
+    # Winder going at narrow end: min 50mm
     if has_winders:
         # Each turn is 90°. Winders per turn determines the angle per winder.
         winders_per_turn = p["turn1_winders"]  # use turn 1 as representative
