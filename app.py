@@ -105,6 +105,7 @@ def _parse(params):
     p["turn2_winders"] = int(params.get("turn2_winders", 3))
     p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
     p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
+    p["newel_size"] = float(params.get("newel_size", 80))
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -197,10 +198,11 @@ def _preview_single_winder(p):
     winder_start_riser = flight1_treads + 1
     corner_y = flight1_treads * going  # pivot at end of flight 1
     corner_x = 0 if turn_dir == "left" else width
+    half_post = p["newel_size"] / 2.0
     angle_per = (math.pi / 2) / max(actual_winders, 1)
 
     for i in range(actual_winders):
-        winder_z = (winder_start_riser + i) * rise
+        winder_z = (winder_start_riser + i) * rise - tread_t
         meshes.append({
             "type": "winder",
             "position": [corner_x, winder_z, -corner_y],
@@ -210,7 +212,15 @@ def _preview_single_winder(p):
             "angleEnd": (i + 1) * angle_per,
             "color": "#d4a574",
             "turnDirection": turn_dir,
+            "halfPost": half_post,
         })
+
+    # Newel post
+    ns = p["newel_size"]
+    meshes.append(_box_mesh(
+        corner_x, corner_y, p["floor_to_floor"] / 2,
+        ns, ns, p["floor_to_floor"], "#8B7355"
+    ))
 
     # Flight 2 treads (perpendicular) — Y range [corner_y, corner_y + width]
     flight2_start_riser = winder_start_riser + actual_winders
@@ -278,10 +288,11 @@ def _preview_double_winder(p):
     # Turn 1 winders — pivot at internal corner
     corner1_y = flight1_treads * going
     corner1_x = 0 if turn1_dir == "left" else width
+    half_post = p["newel_size"] / 2.0
     angle_per1 = (math.pi / 2) / max(actual_winders1, 1)
 
     for i in range(actual_winders1):
-        winder_z = (riser_idx + i) * rise
+        winder_z = (riser_idx + i) * rise - tread_t
         meshes.append({
             "type": "winder",
             "position": [corner1_x, winder_z, -corner1_y],
@@ -291,7 +302,15 @@ def _preview_double_winder(p):
             "angleEnd": (i + 1) * angle_per1,
             "color": "#d4a574",
             "turnDirection": turn1_dir,
+            "halfPost": half_post,
         })
+
+    # Newel post at turn 1
+    ns = p["newel_size"]
+    meshes.append(_box_mesh(
+        corner1_x, corner1_y, p["floor_to_floor"] / 2,
+        ns, ns, p["floor_to_floor"], "#8B7355"
+    ))
 
     riser_idx += actual_winders1
 
@@ -320,7 +339,7 @@ def _preview_double_winder(p):
     angle_per2 = (math.pi / 2) / max(actual_winders2, 1)
 
     for i in range(actual_winders2):
-        winder_z = (riser_idx + i) * rise
+        winder_z = (riser_idx + i) * rise - tread_t
         meshes.append({
             "type": "winder_turn2",
             "position": [corner2_x, winder_z, -corner2_y],
@@ -331,7 +350,14 @@ def _preview_double_winder(p):
             "color": "#d4a574",
             "turn1Direction": turn1_dir,
             "turn2Direction": turn2_dir,
+            "halfPost": half_post,
         })
+
+    # Newel post at turn 2
+    meshes.append(_box_mesh(
+        corner2_x, corner2_y, p["floor_to_floor"] / 2,
+        ns, ns, p["floor_to_floor"], "#8B7355"
+    ))
 
     riser_idx += actual_winders2
 

@@ -296,9 +296,15 @@
                     <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" oninput="updatePreview();">
                 </div>
             </div>
-            <div class="field">
-                <label>Nosing Overhang <span class="unit">mm</span></label>
-                <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+            <div class="field-row">
+                <div class="field">
+                    <label>Nosing Overhang <span class="unit">mm</span></label>
+                    <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Newel Post Size <span class="unit">mm</span></label>
+                    <input type="number" id="newel_size" value="80" min="0" max="120" step="5" oninput="updatePreview();">
+                </div>
             </div>
 
             <!-- Derived values -->
@@ -478,6 +484,7 @@
                 turn2_direction: document.getElementById('turn2_direction').value,
                 turn2_winders: parseInt(document.getElementById('turn2_winders').value),
                 turn2_enabled: document.getElementById('turn2_enabled').checked,
+                newel_size: parseFloat(document.getElementById('newel_size').value),
             };
         }
 
@@ -614,23 +621,21 @@
             const aStart = m.angleStart;
             const aEnd = m.angleEnd;
             const color = m.color;
+            const hp = m.halfPost || 0;
             const quarter = Math.PI / 4;
             const eps = 1e-9;
 
             const shape = new THREE.Shape();
 
-            // Build straight-edged kite shape — pivot at origin.
-            // Outer edges are straight lines aligned with adjacent flight outer edges
-            // instead of curved arcs.
-            //
             // Shape coords (local_x, local_y) map to IFC (X, Y) offsets from pivot.
-            // After rotation -90° around X: Shape Y → World -Z = IFC +Y.
+            // If halfPost > 0, inner tip wraps around the newel post.
 
             if (m.type === 'winder') {
                 const turnDir = m.turnDirection || 'left';
                 const xSign = turnDir === 'left' ? 1 : -1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
 
-                function endpoint1(angle) {
+                function outer1(angle) {
                     if (angle < eps) return [xSign * width, 0];
                     if (angle > Math.PI / 2 - eps) return [0, width];
                     if (angle < quarter)
@@ -638,24 +643,40 @@
                     return [xSign * width / Math.tan(angle), width];
                 }
 
-                const startPt = endpoint1(aStart);
-                const endPt = endpoint1(aEnd);
-
-                shape.moveTo(0, 0);
-                shape.lineTo(startPt[0], startPt[1]);
-                if (aStart < quarter - eps && aEnd > quarter + eps) {
-                    shape.lineTo(xSign * width, width);
+                if (hp <= 0) {
+                    const s = outer1(aStart), e = outer1(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner1(angle) {
+                        if (angle < eps) return [xSign * hp, 0];
+                        if (angle > Math.PI / 2 - eps) return [0, hp];
+                        if (angle < quarter)
+                            return [xSign * hp, hp * Math.tan(angle)];
+                        return [xSign * hp / Math.tan(angle), hp];
+                    }
+                    const iS = inner1(aStart), oS = outer1(aStart);
+                    const oE = outer1(aEnd), iE = inner1(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
                 }
-                shape.lineTo(endPt[0], endPt[1]);
-                shape.lineTo(0, 0);
             } else {
                 // Turn 2 winder
                 const t1d = m.turn1Direction || 'left';
                 const t2d = m.turn2Direction || 'left';
                 const xSign = ((t1d === 'left' && t2d === 'left') ||
                                (t1d === 'right' && t2d === 'left')) ? -1 : 1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
 
-                function endpoint2(angle) {
+                function outer2(angle) {
                     if (angle < eps) return [0, width];
                     if (angle > Math.PI / 2 - eps) return [xSign * width, 0];
                     if (angle < quarter)
@@ -663,16 +684,31 @@
                     return [xSign * width, width / Math.tan(angle)];
                 }
 
-                const startPt = endpoint2(aStart);
-                const endPt = endpoint2(aEnd);
-
-                shape.moveTo(0, 0);
-                shape.lineTo(startPt[0], startPt[1]);
-                if (aStart < quarter - eps && aEnd > quarter + eps) {
-                    shape.lineTo(xSign * width, width);
+                if (hp <= 0) {
+                    const s = outer2(aStart), e = outer2(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner2(angle) {
+                        if (angle < eps) return [0, hp];
+                        if (angle > Math.PI / 2 - eps) return [xSign * hp, 0];
+                        if (angle < quarter)
+                            return [xSign * hp * Math.tan(angle), hp];
+                        return [xSign * hp, hp / Math.tan(angle)];
+                    }
+                    const iS = inner2(aStart), oS = outer2(aStart);
+                    const oE = outer2(aEnd), iE = inner2(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
                 }
-                shape.lineTo(endPt[0], endPt[1]);
-                shape.lineTo(0, 0);
             }
 
             const extrudeSettings = {

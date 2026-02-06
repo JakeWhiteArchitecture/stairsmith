@@ -103,6 +103,7 @@ def parse_params(params):
     p["turn2_winders"] = int(params.get("turn2_winders", 3))
     p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
     p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
+    p["newel_size"] = float(params.get("newel_size", 80))
 
     # Derived
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
@@ -357,11 +358,12 @@ def generate_single_winder(ifc, context, p):
     # Pivot at the internal corner of the stair (where inner strings meet)
     corner_y = flight1_treads * going  # end of flight 1
     corner_x = 0.0 if turn_dir == "left" else width
+    half_post = p["newel_size"] / 2.0
 
     angle_per_winder = (math.pi / 2) / max(winders, 1)
 
     for i in range(winders):
-        winder_z = (winder_start_riser + i) * rise
+        winder_z = (winder_start_riser + i) * rise - tread_t
         winder_elements = _create_winder_tread(
             ifc, context, f"Winder {i+1}",
             width=width,
@@ -373,8 +375,15 @@ def generate_single_winder(ifc, context, p):
             corner_y=corner_y,
             z_base=winder_z,
             turn_direction=turn_dir,
+            half_post=half_post,
         )
         elements.append(winder_elements)
+
+    # Newel post at the corner
+    newel = _create_newel_post(ifc, context, "Newel Post",
+                                corner_x, corner_y, p["newel_size"], p["floor_to_floor"])
+    if newel:
+        elements.append(newel)
 
     # Flight 2: after the turn
     flight2_start_riser = winder_start_riser + winders
@@ -416,22 +425,17 @@ def generate_single_winder(ifc, context, p):
     return elements
 
 
-def _winder_kite_profile(corner_x, corner_y, width, angle_start, angle_end, turn_direction):
+def _winder_kite_profile(corner_x, corner_y, width, angle_start, angle_end, turn_direction, half_post=0.0):
     """Compute straight-edged winder kite profile for turn 1.
 
-    Instead of a curved arc, the outer edges are straight lines aligned with
-    the adjacent flight outer edges:
-      - Flight 1 outer edge: X = corner_x ± width (vertical line)
-      - Flight 2 outer edge: Y = corner_y + width (horizontal line)
-
-    Each radial from the pivot is clipped where it hits the nearer bounding line.
-    If the winder straddles 45°, a corner point is inserted.
+    Outer edges align with adjacent flight outer edges. If half_post > 0,
+    the inner tip wraps around the newel post instead of meeting at a point.
     """
     quarter = math.pi / 4
     eps = 1e-9
     x_sign = 1.0 if turn_direction == "left" else -1.0
 
-    def _endpoint(angle):
+    def _outer(angle):
         if angle < eps:
             return (corner_x + x_sign * width, corner_y)
         if angle > math.pi / 2 - eps:
@@ -441,21 +445,46 @@ def _winder_kite_profile(corner_x, corner_y, width, angle_start, angle_end, turn
         else:
             return (corner_x + x_sign * width / math.tan(angle), corner_y + width)
 
-    profile = [(corner_x, corner_y)]
-    profile.append(_endpoint(angle_start))
-    if angle_start < quarter - eps and angle_end > quarter + eps:
+    straddles = angle_start < quarter - eps and angle_end > quarter + eps
+
+    if half_post <= 0:
+        profile = [(corner_x, corner_y)]
+        profile.append(_outer(angle_start))
+        if straddles:
+            profile.append((corner_x + x_sign * width, corner_y + width))
+        profile.append(_outer(angle_end))
+        return profile
+
+    hp = half_post
+
+    def _inner(angle):
+        if angle < eps:
+            return (corner_x + x_sign * hp, corner_y)
+        if angle > math.pi / 2 - eps:
+            return (corner_x, corner_y + hp)
+        if angle < quarter:
+            return (corner_x + x_sign * hp, corner_y + hp * math.tan(angle))
+        else:
+            return (corner_x + x_sign * hp / math.tan(angle), corner_y + hp)
+
+    profile = []
+    profile.append(_inner(angle_start))
+    profile.append(_outer(angle_start))
+    if straddles:
         profile.append((corner_x + x_sign * width, corner_y + width))
-    profile.append(_endpoint(angle_end))
+    profile.append(_outer(angle_end))
+    profile.append(_inner(angle_end))
+    if straddles:
+        profile.append((corner_x + x_sign * hp, corner_y + hp))
     return profile
 
 
 def _winder_kite_profile_turn2(corner_x, corner_y, width, angle_start, angle_end,
-                                turn1_direction, turn2_direction):
+                                turn1_direction, turn2_direction, half_post=0.0):
     """Compute straight-edged winder kite profile for turn 2.
 
-    Turn 2 radial directions are rotated 90° from turn 1:
-      angle 0 → toward flight 2 outer edge (Y = corner_y + width)
-      angle π/2 → toward flight 3 outer edge (X = corner_x ± width)
+    Turn 2 radial directions are rotated 90° from turn 1. If half_post > 0,
+    the inner tip wraps around the newel post.
     """
     quarter = math.pi / 4
     eps = 1e-9
@@ -465,7 +494,7 @@ def _winder_kite_profile_turn2(corner_x, corner_y, width, angle_start, angle_end
     else:
         x_sign = 1.0
 
-    def _endpoint(angle):
+    def _outer(angle):
         if angle < eps:
             return (corner_x, corner_y + width)
         if angle > math.pi / 2 - eps:
@@ -475,19 +504,45 @@ def _winder_kite_profile_turn2(corner_x, corner_y, width, angle_start, angle_end
         else:
             return (corner_x + x_sign * width, corner_y + width / math.tan(angle))
 
-    profile = [(corner_x, corner_y)]
-    profile.append(_endpoint(angle_start))
-    if angle_start < quarter - eps and angle_end > quarter + eps:
+    straddles = angle_start < quarter - eps and angle_end > quarter + eps
+
+    if half_post <= 0:
+        profile = [(corner_x, corner_y)]
+        profile.append(_outer(angle_start))
+        if straddles:
+            profile.append((corner_x + x_sign * width, corner_y + width))
+        profile.append(_outer(angle_end))
+        return profile
+
+    hp = half_post
+
+    def _inner(angle):
+        if angle < eps:
+            return (corner_x, corner_y + hp)
+        if angle > math.pi / 2 - eps:
+            return (corner_x + x_sign * hp, corner_y)
+        if angle < quarter:
+            return (corner_x + x_sign * hp * math.tan(angle), corner_y + hp)
+        else:
+            return (corner_x + x_sign * hp, corner_y + hp / math.tan(angle))
+
+    profile = []
+    profile.append(_inner(angle_start))
+    profile.append(_outer(angle_start))
+    if straddles:
         profile.append((corner_x + x_sign * width, corner_y + width))
-    profile.append(_endpoint(angle_end))
+    profile.append(_outer(angle_end))
+    profile.append(_inner(angle_end))
+    if straddles:
+        profile.append((corner_x + x_sign * hp, corner_y + hp))
     return profile
 
 
 def _create_winder_tread(ifc, context, name, width, tread_thickness, angle_start, angle_end,
-                          rise, corner_x, corner_y, z_base, turn_direction):
+                          rise, corner_x, corner_y, z_base, turn_direction, half_post=0.0):
     """Create a single winder tread as an IfcSlab with straight-edged kite profile."""
     profile_coords = _winder_kite_profile(
-        corner_x, corner_y, width, angle_start, angle_end, turn_direction)
+        corner_x, corner_y, width, angle_start, angle_end, turn_direction, half_post)
 
     solid = _create_extruded_solid(
         ifc, context, profile_coords, tread_thickness,
@@ -574,11 +629,12 @@ def generate_double_winder(ifc, context, p):
     # Pivot at the internal corner (end of flight 1)
     corner1_y = flight1_treads * going
     corner1_x = 0.0 if turn1_dir == "left" else width
+    half_post = p["newel_size"] / 2.0
 
     if actual_winders1 > 0:
         angle_per = (math.pi / 2) / actual_winders1
         for i in range(actual_winders1):
-            winder_z = (riser_idx + i) * rise
+            winder_z = (riser_idx + i) * rise - tread_t
             winder = _create_winder_tread(
                 ifc, context, f"Turn1 Winder {i+1}",
                 width=width,
@@ -590,8 +646,15 @@ def generate_double_winder(ifc, context, p):
                 corner_y=corner1_y,
                 z_base=winder_z,
                 turn_direction=turn1_dir,
+                half_post=half_post,
             )
             elements.append(winder)
+
+    # Newel post at turn 1 corner
+    newel1 = _create_newel_post(ifc, context, "Newel Post 1",
+                                 corner1_x, corner1_y, p["newel_size"], p["floor_to_floor"])
+    if newel1:
+        elements.append(newel1)
 
     riser_idx += actual_winders1
 
@@ -645,7 +708,7 @@ def generate_double_winder(ifc, context, p):
     if actual_winders2 > 0:
         angle_per2 = (math.pi / 2) / actual_winders2
         for i in range(actual_winders2):
-            winder_z = (riser_idx + i) * rise
+            winder_z = (riser_idx + i) * rise - tread_t
             winder = _create_winder_tread_turn2(
                 ifc, context, f"Turn2 Winder {i+1}",
                 width=width,
@@ -658,8 +721,15 @@ def generate_double_winder(ifc, context, p):
                 z_base=winder_z,
                 turn1_direction=turn1_dir,
                 turn2_direction=turn2_dir,
+                half_post=half_post,
             )
             elements.append(winder)
+
+    # Newel post at turn 2 corner
+    newel2 = _create_newel_post(ifc, context, "Newel Post 2",
+                                 corner2_x, corner2_y, p["newel_size"], p["floor_to_floor"])
+    if newel2:
+        elements.append(newel2)
 
     riser_idx += actual_winders2
 
@@ -712,10 +782,11 @@ def generate_double_winder(ifc, context, p):
 
 
 def _create_winder_tread_turn2(ifc, context, name, width, tread_thickness, angle_start, angle_end,
-                                rise, corner_x, corner_y, z_base, turn1_direction, turn2_direction):
+                                rise, corner_x, corner_y, z_base, turn1_direction, turn2_direction,
+                                half_post=0.0):
     """Create a winder tread for the second turn with straight-edged kite profile."""
     profile_coords = _winder_kite_profile_turn2(
-        corner_x, corner_y, width, angle_start, angle_end, turn1_direction, turn2_direction)
+        corner_x, corner_y, width, angle_start, angle_end, turn1_direction, turn2_direction, half_post)
 
     solid = _create_extruded_solid(
         ifc, context, profile_coords, tread_thickness,
@@ -732,6 +803,33 @@ def _create_winder_tread_turn2(ifc, context, name, width, tread_thickness, angle
     local_placement = ifc.createIfcLocalPlacement(None, placement)
     element.ObjectPlacement = local_placement
 
+    return element
+
+
+# ────────────────────────────────────────────────────────────
+# NEWEL POST
+# ────────────────────────────────────────────────────────────
+
+def _create_newel_post(ifc, context, name, center_x, center_y, newel_size, height):
+    """Create a newel post as an IfcColumn, centered at (center_x, center_y)."""
+    if newel_size <= 0:
+        return None
+    hs = newel_size / 2.0
+    profile = [
+        (center_x - hs, center_y - hs),
+        (center_x + hs, center_y - hs),
+        (center_x + hs, center_y + hs),
+        (center_x - hs, center_y + hs),
+    ]
+    solid = _create_extruded_solid(ifc, context, profile, height, (0.0, 0.0, 0.0))
+    element = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcColumn", name=name)
+    rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
+    prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+    element.Representation = prod_rep
+    origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+    placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+    local_placement = ifc.createIfcLocalPlacement(None, placement)
+    element.ObjectPlacement = local_placement
     return element
 
 
@@ -811,8 +909,7 @@ def check_building_regs(params):
         angle_per_winder = (math.pi / 2) / winders_per_turn
 
         # Narrow end going: at the inner string (near the newel post).
-        # With a typical 90mm newel post, inner radius ~ 45mm
-        newel_radius = 45  # mm (half of typical 90mm newel post)
+        newel_radius = p["newel_size"] / 2.0  # half of newel post
         narrow_going = newel_radius * angle_per_winder
         narrow_status = "pass"
         narrow_msg = f"Winder narrow end going: ~{narrow_going:.0f}mm (at {newel_radius}mm inner radius)"
