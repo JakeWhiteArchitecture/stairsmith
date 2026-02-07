@@ -244,6 +244,70 @@
             color: #e94560;
             font-weight: 600;
         }
+
+        /* ─── MEASURE TOOL ─── */
+        .btn-measure {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-measure.active {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-measure.active:hover {
+            background: #d63851;
+        }
+
+        .measure-overlay {
+            display: none;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(22, 33, 62, 0.95);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            border: 1px solid #e94560;
+            min-width: 180px;
+        }
+
+        .measure-overlay.visible {
+            display: block;
+        }
+
+        .measure-overlay .measure-title {
+            color: #e94560;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .measure-overlay .measure-result {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .measure-overlay .measure-hint {
+            color: #666;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .measure-overlay .measure-components {
+            color: #aaa;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .viewport.measuring {
+            cursor: crosshair;
+        }
     </style>
 </head>
 <body>
@@ -378,12 +442,19 @@
         <!-- Actions -->
         <div class="section">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-measure" id="btn-measure" onclick="toggleMeasure();">Measure</button>
             <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
         </div>
     </div>
 
     <div class="viewport" id="viewport">
         <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag</div>
+        <div class="measure-overlay" id="measure-overlay">
+            <div class="measure-title">Measure</div>
+            <div class="measure-result" id="measure-result">--</div>
+            <div class="measure-components" id="measure-components"></div>
+            <div class="measure-hint" id="measure-hint">Click a point on the staircase</div>
+        </div>
         <div class="dim-overlay" id="dim-overlay">
             <div><span class="dim-label">Rise:</span> <span class="dim-value" id="dim-rise">200.0 mm</span></div>
             <div><span class="dim-label">Going:</span> <span class="dim-value" id="dim-going">227 mm</span></div>
@@ -775,6 +846,144 @@
 
             return mesh;
         }
+
+        // ─── MEASURE TOOL ───
+        let measureActive = false;
+        let measurePoints = [];      // array of THREE.Vector3 (0, 1, or 2 points)
+        let measureGroup = null;     // THREE.Group for markers + line
+
+        function toggleMeasure() {
+            measureActive = !measureActive;
+            const btn = document.getElementById('btn-measure');
+            const overlay = document.getElementById('measure-overlay');
+            const viewport = document.getElementById('viewport');
+
+            btn.classList.toggle('active', measureActive);
+            overlay.classList.toggle('visible', measureActive);
+            viewport.classList.toggle('measuring', measureActive);
+
+            if (measureActive) {
+                clearMeasurement();
+                document.getElementById('measure-hint').textContent = 'Click a point on the staircase';
+                document.getElementById('measure-result').textContent = '--';
+                document.getElementById('measure-components').textContent = '';
+            } else {
+                clearMeasurement();
+            }
+        }
+
+        function clearMeasurement() {
+            measurePoints = [];
+            if (measureGroup) {
+                scene.remove(measureGroup);
+                measureGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                measureGroup = null;
+            }
+        }
+
+        function addMeasureMarker(point, color) {
+            if (!measureGroup) {
+                measureGroup = new THREE.Group();
+                scene.add(measureGroup);
+            }
+            const geo = new THREE.SphereGeometry(8, 12, 12);
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+            const sphere = new THREE.Mesh(geo, mat);
+            sphere.position.copy(point);
+            measureGroup.add(sphere);
+        }
+
+        function drawMeasureLine(a, b) {
+            if (!measureGroup) return;
+            const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const mat = new THREE.LineBasicMaterial({ color: 0xff4466, linewidth: 2 });
+            const line = new THREE.Line(geo, mat);
+            measureGroup.add(line);
+
+            // Dashed axis-aligned extension lines for clarity
+            const dashMat = new THREE.LineDashedMaterial({
+                color: 0xff446666, dashSize: 10, gapSize: 6
+            });
+
+            // Horizontal component line (along XZ at a.y)
+            if (Math.abs(a.x - b.x) > 1 || Math.abs(a.z - b.z) > 1) {
+                const hPts = [a, new THREE.Vector3(b.x, a.y, b.z)];
+                const hGeo = new THREE.BufferGeometry().setFromPoints(hPts);
+                const hLine = new THREE.Line(hGeo, dashMat);
+                hLine.computeLineDistances();
+                measureGroup.add(hLine);
+
+                // Vertical drop from b to the horizontal projection
+                const vPts = [new THREE.Vector3(b.x, a.y, b.z), b];
+                const vGeo = new THREE.BufferGeometry().setFromPoints(vPts);
+                const vLine = new THREE.Line(vGeo, dashMat);
+                vLine.computeLineDistances();
+                measureGroup.add(vLine);
+            }
+        }
+
+        function onMeasureClick(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(staircaseGroup.children, true);
+            if (intersects.length === 0) return;
+
+            const hitPoint = intersects[0].point.clone();
+
+            if (measurePoints.length < 2) {
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, measurePoints.length === 1 ? 0x44ff66 : 0xff4466);
+
+                if (measurePoints.length === 1) {
+                    document.getElementById('measure-hint').textContent = 'Click a second point';
+                    document.getElementById('measure-result').textContent = 'A set';
+                } else {
+                    // Two points — compute distance
+                    const a = measurePoints[0];
+                    const b = measurePoints[1];
+                    drawMeasureLine(a, b);
+
+                    const dist = a.distanceTo(b);
+                    const dx = Math.abs(a.x - b.x);
+                    const dy = Math.abs(a.y - b.y); // Three.js Y = height
+                    const dz = Math.abs(a.z - b.z);
+                    // Horizontal distance in Three.js XZ plane
+                    const horiz = Math.sqrt(dx * dx + dz * dz);
+
+                    document.getElementById('measure-result').textContent = dist.toFixed(0) + ' mm';
+                    document.getElementById('measure-components').textContent =
+                        'H: ' + horiz.toFixed(0) + ' mm  |  V: ' + dy.toFixed(0) + ' mm';
+                    document.getElementById('measure-hint').textContent = 'Click to start a new measurement';
+                }
+            } else {
+                // Reset and start new measurement
+                clearMeasurement();
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, 0x44ff66);
+                document.getElementById('measure-hint').textContent = 'Click a second point';
+                document.getElementById('measure-result').textContent = 'A set';
+                document.getElementById('measure-components').textContent = '';
+            }
+        }
+
+        // Attach measure click handler to the viewport
+        document.getElementById('viewport').addEventListener('click', onMeasureClick);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && measureActive) toggleMeasure();
+        });
 
         // ─── IFC DOWNLOAD ───
         function downloadIFC() {
