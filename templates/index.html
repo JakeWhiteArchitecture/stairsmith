@@ -457,13 +457,12 @@
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
-            <button class="btn btn-measure" id="btn-measure" onclick="toggleMeasure();">Measure</button>
             <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
         </div>
     </div>
 
     <div class="viewport" id="viewport">
-        <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag</div>
+        <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</div>
         <div class="measure-overlay" id="measure-overlay">
             <div class="measure-title">Measure</div>
             <div class="measure-result" id="measure-result">--</div>
@@ -869,11 +868,9 @@
 
         function toggleMeasure() {
             measureActive = !measureActive;
-            const btn = document.getElementById('btn-measure');
             const overlay = document.getElementById('measure-overlay');
             const viewport = document.getElementById('viewport');
 
-            btn.classList.toggle('active', measureActive);
             overlay.classList.toggle('visible', measureActive);
             viewport.classList.toggle('measuring', measureActive);
 
@@ -997,6 +994,8 @@
         // Attach measure click handler to the viewport
         document.getElementById('viewport').addEventListener('click', onMeasureClick);
         document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.key === 'm' || e.key === 'M') toggleMeasure();
             if (e.key === 'Escape' && measureActive) toggleMeasure();
         });
 
