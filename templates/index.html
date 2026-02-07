@@ -606,6 +606,10 @@
                     line.position.copy(mesh.position);
                     staircaseGroup.add(line);
 
+                } else if (m.type === 'winder_polygon') {
+                    const polyMesh = createWinderPolygonMesh(m);
+                    if (polyMesh) staircaseGroup.add(polyMesh);
+
                 } else if (m.type === 'winder' || m.type === 'winder_turn2') {
                     const winderMesh = createWinderMesh(m);
                     if (winderMesh) staircaseGroup.add(winderMesh);
@@ -613,6 +617,48 @@
             });
 
             scene.add(staircaseGroup);
+        }
+
+        function createWinderPolygonMesh(m) {
+            // Render a winder tread from an explicit 2D profile polygon.
+            // Profile points are in IFC coordinates (X, Y). Z is the base height.
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.lineTo(pts[0][0], pts[0][1]);
+
+            const extrudeSettings = {
+                depth: m.thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal (Y-up in Three.js).
+            mesh.rotation.x = -Math.PI / 2;
+            // Position: IFC Z maps to Three.js Y
+            mesh.position.set(0, m.z, 0);
+
+            // Add wireframe edges
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.x = -Math.PI / 2;
+            line.position.set(0, m.z, 0);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
         }
 
         function createWinderMesh(m) {

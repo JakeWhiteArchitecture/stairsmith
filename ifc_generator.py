@@ -300,8 +300,9 @@ def _create_riser(ifc, context, name, width, rise, riser_thickness, tread_thickn
 
 def generate_single_winder(ifc, context, p):
     """
-    Generate a single-winder (L-shaped) staircase.
-    Flight 1 goes along Y axis, then 3 winder treads turn 90°, then Flight 2 continues.
+    Generate a single-winder (L-shaped) staircase using the 4-step construction.
+    Flight 1 along +Y, winder treads at turn, Flight 2 perpendicular.
+    Both flights shift away from the corner by the calculated offset.
     """
     elements = []
     width = p["stair_width"]
@@ -313,13 +314,25 @@ def generate_single_winder(ifc, context, p):
     num_treads = p["num_treads"]
     winders = p["turn1_winders"]
     turn_dir = p["turn1_direction"]
+    turn1_enabled = p.get("turn1_enabled", True)
 
-    # Distribute treads: winders in the middle, remaining split between flights
-    straight_treads = num_treads - winders
+    actual_winders = winders if turn1_enabled else 0
+    straight_treads = num_treads - actual_winders
     flight1_treads = straight_treads // 2
     flight2_treads = straight_treads - flight1_treads
 
-    # Flight 1: straight along +Y axis
+    # Step 2: Post centre at junction of inner strings
+    corner_x = 0.0 if turn_dir == "left" else width
+    corner_y = flight1_treads * going
+
+    # Step 3: Calculate offset and shift flights
+    wg = compute_winder_geometry(p["newel_size"], width)
+    offset = wg["offset"]
+
+    # Flight 1 retreats along -Y by offset
+    flight1_shift_y = -offset
+
+    # Flight 1: straight along +Y axis (shifted back by offset)
     if flight1_treads > 0:
         flight1 = _create_stair_flight_element(
             ifc, context, "Flight 1",
@@ -330,7 +343,7 @@ def generate_single_winder(ifc, context, p):
             tread_thickness=tread_t,
             riser_thickness=riser_t,
             nosing=nosing,
-            start_xyz=(0.0, 0.0, 0.0),
+            start_xyz=(0.0, flight1_shift_y, 0.0),
             rotation=None,
         )
         _add_pset_stair_flight(ifc, flight1, flight1_treads + 1, flight1_treads, rise, going)
@@ -339,63 +352,42 @@ def generate_single_winder(ifc, context, p):
     # Risers for flight 1
     for i in range(flight1_treads + 1):
         riser_z = i * rise
-        riser_y = i * going
+        riser_y = i * going + flight1_shift_y
         riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t, tread_t,
                               position=(0.0, riser_y, riser_z))
         if riser:
             elements.append(riser)
 
-    # Winder treads
+    # Step 4: Winder treads using construction-based profiles
     winder_start_riser = flight1_treads + 1
-    turn1_enabled = p.get("turn1_enabled", True)
 
-    # If winders disabled, redistribute those treads to flights
-    if not turn1_enabled:
-        flight1_treads += winders // 2
-        flight2_treads += winders - winders // 2
-        winders = 0
-
-    # Pivot at the internal corner of the stair (where inner strings meet)
-    corner_y = flight1_treads * going  # end of flight 1
-    corner_x = 0.0 if turn_dir == "left" else width
-    half_post = p["newel_size"] / 2.0
-
-    angle_per_winder = (math.pi / 2) / max(winders, 1)
-
-    for i in range(winders):
+    for i in range(actual_winders):
         winder_z = (winder_start_riser + i) * rise - tread_t
-        winder_elements = _create_winder_tread(
-            ifc, context, f"Winder {i+1}",
-            width=width,
-            tread_thickness=tread_t,
-            angle_start=i * angle_per_winder,
-            angle_end=(i + 1) * angle_per_winder,
-            rise=rise,
-            corner_x=corner_x,
-            corner_y=corner_y,
-            z_base=winder_z,
-            turn_direction=turn_dir,
-            half_post=half_post,
-        )
-        elements.append(winder_elements)
+        profile_coords = _winder_profiles_from_construction(
+            corner_x, corner_y, p["newel_size"], width,
+            turn_dir, i, actual_winders)
+        winder = _create_winder_tread_from_profile(
+            ifc, context, f"Winder {i+1}", profile_coords, tread_t, winder_z)
+        elements.append(winder)
 
-    # Newel post at the corner
+    # Newel post at the corner (Step 2: fixed, never moves)
     newel = _create_newel_post(ifc, context, "Newel Post",
                                 corner_x, corner_y, p["newel_size"], p["floor_to_floor"])
     if newel:
         elements.append(newel)
 
-    # Flight 2: after the turn
-    flight2_start_riser = winder_start_riser + winders
+    # Flight 2: after the turn, perpendicular
+    # Flight 2 retreats along its own axis by offset
+    flight2_start_riser = winder_start_riser + actual_winders
+    x_sign = 1.0 if turn_dir == "left" else -1.0
 
-    # Flight 2 runs perpendicular, Y range = [corner_y, corner_y + width]
     flight2_solids = []
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
-            tread_x = -(i * going) - going + nosing
+            tread_x = -(i * going) - going + nosing - offset
         else:
-            tread_x = width + i * going - nosing
+            tread_x = width + i * going - nosing + offset
         tread_y = corner_y
 
         profile = [
@@ -423,6 +415,184 @@ def generate_single_winder(ifc, context, p):
         elements.append(flight2)
 
     return elements
+
+
+def compute_winder_geometry(newel_size, stair_width):
+    """Compute winder construction geometry following the 4-step sequence.
+
+    Step 1: Abstract layout — two flights at 90°, inner strings cross at junction.
+    Step 2: Newel post centred on junction point (fixed, never moves).
+    Step 3: Calculate offset and shift flights away from corner.
+    Step 4: Determine winder division lines from post face marks.
+
+    Returns a dict with:
+        offset: how far each flight shifts along its axis
+        effective_width: stair_width minus offset (warn if < 600mm)
+        winder_centre_offset: offset from post centreline to winder centre point
+        face_marks: [25mm, 75mm] from corner on each post face
+        kite_going: 50mm (25+25 wrapped around corner)
+        flank_going: 50mm (75-25 on each face)
+        min_post_warning: True if newel_size < 75mm
+    """
+    half_post = newel_size / 2.0
+    corner_allowance = 25.0  # mm from corner of post face
+    min_going = 50.0  # mm minimum winder going
+
+    # Step 3: offset = N/2 - 25mm
+    offset = half_post - corner_allowance
+
+    # Effective width at the turn after shifting
+    effective_width = stair_width - offset
+
+    # Winder centre point offset from post centreline
+    winder_centre_offset = offset  # same as flight offset from centreline
+
+    # Face marks from corner: 25mm (kite edge) and 75mm (flank edge)
+    mark_kite = corner_allowance  # 25mm from corner
+    mark_flank = corner_allowance + min_going  # 75mm from corner
+
+    # Verify goings
+    kite_going = corner_allowance + corner_allowance  # 25mm wraps around corner = 50mm
+    flank_going = mark_flank - mark_kite  # 75 - 25 = 50mm
+
+    return {
+        "offset": offset,
+        "effective_width": effective_width,
+        "winder_centre_offset": winder_centre_offset,
+        "mark_kite": mark_kite,
+        "mark_flank": mark_flank,
+        "kite_going": kite_going,
+        "flank_going": flank_going,
+        "min_post_warning": newel_size < 75.0,
+        "width_warning": effective_width < 600.0,
+    }
+
+
+def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
+                                         turn_direction, winder_index, num_winders=3):
+    """Generate winder tread profile using the 4-step construction sequence.
+
+    For a standard 3-winder turn:
+      - Winder 0: flanking winder (flight-1 side)
+      - Winder 1: kite winder (wraps around corner)
+      - Winder 2: flanking winder (flight-2 side)
+
+    Division lines are axis-aligned (horizontal and vertical), meeting at the
+    winder centre point. The horizontal line passes through the 25mm mark on
+    Face B (the face looking toward flight 1's outer string). The vertical line
+    passes through the 25mm mark on Face A (the face looking toward flight 2's
+    outer string).
+
+    Args:
+        post_cx, post_cy: post centreline position (fixed, Step 2)
+        newel_size: post dimension (square)
+        stair_width: nominal stair width
+        turn_direction: 'left' or 'right'
+        winder_index: 0-based index of this winder
+        num_winders: total winders in this turn (2-4)
+    Returns:
+        list of (x, y) tuples defining the tread profile polygon
+    """
+    hp = newel_size / 2.0
+    offset = hp - 25.0
+    x_sign = 1.0 if turn_direction == "left" else -1.0
+
+    # Post corner nearest turn interior (where Face A and Face B meet)
+    pc_x = post_cx + x_sign * hp
+    pc_y = post_cy + hp
+
+    # Division lines from winder centre through 25mm marks on post faces
+    div_y = pc_y - 25.0                    # horizontal line (Face B 25mm mark)
+    div_x = pc_x - x_sign * 25.0          # vertical line (Face A 25mm mark)
+
+    # Outer string positions (perpendicular to each flight's axis, unchanged by shift)
+    outer_f1 = post_cx + x_sign * stair_width   # flight 1 outer string
+    outer_f2 = post_cy + stair_width              # flight 2 outer string
+
+    # Opposite post face edge (flight 2 side of post)
+    opp_x = post_cx - x_sign * hp
+
+    if num_winders == 3:
+        if winder_index == 0:
+            # Flanking winder (flight-1 side): rectangle from post bottom to div_y
+            profile = [
+                (pc_x, post_cy - hp),
+                (outer_f1, post_cy - hp),
+                (outer_f1, div_y),
+                (pc_x, div_y),
+            ]
+        elif winder_index == 1:
+            # Kite winder: L-shape wrapping around post corner
+            profile = [
+                (pc_x, div_y),
+                (outer_f1, div_y),
+                (outer_f1, outer_f2),
+                (div_x, outer_f2),
+                (div_x, pc_y),
+                (pc_x, pc_y),
+            ]
+        elif winder_index == 2:
+            # Flanking winder (flight-2 side): rectangle from div_x to post edge
+            profile = [
+                (div_x, pc_y),
+                (div_x, outer_f2),
+                (opp_x, outer_f2),
+                (opp_x, pc_y),
+            ]
+
+    elif num_winders == 2:
+        # No kite — diagonal through post corner divides the turn
+        if winder_index == 0:
+            profile = [
+                (pc_x, post_cy - hp),
+                (outer_f1, post_cy - hp),
+                (outer_f1, outer_f2),
+                (pc_x, pc_y),
+            ]
+        elif winder_index == 1:
+            profile = [
+                (pc_x, pc_y),
+                (outer_f1, outer_f2),
+                (opp_x, outer_f2),
+                (opp_x, pc_y),
+            ]
+
+    elif num_winders == 4:
+        # 2 flanking + kite subdivided by diagonal through post corner
+        if winder_index == 0:
+            profile = [
+                (pc_x, post_cy - hp),
+                (outer_f1, post_cy - hp),
+                (outer_f1, div_y),
+                (pc_x, div_y),
+            ]
+        elif winder_index == 1:
+            # Half-kite (flight-1 side)
+            profile = [
+                (pc_x, div_y),
+                (outer_f1, div_y),
+                (outer_f1, outer_f2),
+                (pc_x, pc_y),
+            ]
+        elif winder_index == 2:
+            # Half-kite (flight-2 side)
+            profile = [
+                (pc_x, pc_y),
+                (outer_f1, outer_f2),
+                (div_x, outer_f2),
+                (div_x, pc_y),
+            ]
+        elif winder_index == 3:
+            profile = [
+                (div_x, pc_y),
+                (div_x, outer_f2),
+                (opp_x, outer_f2),
+                (opp_x, pc_y),
+            ]
+    else:
+        profile = [(post_cx, post_cy)]
+
+    return profile
 
 
 def _winder_kite_profile(corner_x, corner_y, width, angle_start, angle_end, turn_direction, half_post=0.0):
@@ -538,6 +708,26 @@ def _winder_kite_profile_turn2(corner_x, corner_y, width, angle_start, angle_end
     return profile
 
 
+def _create_winder_tread_from_profile(ifc, context, name, profile_coords, tread_thickness, z_base):
+    """Create a winder tread as an IfcSlab from an explicit profile polygon."""
+    solid = _create_extruded_solid(
+        ifc, context, profile_coords, tread_thickness,
+        (0.0, 0.0, z_base),
+    )
+
+    element = ifcopenshell.api.run("root.create_entity", ifc, ifc_class="IfcSlab", name=name)
+    rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
+    prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+    element.Representation = prod_rep
+
+    origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+    placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+    local_placement = ifc.createIfcLocalPlacement(None, placement)
+    element.ObjectPlacement = local_placement
+
+    return element
+
+
 def _create_winder_tread(ifc, context, name, width, tread_thickness, angle_start, angle_end,
                           rise, corner_x, corner_y, z_base, turn_direction, half_post=0.0):
     """Create a single winder tread as an IfcSlab with straight-edged kite profile."""
@@ -568,8 +758,9 @@ def _create_winder_tread(ifc, context, name, width, tread_thickness, angle_start
 
 def generate_double_winder(ifc, context, p):
     """
-    Generate a double-winder (U-shaped) staircase.
+    Generate a double-winder (U-shaped) staircase using the 4-step construction.
     Flight 1 along +Y, Turn 1 (90°), Flight 2 along +/-X, Turn 2 (90°), Flight 3 along -Y.
+    Both flights adjacent to each turn shift by offset.
     """
     elements = []
     width = p["stair_width"]
@@ -587,19 +778,23 @@ def generate_double_winder(ifc, context, p):
     turn1_enabled = p.get("turn1_enabled", True)
     turn2_enabled = p.get("turn2_enabled", True)
 
-    # If winders disabled, redistribute those treads to flights
     actual_winders1 = winders1 if turn1_enabled else 0
     actual_winders2 = winders2 if turn2_enabled else 0
     total_winders = actual_winders1 + actual_winders2
     straight_treads = num_treads - total_winders
-    # Distribute: flight1, flight2 (middle), flight3
     flight1_treads = straight_treads // 3
     flight2_treads = straight_treads // 3
     flight3_treads = straight_treads - flight1_treads - flight2_treads
 
+    # Step 3: Calculate offset
+    wg = compute_winder_geometry(p["newel_size"], width)
+    offset = wg["offset"]
+
     riser_idx = 0
 
-    # ─── Flight 1: along +Y ───
+    # ─── Flight 1: along +Y (shifted back by offset from turn 1) ───
+    flight1_shift_y = -offset if actual_winders1 > 0 else 0.0
+
     if flight1_treads > 0:
         flight1 = _create_stair_flight_element(
             ifc, context, "Flight 1",
@@ -610,47 +805,34 @@ def generate_double_winder(ifc, context, p):
             tread_thickness=tread_t,
             riser_thickness=riser_t,
             nosing=nosing,
-            start_xyz=(0.0, 0.0, 0.0),
+            start_xyz=(0.0, flight1_shift_y, 0.0),
             rotation=None,
         )
         _add_pset_stair_flight(ifc, flight1, flight1_treads + 1, flight1_treads, rise, going)
         elements.append(flight1)
 
-    # Risers for flight 1
     for i in range(flight1_treads + 1):
         riser = _create_riser(ifc, context, f"Riser F1-{i+1}", width, rise, riser_t, tread_t,
-                              position=(0.0, i * going, i * rise))
+                              position=(0.0, i * going + flight1_shift_y, i * rise))
         if riser:
             elements.append(riser)
 
     riser_idx = flight1_treads + 1
 
-    # ─── Turn 1 winders ───
-    # Pivot at the internal corner (end of flight 1)
+    # ─── Turn 1 winders (construction-based) ───
     corner1_y = flight1_treads * going
     corner1_x = 0.0 if turn1_dir == "left" else width
-    half_post = p["newel_size"] / 2.0
 
     if actual_winders1 > 0:
-        angle_per = (math.pi / 2) / actual_winders1
         for i in range(actual_winders1):
             winder_z = (riser_idx + i) * rise - tread_t
-            winder = _create_winder_tread(
-                ifc, context, f"Turn1 Winder {i+1}",
-                width=width,
-                tread_thickness=tread_t,
-                angle_start=i * angle_per,
-                angle_end=(i + 1) * angle_per,
-                rise=rise,
-                corner_x=corner1_x,
-                corner_y=corner1_y,
-                z_base=winder_z,
-                turn_direction=turn1_dir,
-                half_post=half_post,
-            )
+            profile_coords = _winder_profiles_from_construction(
+                corner1_x, corner1_y, p["newel_size"], width,
+                turn1_dir, i, actual_winders1)
+            winder = _create_winder_tread_from_profile(
+                ifc, context, f"Turn1 Winder {i+1}", profile_coords, tread_t, winder_z)
             elements.append(winder)
 
-    # Newel post at turn 1 corner
     newel1 = _create_newel_post(ifc, context, "Newel Post 1",
                                  corner1_x, corner1_y, p["newel_size"], p["floor_to_floor"])
     if newel1:
@@ -658,15 +840,17 @@ def generate_double_winder(ifc, context, p):
 
     riser_idx += actual_winders1
 
-    # ─── Flight 2: perpendicular segment ───
-    # Flight 2 runs perpendicular, Y range = [corner1_y, corner1_y + width]
+    # ─── Flight 2: perpendicular (shifted by offset from both turns) ───
+    flight2_offset_turn1 = offset if actual_winders1 > 0 else 0.0
+    flight2_offset_turn2 = offset if actual_winders2 > 0 else 0.0
+
     flight2_solids = []
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
-            tread_x = -(i * going) - going + nosing
+            tread_x = -(i * going) - going + nosing - flight2_offset_turn1
         else:
-            tread_x = width + i * going - nosing
+            tread_x = width + i * going - nosing + flight2_offset_turn1
         tread_y = corner1_y
 
         profile = [
@@ -694,38 +878,26 @@ def generate_double_winder(ifc, context, p):
         elements.append(flight2)
 
     if turn1_dir == "left":
-        flight2_end_x = -(flight2_treads * going)
+        flight2_end_x = -(flight2_treads * going) - flight2_offset_turn1
     else:
-        flight2_end_x = width + flight2_treads * going
+        flight2_end_x = width + flight2_treads * going + flight2_offset_turn1
 
     riser_idx += flight2_treads
 
-    # ─── Turn 2 winders ───
-    # Pivot at the internal corner of turn 2 (end of flight 2)
+    # ─── Turn 2 winders (construction-based) ───
     corner2_x = flight2_end_x
-    corner2_y = corner1_y  # same Y as turn 1 pivot (inner wall of F2)
+    corner2_y = corner1_y
 
     if actual_winders2 > 0:
-        angle_per2 = (math.pi / 2) / actual_winders2
         for i in range(actual_winders2):
             winder_z = (riser_idx + i) * rise - tread_t
-            winder = _create_winder_tread_turn2(
-                ifc, context, f"Turn2 Winder {i+1}",
-                width=width,
-                tread_thickness=tread_t,
-                angle_start=i * angle_per2,
-                angle_end=(i + 1) * angle_per2,
-                rise=rise,
-                corner_x=corner2_x,
-                corner_y=corner2_y,
-                z_base=winder_z,
-                turn1_direction=turn1_dir,
-                turn2_direction=turn2_dir,
-                half_post=half_post,
-            )
+            profile_coords = _winder_profiles_from_construction(
+                corner2_x, corner2_y, p["newel_size"], width,
+                turn2_dir, i, actual_winders2)
+            winder = _create_winder_tread_from_profile(
+                ifc, context, f"Turn2 Winder {i+1}", profile_coords, tread_t, winder_z)
             elements.append(winder)
 
-    # Newel post at turn 2 corner
     newel2 = _create_newel_post(ifc, context, "Newel Post 2",
                                  corner2_x, corner2_y, p["newel_size"], p["floor_to_floor"])
     if newel2:
@@ -733,8 +905,9 @@ def generate_double_winder(ifc, context, p):
 
     riser_idx += actual_winders2
 
-    # ─── Flight 3: returns parallel to flight 1 but in -Y direction ───
-    # Flight 3 goes -Y, spanning x from corner2_x to corner2_x + width (or - width)
+    # ─── Flight 3: returns parallel to flight 1 but -Y (shifted by offset from turn 2) ───
+    flight3_shift_y = offset if actual_winders2 > 0 else 0.0
+
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
         flight3_start_y = corner2_y
@@ -752,7 +925,7 @@ def generate_double_winder(ifc, context, p):
     for i in range(flight3_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         tread_x = flight3_start_x
-        tread_y = flight3_start_y - (i + 1) * going - nosing
+        tread_y = flight3_start_y - (i + 1) * going - nosing + flight3_shift_y
         profile = [
             (0.0, 0.0),
             (width, 0.0),
@@ -913,25 +1086,33 @@ def check_building_regs(params):
         checks.append({"name": "Newel Post Size", "status": newel_status, "message": newel_msg,
                        "value": round(newel, 0)})
 
-    # Winder going at narrow end: min 50mm
+    # Winder going at narrow end using 4-step construction geometry
     if has_winders:
-        # Each turn is 90°. Winders per turn determines the angle per winder.
-        winders_per_turn = p["turn1_winders"]  # use turn 1 as representative
-        angle_per_winder = (math.pi / 2) / winders_per_turn
+        wg = compute_winder_geometry(p["newel_size"], width)
 
-        # Narrow end going: at the inner string (near the newel post).
-        newel_radius = p["newel_size"] / 2.0  # half of newel post
-        narrow_going = newel_radius * angle_per_winder
+        # Construction guarantees: kite going = 50mm, flank going = 50mm
+        narrow_going = min(wg["kite_going"], wg["flank_going"])
         narrow_status = "pass"
-        narrow_msg = f"Winder narrow end going: ~{narrow_going:.0f}mm (at {newel_radius}mm inner radius)"
+        narrow_msg = f"Winder narrow end going: {narrow_going:.0f}mm (kite: {wg['kite_going']:.0f}mm, flank: {wg['flank_going']:.0f}mm)"
         if narrow_going < 50:
             narrow_status = "warn"
             narrow_msg += " — Below minimum 50mm at inner string"
         checks.append({"name": "Winder Narrow Going", "status": narrow_status, "message": narrow_msg,
                        "value": round(narrow_going, 0)})
 
+        # Effective width at turn (reduced by offset)
+        eff_status = "pass"
+        eff_msg = f"Effective width at turn: {wg['effective_width']:.0f}mm (offset: {wg['offset']:.0f}mm)"
+        if wg["width_warning"]:
+            eff_status = "warn"
+            eff_msg += " — Below minimum 600mm at turn"
+        checks.append({"name": "Effective Turn Width", "status": eff_status, "message": eff_msg,
+                       "value": round(wg["effective_width"], 0)})
+
         # Walking line going: min 220mm measured 270mm from inner edge
-        walking_radius = 270  # mm from inner edge for stairs < 1000mm wide
+        winders_per_turn = p["turn1_winders"]
+        angle_per_winder = (math.pi / 2) / winders_per_turn
+        walking_radius = 270
         walking_going = walking_radius * angle_per_winder
         wl_status = "pass"
         wl_msg = f"Winder walking line going: {walking_going:.0f}mm"
