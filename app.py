@@ -176,12 +176,15 @@ def _preview_single_winder(p):
     flight1_treads = straight_treads // 2
     flight2_treads = straight_treads - flight1_treads
 
-    # Step 3: Calculate offset
-    wg = compute_winder_geometry(p["newel_size"], width)
+    # Step 3: Calculate offset and half-post
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
-    flight1_shift_y = -offset if actual_winders > 0 else 0.0
+    # Shift flight 1 back so it terminates at the post face
+    flight1_shift_y = -hp if actual_winders > 0 else 0.0
 
-    # Flight 1 treads (shifted back by offset)
+    # Flight 1 treads (shifted back to post face)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -219,20 +222,19 @@ def _preview_single_winder(p):
         })
 
     # Newel post (fixed position, Step 2)
-    ns = p["newel_size"]
     meshes.append(_box_mesh(
         corner_x, corner_y, p["floor_to_floor"] / 2,
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
-    # Flight 2 treads (perpendicular, shifted by offset)
+    # Flight 2 treads (perpendicular, shifted by offset toward post)
     flight2_start_riser = winder_start_riser + actual_winders
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
-            tread_x = -(i * going) - going / 2 + nosing / 2 - offset
+            tread_x = -(i * going) - going / 2 + nosing / 2 + offset
         else:
-            tread_x = width + i * going + going / 2 - nosing / 2 + offset
+            tread_x = width + i * going + going / 2 - nosing / 2 - offset
         meshes.append(_box_mesh(
             tread_x, corner_y + width / 2, tread_z + tread_t / 2,
             going + nosing + riser_t, width, tread_t, "#c8a87c"
@@ -266,14 +268,16 @@ def _preview_double_winder(p):
     flight2_treads = straight_treads // 3
     flight3_treads = straight_treads - flight1_treads - flight2_treads
 
-    # Step 3: Calculate offset
-    wg = compute_winder_geometry(p["newel_size"], width)
+    # Step 3: Calculate offset and half-post
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
 
     riser_idx = 0
-    flight1_shift_y = -offset if actual_winders1 > 0 else 0.0
+    flight1_shift_y = -hp if actual_winders1 > 0 else 0.0
 
-    # Flight 1 (shifted back by offset)
+    # Flight 1 (shifted back to post face)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -296,7 +300,6 @@ def _preview_double_winder(p):
     # Turn 1 winders — construction-based profiles
     corner1_y = flight1_treads * going
     corner1_x = 0 if turn1_dir == "left" else width
-    ns = p["newel_size"]
 
     for i in range(actual_winders1):
         winder_z = (riser_idx + i) * rise - tread_t
@@ -319,14 +322,14 @@ def _preview_double_winder(p):
 
     riser_idx += actual_winders1
 
-    # Flight 2 (perpendicular, shifted by offset from turn 1)
+    # Flight 2 (perpendicular, shifted by offset toward turn 1)
     flight2_offset = offset if actual_winders1 > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
-            tread_x = -(i * going) - going / 2 + nosing / 2 - flight2_offset
+            tread_x = -(i * going) - going / 2 + nosing / 2 + flight2_offset
         else:
-            tread_x = width + i * going + going / 2 - nosing / 2 + flight2_offset
+            tread_x = width + i * going + going / 2 - nosing / 2 - flight2_offset
         meshes.append(_box_mesh(
             tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
             going + nosing + riser_t, width, tread_t, "#c8a87c"
@@ -336,9 +339,9 @@ def _preview_double_winder(p):
 
     # Turn 2 winders — construction-based profiles
     if turn1_dir == "left":
-        flight2_end_x = -(flight2_treads * going) - flight2_offset
+        flight2_end_x = -(flight2_treads * going) + flight2_offset
     else:
-        flight2_end_x = width + flight2_treads * going + flight2_offset
+        flight2_end_x = width + flight2_treads * going - flight2_offset
 
     corner2_x = flight2_end_x
     corner2_y = corner1_y
@@ -364,8 +367,8 @@ def _preview_double_winder(p):
 
     riser_idx += actual_winders2
 
-    # Flight 3 (shifted by offset from turn 2)
-    flight3_shift_y = offset if actual_winders2 > 0 else 0.0
+    # Flight 3 (shifted by hp from turn 2 post face)
+    flight3_shift_y = hp if actual_winders2 > 0 else 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
