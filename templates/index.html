@@ -865,6 +865,8 @@
         let measureActive = false;
         let measurePoints = [];      // array of THREE.Vector3 (0, 1, or 2 points)
         let measureGroup = null;     // THREE.Group for markers + line
+        let snapMarker = null;       // visual snap indicator
+        const SNAP_RADIUS = 30;      // pixel radius for vertex snapping
 
         function toggleMeasure() {
             measureActive = !measureActive;
@@ -876,11 +878,14 @@
 
             if (measureActive) {
                 clearMeasurement();
-                document.getElementById('measure-hint').textContent = 'Click a point on the staircase';
+                document.getElementById('measure-hint').textContent = 'Click a corner or edge — snaps to vertices';
                 document.getElementById('measure-result').textContent = '--';
                 document.getElementById('measure-components').textContent = '';
+                document.getElementById('viewport').addEventListener('mousemove', onMeasureHover);
             } else {
                 clearMeasurement();
+                removeSnapMarker();
+                document.getElementById('viewport').removeEventListener('mousemove', onMeasureHover);
             }
         }
 
@@ -893,6 +898,127 @@
                     if (child.material) child.material.dispose();
                 });
                 measureGroup = null;
+            }
+        }
+
+        function removeSnapMarker() {
+            if (snapMarker) {
+                scene.remove(snapMarker);
+                if (snapMarker.geometry) snapMarker.geometry.dispose();
+                if (snapMarker.material) snapMarker.material.dispose();
+                snapMarker = null;
+            }
+        }
+
+        function showSnapMarker(point) {
+            removeSnapMarker();
+            const geo = new THREE.SphereGeometry(6, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.9 });
+            snapMarker = new THREE.Mesh(geo, mat);
+            snapMarker.position.copy(point);
+            scene.add(snapMarker);
+        }
+
+        function getWorldVertices(mesh) {
+            // Extract unique world-space vertices from a mesh's geometry
+            const geo = mesh.geometry;
+            const verts = [];
+            const seen = new Set();
+            if (geo.index) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < geo.index.count; i++) {
+                    const idx = geo.index.getX(i);
+                    const key = idx;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, idx);
+                    mesh.localToWorld(v);
+                    verts.push(v);
+                }
+            } else if (geo.attributes.position) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                    mesh.localToWorld(v);
+                    // Deduplicate by rounding to 0.1mm
+                    const k = Math.round(v.x*10) + ',' + Math.round(v.y*10) + ',' + Math.round(v.z*10);
+                    if (!seen.has(k)) {
+                        seen.add(k);
+                        verts.push(v);
+                    }
+                }
+            }
+            return verts;
+        }
+
+        function findSnapPoint(mouse, raycaster) {
+            // Cast ray to find hit surface, then snap to nearest vertex
+            const intersects = raycaster.intersectObjects(staircaseGroup.children, true);
+            if (intersects.length === 0) return null;
+
+            const hit = intersects[0];
+            const hitPoint = hit.point.clone();
+
+            // Collect vertices from the hit mesh and nearby meshes
+            let candidates = [];
+
+            // Get vertices from the hit object
+            if (hit.object && hit.object.geometry) {
+                candidates = candidates.concat(getWorldVertices(hit.object));
+            }
+
+            // Also check sibling meshes near the hit point for edge/corner snapping
+            if (hit.object.parent) {
+                hit.object.parent.traverse(child => {
+                    if (child === hit.object) return;
+                    if (!child.geometry || !child.geometry.attributes) return;
+                    // Only consider nearby geometry (within stair width distance)
+                    if (child.position.distanceTo(hit.object.position) < 2000) {
+                        candidates = candidates.concat(getWorldVertices(child));
+                    }
+                });
+            }
+
+            // Find closest vertex to the hit point in screen space
+            let bestDist = Infinity;
+            let bestVert = null;
+
+            // Project hit point to screen
+            const hitScreen = hitPoint.clone().project(camera);
+
+            for (const v of candidates) {
+                const vScreen = v.clone().project(camera);
+                const dx = (vScreen.x - hitScreen.x) * renderer.domElement.width / 2;
+                const dy = (vScreen.y - hitScreen.y) * renderer.domElement.height / 2;
+                const screenDist = Math.sqrt(dx * dx + dy * dy);
+
+                if (screenDist < SNAP_RADIUS && screenDist < bestDist) {
+                    bestDist = screenDist;
+                    bestVert = v;
+                }
+            }
+
+            return bestVert || hitPoint;
+        }
+
+        function onMeasureHover(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const snap = findSnapPoint(mouse, raycaster);
+            if (snap) {
+                showSnapMarker(snap);
+            } else {
+                removeSnapMarker();
             }
         }
 
@@ -950,10 +1076,9 @@
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
 
-            const intersects = raycaster.intersectObjects(staircaseGroup.children, true);
-            if (intersects.length === 0) return;
-
-            const hitPoint = intersects[0].point.clone();
+            const hitPoint = findSnapPoint(mouse, raycaster);
+            if (!hitPoint) return;
+            removeSnapMarker();
 
             if (measurePoints.length < 2) {
                 measurePoints.push(hitPoint);
@@ -978,7 +1103,7 @@
                     document.getElementById('measure-result').textContent = dist.toFixed(0) + ' mm';
                     document.getElementById('measure-components').textContent =
                         'H: ' + horiz.toFixed(0) + ' mm  |  V: ' + dy.toFixed(0) + ' mm';
-                    document.getElementById('measure-hint').textContent = 'Click to start a new measurement';
+                    document.getElementById('measure-hint').textContent = 'Click to start new measurement';
                 }
             } else {
                 // Reset and start new measurement
