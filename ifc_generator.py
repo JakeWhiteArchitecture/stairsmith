@@ -469,7 +469,8 @@ def compute_winder_geometry(newel_size, stair_width):
 
 
 def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
-                                         turn_direction, winder_index, num_winders=3):
+                                         turn_direction, winder_index, num_winders=3,
+                                         rotation=0):
     """Generate winder tread profile using angular division lines.
 
     Division lines radiate from the winder centre point at equal angles
@@ -477,6 +478,10 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     marks on the two post faces at the turn corner.
 
     The kite winder preserves the 25×25mm contact with the newel post corner.
+
+    rotation: degrees to rotate the entire profile around (post_cx, post_cy).
+              0 = flight approaches along +Y (turn 1 standard).
+              -90 = flight approaches along -X (turn 2 after left turn 1).
 
     Angles measured from 0° (flight-1 outer string direction, along X)
     to 90° (flight-2 outer string direction, along Y).
@@ -590,6 +595,20 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
         if straddles_outer:
             profile.append((outer_f1_x, outer_f2_y))
         profile.append(outer_s)
+
+    # Apply rotation around post centre if needed (for turn 2)
+    if rotation != 0:
+        rad = math.radians(rotation)
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+        rotated = []
+        for (px, py) in profile:
+            dx = px - post_cx
+            dy = py - post_cy
+            rx = cos_r * dx - sin_r * dy + post_cx
+            ry = sin_r * dx + cos_r * dy + post_cy
+            rotated.append((rx, ry))
+        profile = rotated
 
     return profile
 

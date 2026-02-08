@@ -346,11 +346,15 @@ def _preview_double_winder(p):
     corner2_x = flight2_end_x
     corner2_y = corner1_y
 
+    # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
+    turn2_rotation = -90 if turn1_dir == "left" else 90
+
     for i in range(actual_winders2):
         winder_z = (riser_idx + i) * rise - tread_t
         profile = _winder_profiles_from_construction(
             corner2_x, corner2_y, ns, width,
-            turn2_dir, i, actual_winders2)
+            turn2_dir, i, actual_winders2,
+            rotation=turn2_rotation)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
