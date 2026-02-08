@@ -470,18 +470,16 @@ def compute_winder_geometry(newel_size, stair_width):
 
 def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
                                          turn_direction, winder_index, num_winders=3):
-    """Generate winder tread profile using the 4-step construction sequence.
+    """Generate winder tread profile using angular division lines.
 
-    For a standard 3-winder turn:
-      - Winder 0: flanking winder (flight-1 side)
-      - Winder 1: kite winder (wraps around corner)
-      - Winder 2: flanking winder (flight-2 side)
+    Division lines radiate from the winder centre point at equal angles
+    (90° / num_winders). The winder centre is the intersection of the 25mm
+    marks on the two post faces at the turn corner.
 
-    Division lines are axis-aligned (horizontal and vertical), meeting at the
-    winder centre point. The horizontal line passes through the 25mm mark on
-    Face B (the face looking toward flight 1's outer string). The vertical line
-    passes through the 25mm mark on Face A (the face looking toward flight 2's
-    outer string).
+    The kite winder preserves the 25×25mm contact with the newel post corner.
+
+    Angles measured from 0° (flight-1 outer string direction, along X)
+    to 90° (flight-2 outer string direction, along Y).
 
     Args:
         post_cx, post_cy: post centreline position (fixed, Step 2)
@@ -493,104 +491,111 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     Returns:
         list of (x, y) tuples defining the tread profile polygon
     """
+    import math
+
     hp = newel_size / 2.0
-    offset = hp - 25.0
     x_sign = 1.0 if turn_direction == "left" else -1.0
 
-    # Post corner nearest turn interior (where Face A and Face B meet)
+    # Post corner nearest turn interior (Face A and Face B meet here)
     pc_x = post_cx + x_sign * hp
     pc_y = post_cy + hp
 
-    # Division lines from winder centre through 25mm marks on post faces
-    div_y = pc_y - 25.0                    # horizontal line (Face B 25mm mark)
-    div_x = pc_x - x_sign * 25.0          # vertical line (Face A 25mm mark)
+    # Winder centre: intersection of 25mm marks on both post faces
+    wc_x = pc_x - x_sign * 25.0
+    wc_y = pc_y - 25.0
 
-    # Outer string positions (perpendicular to each flight's axis, unchanged by shift)
-    outer_f1 = post_cx + x_sign * stair_width   # flight 1 outer string
-    outer_f2 = post_cy + stair_width              # flight 2 outer string
+    # Outer string positions
+    outer_f1_x = post_cx + x_sign * stair_width
+    outer_f2_y = post_cy + stair_width
 
-    # Opposite post face edge (flight 2 side of post)
-    opp_x = post_cx - x_sign * hp
+    # Post face edges
+    post_bottom_y = post_cy - hp
+    post_opp_x = post_cx - x_sign * hp
 
-    if num_winders == 3:
-        if winder_index == 0:
-            # Flanking winder (flight-1 side): rectangle from post bottom to div_y
-            profile = [
-                (pc_x, post_cy - hp),
-                (outer_f1, post_cy - hp),
-                (outer_f1, div_y),
-                (pc_x, div_y),
-            ]
-        elif winder_index == 1:
-            # Kite winder: L-shape wrapping around post corner
-            profile = [
-                (pc_x, div_y),
-                (outer_f1, div_y),
-                (outer_f1, outer_f2),
-                (div_x, outer_f2),
-                (div_x, pc_y),
-                (pc_x, pc_y),
-            ]
-        elif winder_index == 2:
-            # Flanking winder (flight-2 side): rectangle from div_x to post edge
-            profile = [
-                (div_x, pc_y),
-                (div_x, outer_f2),
-                (opp_x, outer_f2),
-                (opp_x, pc_y),
-            ]
+    # Angular division: 90° split into num_winders equal segments
+    angle_step = (math.pi / 2.0) / num_winders
 
-    elif num_winders == 2:
-        # No kite — diagonal through post corner divides the turn
-        if winder_index == 0:
-            profile = [
-                (pc_x, post_cy - hp),
-                (outer_f1, post_cy - hp),
-                (outer_f1, outer_f2),
-                (pc_x, pc_y),
-            ]
-        elif winder_index == 1:
-            profile = [
-                (pc_x, pc_y),
-                (outer_f1, outer_f2),
-                (opp_x, outer_f2),
-                (opp_x, pc_y),
-            ]
+    def ray_outer(angle):
+        """Where a ray from winder centre at angle hits the outer L-boundary."""
+        dx = x_sign * math.cos(angle)
+        dy = math.sin(angle)
+        t_f1 = (outer_f1_x - wc_x) / dx if abs(dx) > 1e-9 else float('inf')
+        t_f2 = (outer_f2_y - wc_y) / dy if abs(dy) > 1e-9 else float('inf')
+        if t_f1 < 0: t_f1 = float('inf')
+        if t_f2 < 0: t_f2 = float('inf')
+        t = min(t_f1, t_f2)
+        return (wc_x + dx * t, wc_y + dy * t)
 
-    elif num_winders == 4:
-        # 2 flanking + kite subdivided by diagonal through post corner
-        if winder_index == 0:
-            profile = [
-                (pc_x, post_cy - hp),
-                (outer_f1, post_cy - hp),
-                (outer_f1, div_y),
-                (pc_x, div_y),
-            ]
-        elif winder_index == 1:
-            # Half-kite (flight-1 side)
-            profile = [
-                (pc_x, div_y),
-                (outer_f1, div_y),
-                (outer_f1, outer_f2),
-                (pc_x, pc_y),
-            ]
-        elif winder_index == 2:
-            # Half-kite (flight-2 side)
-            profile = [
-                (pc_x, pc_y),
-                (outer_f1, outer_f2),
-                (div_x, outer_f2),
-                (div_x, pc_y),
-            ]
-        elif winder_index == 3:
-            profile = [
-                (div_x, pc_y),
-                (div_x, outer_f2),
-                (opp_x, outer_f2),
-                (opp_x, pc_y),
-            ]
+    def ray_inner(angle):
+        """Where a ray from winder centre at angle hits the inner post L-boundary."""
+        dx = x_sign * math.cos(angle)
+        dy = math.sin(angle)
+        t_a = (pc_x - wc_x) / dx if abs(dx) > 1e-9 else float('inf')
+        t_b = (pc_y - wc_y) / dy if abs(dy) > 1e-9 else float('inf')
+        if t_a < 0: t_a = float('inf')
+        if t_b < 0: t_b = float('inf')
+        t = min(t_a, t_b)
+        return (wc_x + dx * t, wc_y + dy * t)
+
+    a0 = winder_index * angle_step
+    a1 = (winder_index + 1) * angle_step
+
+    inner_s = ray_inner(a0)
+    inner_e = ray_inner(a1)
+    outer_s = ray_outer(a0)
+    outer_e = ray_outer(a1)
+
+    # Angle to outer L-corner (outer_f1_x, outer_f2_y)
+    oc_dx = (outer_f1_x - wc_x) / x_sign
+    oc_dy = outer_f2_y - wc_y
+    a_outer_corner = math.atan2(oc_dy, oc_dx)
+
+    # Angle to inner post corner (pc_x, pc_y)
+    ic_dx = (pc_x - wc_x) / x_sign
+    ic_dy = pc_y - wc_y
+    a_inner_corner = math.atan2(ic_dy, ic_dx)
+
+    straddles_outer = a0 < a_outer_corner < a1
+    straddles_inner = a0 < a_inner_corner < a1
+
+    # First winder: extend inner edge down to post bottom face
+    if winder_index == 0:
+        profile = [
+            (pc_x, post_bottom_y),       # inner bottom
+            (outer_f1_x, post_bottom_y), # outer bottom
+            outer_s,                      # outer at a0 (= along f1 axis)
+        ]
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_e)
+        profile.append(inner_e)
+        if straddles_inner:
+            profile.append((pc_x, pc_y))
+        profile.append((pc_x, wc_y))    # back down post face to winder centre Y
+
+    # Last winder: extend inner edge across to opposite post face
+    elif winder_index == num_winders - 1:
+        profile = [inner_s]
+        if straddles_inner:
+            profile.append((pc_x, pc_y))
+        profile.append((wc_x, pc_y))          # across post face at winder centre X
+        profile.append((post_opp_x, pc_y))     # to opposite post face
+        profile.append((post_opp_x, outer_f2_y))  # outer corner
+        profile.append(outer_e)                 # outer at a1 (= along f2 axis)
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)
+
+    # Middle winders (including kite)
     else:
-        profile = [(post_cx, post_cy)]
+        profile = [inner_s]
+        if straddles_inner:
+            profile.append((pc_x, pc_y))
+        profile.append(inner_e)
+        profile.append(outer_e)
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)
 
     return profile
 
