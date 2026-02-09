@@ -338,12 +338,14 @@ def _preview_double_winder(p):
     riser_idx += flight2_treads
 
     # Turn 2 winders — construction-based profiles
+    # Place turn 2 post hp beyond flight 2's end (matching how flight 1
+    # terminates at turn 1's post face)
     if turn1_dir == "left":
         flight2_end_x = -(flight2_treads * going) + flight2_offset
+        corner2_x = flight2_end_x - hp
     else:
         flight2_end_x = width + flight2_treads * going - flight2_offset
-
-    corner2_x = flight2_end_x
+        corner2_x = flight2_end_x + hp
     corner2_y = corner1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
@@ -371,8 +373,8 @@ def _preview_double_winder(p):
 
     riser_idx += actual_winders2
 
-    # Flight 3 — no Y shift, inner edge at post centre (same as flight 2)
-    flight3_shift_y = 0.0
+    # Flight 3 — shift by offset toward turn 2 post (matching flight 2 → turn 1)
+    flight3_shift_y = offset if actual_winders2 > 0 else 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
