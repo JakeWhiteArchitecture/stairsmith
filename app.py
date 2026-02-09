@@ -376,8 +376,8 @@ def _preview_double_winder(p):
 
     riser_idx += actual_winders2
 
-    # Flight 3 — shift by offset toward turn 2 post (matching flight 2 → turn 1)
-    flight3_shift_y = offset if actual_winders2 > 0 else 0.0
+    # Flight 3 — align nosing of first tread with turn 2 winder exit edge
+    flight3_shift_y = -(hp + riser_t) if actual_winders2 > 0 else 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
