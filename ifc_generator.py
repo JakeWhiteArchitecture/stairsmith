@@ -470,7 +470,7 @@ def compute_winder_geometry(newel_size, stair_width):
 
 def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
                                          turn_direction, winder_index, num_winders=3,
-                                         rotation=0):
+                                         rotation=0, riser_extension=0):
     """Generate winder tread profile using angular division lines.
 
     Division lines radiate from the winder centre point at equal angles
@@ -482,6 +482,9 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     rotation: degrees to rotate the entire profile around (post_cx, post_cy).
               0 = flight approaches along +Y (turn 1 standard).
               -90 = flight approaches along -X (turn 2 after left turn 1).
+
+    riser_extension: mm to extend the upper boundary of non-last winders
+                     past the division line, so the riser above can sit on the tread.
 
     Angles measured from 0° (flight-1 outer string direction, along X)
     to 90° (flight-2 outer string direction, along Y).
@@ -549,6 +552,27 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     mark_a = (pc_x, wc_y)   # 25mm mark on Face A (vertical face)
     mark_b = (wc_x, pc_y)   # 25mm mark on Face B (horizontal face)
 
+    # Pre-compute riser extension points for non-last winders.
+    # These extend the upper boundary (at a1) by riser_extension past
+    # the division line so the riser above can sit on the tread.
+    ext_inner = ext_outer = None
+    if riser_extension > 0 and winder_index < num_winders - 1:
+        a_ic = math.atan2(25.0, 25.0)
+        if a1 < a_ic - 1e-6:
+            inner_a1 = mark_a
+        elif a1 > a_ic + 1e-6:
+            inner_a1 = mark_b
+        else:
+            inner_a1 = (pc_x, pc_y)
+        dlx = outer_e[0] - inner_a1[0]
+        dly = outer_e[1] - inner_a1[1]
+        dl = math.sqrt(dlx * dlx + dly * dly)
+        if dl > 1e-9:
+            pnx = x_sign * (-dly / dl) * riser_extension
+            pny = x_sign * (dlx / dl) * riser_extension
+            ext_inner = (inner_a1[0] + pnx, inner_a1[1] + pny)
+            ext_outer = (outer_e[0] + pnx, outer_e[1] + pny)
+
     # First winder (flight-1 side flank)
     if winder_index == 0:
         profile = [
@@ -559,6 +583,9 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
         if straddles_outer:
             profile.append((outer_f1_x, outer_f2_y))
         profile.append(outer_e)          # angled outer point
+        if ext_outer:
+            profile.append(ext_outer)
+            profile.append(ext_inner)
         profile.append(mark_a)           # fixed 25mm mark on Face A
 
     # Last winder (flight-2 side flank)
@@ -591,6 +618,10 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
             # Straddles corner — full L-shape (kite)
             profile = [mark_a, (pc_x, pc_y), mark_b]
 
+        # Insert extension before outer_e so tread extends past division line
+        if ext_inner:
+            profile.append(ext_inner)
+            profile.append(ext_outer)
         profile.append(outer_e)
         if straddles_outer:
             profile.append((outer_f1_x, outer_f2_y))

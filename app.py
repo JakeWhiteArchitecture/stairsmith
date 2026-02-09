@@ -315,7 +315,8 @@ def _preview_single_winder(p):
         winder_z = (winder_start_riser + i) * rise - tread_t
         profile = _winder_profiles_from_construction(
             corner_x, corner_y, p["newel_size"], width,
-            turn_dir, i, actual_winders)
+            turn_dir, i, actual_winders,
+            riser_extension=riser_t)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -429,7 +430,8 @@ def _preview_double_winder(p):
         winder_z = (riser_idx + i) * rise - tread_t
         profile = _winder_profiles_from_construction(
             corner1_x, corner1_y, ns, width,
-            turn1_dir, i, actual_winders1)
+            turn1_dir, i, actual_winders1,
+            riser_extension=riser_t)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -501,7 +503,8 @@ def _preview_double_winder(p):
         profile = _winder_profiles_from_construction(
             corner2_x, corner2_y, ns, width,
             turn2_dir, i, actual_winders2,
-            rotation=turn2_rotation)
+            rotation=turn2_rotation,
+            riser_extension=riser_t)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
