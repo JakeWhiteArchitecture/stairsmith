@@ -371,8 +371,8 @@ def _preview_double_winder(p):
 
     riser_idx += actual_winders2
 
-    # Flight 3 (shifted by hp from turn 2 post face)
-    flight3_shift_y = hp if actual_winders2 > 0 else 0.0
+    # Flight 3 — no Y shift, inner edge at post centre (same as flight 2)
+    flight3_shift_y = 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
