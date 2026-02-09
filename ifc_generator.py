@@ -571,7 +571,14 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
             pnx = x_sign * (-dly / dl) * riser_extension
             pny = x_sign * (dlx / dl) * riser_extension
             ext_inner = (inner_a1[0] + pnx, inner_a1[1] + pny)
-            ext_outer = (outer_e[0] + pnx, outer_e[1] + pny)
+            # Trace from ext_inner along division line to hit the outer
+            # L-boundary so the tread extension is flush with the wall
+            t_f1 = (outer_f1_x - ext_inner[0]) / dlx if abs(dlx) > 1e-9 else float('inf')
+            t_f2 = (outer_f2_y - ext_inner[1]) / dly if abs(dly) > 1e-9 else float('inf')
+            if t_f1 < 0: t_f1 = float('inf')
+            if t_f2 < 0: t_f2 = float('inf')
+            t = min(t_f1, t_f2)
+            ext_outer = (ext_inner[0] + dlx * t, ext_inner[1] + dly * t)
 
     # First winder (flight-1 side flank)
     if winder_index == 0:

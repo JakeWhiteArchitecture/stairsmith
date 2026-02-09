@@ -177,27 +177,37 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
 
         outer = ray_outer(a_boundary)
 
-        # Build thin strip polygon along division line
-        # Offset so the outside (visible) face sits ON the division line,
-        # with the riser body extending toward the upper winder.
+        # Division line direction and perpendicular
         lx = outer[0] - inner[0]
         ly = outer[1] - inner[1]
         length = math.sqrt(lx * lx + ly * ly)
         if length < 1e-9:
             continue
-        nx = -ly / length * riser_t / 2
-        ny = lx / length * riser_t / 2
 
-        # Left normal points toward upper winder for left turn,
-        # toward lower for right — use x_sign to correct
-        off_x = x_sign * nx
-        off_y = x_sign * ny
+        # Full riser_t offset toward upper winder
+        pnx = x_sign * (-ly / length) * riser_t
+        pny = x_sign * (lx / length) * riser_t
 
+        # Back face inner point (offset from division line by riser_t)
+        inner_back = (inner[0] + pnx, inner[1] + pny)
+
+        # Back face outer point: trace from inner_back along division line
+        # direction to hit the outer L-boundary (wall), so the riser is
+        # flush with the wall edge.
+        t_f1 = (outer_f1_x - inner_back[0]) / lx if abs(lx) > 1e-9 else float('inf')
+        t_f2 = (outer_f2_y - inner_back[1]) / ly if abs(ly) > 1e-9 else float('inf')
+        if t_f1 < 0: t_f1 = float('inf')
+        if t_f2 < 0: t_f2 = float('inf')
+        t = min(t_f1, t_f2)
+        outer_back = (inner_back[0] + lx * t, inner_back[1] + ly * t)
+
+        # Riser polygon: front face on division line, back face offset,
+        # both outer ends flush with the wall
         strip = [
-            (inner[0] + nx + off_x, inner[1] + ny + off_y),
-            (outer[0] + nx + off_x, outer[1] + ny + off_y),
-            (outer[0] - nx + off_x, outer[1] - ny + off_y),
-            (inner[0] - nx + off_x, inner[1] - ny + off_y),
+            inner_back,    # back face, inner end
+            outer_back,    # back face, outer end (on the wall)
+            outer,         # front face, outer end (on the wall)
+            inner,         # front face, inner end
         ]
 
         # Apply rotation if needed (turn 2)
