@@ -230,7 +230,7 @@ def _preview_single_winder(p):
     # Flight 2 treads (perpendicular, aligned so first tread's leading edge
     # meets the last winder's exit edge at the opposite post face)
     flight2_start_riser = winder_start_riser + actual_winders
-    flight2_shift = hp + riser_t / 2 if actual_winders > 0 else 0.0
+    flight2_shift = hp + nosing + riser_t / 2 if actual_winders > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
@@ -326,7 +326,7 @@ def _preview_double_winder(p):
 
     # Flight 2 (perpendicular, aligned so first tread's leading edge
     # meets the last winder's exit edge at the opposite post face)
-    flight2_shift = hp + riser_t / 2 if actual_winders1 > 0 else 0.0
+    flight2_shift = hp + nosing + riser_t / 2 if actual_winders1 > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
