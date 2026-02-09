@@ -178,6 +178,8 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
         outer = ray_outer(a_boundary)
 
         # Build thin strip polygon along division line
+        # Offset so the outside (visible) face sits ON the division line,
+        # with the riser body extending toward the upper winder.
         lx = outer[0] - inner[0]
         ly = outer[1] - inner[1]
         length = math.sqrt(lx * lx + ly * ly)
@@ -186,11 +188,16 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
         nx = -ly / length * riser_t / 2
         ny = lx / length * riser_t / 2
 
+        # Left normal points toward upper winder for left turn,
+        # toward lower for right — use x_sign to correct
+        off_x = x_sign * nx
+        off_y = x_sign * ny
+
         strip = [
-            (inner[0] + nx, inner[1] + ny),
-            (outer[0] + nx, outer[1] + ny),
-            (outer[0] - nx, outer[1] - ny),
-            (inner[0] - nx, inner[1] - ny),
+            (inner[0] + nx + off_x, inner[1] + ny + off_y),
+            (outer[0] + nx + off_x, outer[1] + ny + off_y),
+            (outer[0] - nx + off_x, outer[1] - ny + off_y),
+            (inner[0] - nx + off_x, inner[1] - ny + off_y),
         ]
 
         # Apply rotation if needed (turn 2)
@@ -346,7 +353,7 @@ def _preview_single_winder(p):
     # Flight 2 risers (perpendicular — thin in X, spanning width in Y)
     if riser_t > 0:
         for i in range(flight2_treads + 1):
-            riser_z = (flight2_start_riser + i) * rise + riser_h / 2
+            riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
             if turn_dir == "left":
                 riser_x = -(i * going) - hp - riser_t / 2
             else:
@@ -462,7 +469,7 @@ def _preview_double_winder(p):
     # Flight 2 risers
     if riser_t > 0:
         for i in range(flight2_treads + 1):
-            riser_z = (flight2_riser_start + i) * rise + riser_h / 2
+            riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
                 riser_x = -(i * going) - hp - riser_t / 2
             else:
@@ -546,7 +553,7 @@ def _preview_double_winder(p):
     # Flight 3 risers (going in -Y direction)
     if riser_t > 0:
         for i in range(flight3_treads + 1):
-            riser_z = (flight3_riser_start + i) * rise + riser_h / 2
+            riser_z = (flight3_riser_start + i - 1) * rise + riser_h / 2
             riser_y = flight3_start_y - i * going + riser_t / 2 + flight3_shift_y
             meshes.append(_box_mesh(
                 flight3_start_x + width / 2, riser_y, riser_z,
