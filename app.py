@@ -347,7 +347,7 @@ def _preview_double_winder(p):
     corner2_y = corner1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
-    turn2_rotation = -90 if turn1_dir == "left" else 90
+    turn2_rotation = 90 if turn1_dir == "left" else -90
 
     for i in range(actual_winders2):
         winder_z = (riser_idx + i) * rise - tread_t
