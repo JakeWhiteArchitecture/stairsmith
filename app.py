@@ -125,7 +125,7 @@ def _box_mesh(x, y, z, w, d, h, color):
 
 def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
                          num_winders, winder_start_riser, rise, tread_t,
-                         riser_t, rotation=0):
+                         riser_t, nosing=0, rotation=0):
     """Generate riser meshes between consecutive winder treads.
 
     Returns a list of winder_polygon mesh dicts (thin strips along division
@@ -184,30 +184,38 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
         if length < 1e-9:
             continue
 
-        # Full riser_t offset toward upper winder
-        pnx = x_sign * (-ly / length) * riser_t
-        pny = x_sign * (lx / length) * riser_t
+        # Unit normal toward upper winder
+        unx = x_sign * (-ly / length)
+        uny = x_sign * (lx / length)
 
-        # Back face inner point (offset from division line by riser_t)
-        inner_back = (inner[0] + pnx, inner[1] + pny)
+        # Nosing setback: shift entire riser toward upper winder by nosing,
+        # so the nosing of the tread above overhangs past the riser front face.
+        # Then the back face is riser_t further toward the upper winder.
+        front_off = nosing              # toward upper winder
+        back_off = nosing + riser_t     # riser_t past front face
 
-        # Back face outer point: trace from inner_back along division line
-        # direction to hit the outer L-boundary (wall), so the riser is
-        # flush with the wall edge.
-        t_f1 = (outer_f1_x - inner_back[0]) / lx if abs(lx) > 1e-9 else float('inf')
-        t_f2 = (outer_f2_y - inner_back[1]) / ly if abs(ly) > 1e-9 else float('inf')
-        if t_f1 < 0: t_f1 = float('inf')
-        if t_f2 < 0: t_f2 = float('inf')
-        t = min(t_f1, t_f2)
-        outer_back = (inner_back[0] + lx * t, inner_back[1] + ly * t)
+        inner_front = (inner[0] + unx * front_off, inner[1] + uny * front_off)
+        inner_back = (inner[0] + unx * back_off, inner[1] + uny * back_off)
 
-        # Riser polygon: front face on division line, back face offset,
-        # both outer ends flush with the wall
+        # Trace both outer points along division line to hit the wall
+        def _trace_to_wall(pt):
+            tf1 = (outer_f1_x - pt[0]) / lx if abs(lx) > 1e-9 else float('inf')
+            tf2 = (outer_f2_y - pt[1]) / ly if abs(ly) > 1e-9 else float('inf')
+            if tf1 < 0: tf1 = float('inf')
+            if tf2 < 0: tf2 = float('inf')
+            t = min(tf1, tf2)
+            return (pt[0] + lx * t, pt[1] + ly * t)
+
+        outer_front = _trace_to_wall(inner_front)
+        outer_back = _trace_to_wall(inner_back)
+
+        # Riser polygon: front face set back by nosing from division line,
+        # back face riser_t further, both outer ends flush with wall
         strip = [
-            inner_back,    # back face, inner end
-            outer_back,    # back face, outer end (on the wall)
-            outer,         # front face, outer end (on the wall)
-            inner,         # front face, inner end
+            inner_back,     # back face, inner end
+            outer_back,     # back face, outer end (on the wall)
+            outer_front,    # front face, outer end (on the wall)
+            inner_front,    # front face, inner end
         ]
 
         # Apply rotation if needed (turn 2)
@@ -326,7 +334,7 @@ def _preview_single_winder(p):
         profile = _winder_profiles_from_construction(
             corner_x, corner_y, p["newel_size"], width,
             turn_dir, i, actual_winders,
-            riser_extension=riser_t)
+            riser_extension=riser_t + nosing)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -338,7 +346,8 @@ def _preview_single_winder(p):
     # Winder risers (between consecutive winder treads)
     meshes.extend(_winder_riser_meshes(
         corner_x, corner_y, ns, width, turn_dir,
-        actual_winders, winder_start_riser, rise, tread_t, riser_t))
+        actual_winders, winder_start_riser, rise, tread_t, riser_t,
+        nosing=nosing))
 
     # Newel post (fixed position, Step 2)
     meshes.append(_box_mesh(
@@ -441,7 +450,7 @@ def _preview_double_winder(p):
         profile = _winder_profiles_from_construction(
             corner1_x, corner1_y, ns, width,
             turn1_dir, i, actual_winders1,
-            riser_extension=riser_t)
+            riser_extension=riser_t + nosing)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -453,7 +462,8 @@ def _preview_double_winder(p):
     # Turn 1 winder risers
     meshes.extend(_winder_riser_meshes(
         corner1_x, corner1_y, ns, width, turn1_dir,
-        actual_winders1, turn1_winder_start, rise, tread_t, riser_t))
+        actual_winders1, turn1_winder_start, rise, tread_t, riser_t,
+        nosing=nosing))
 
     # Newel post at turn 1
     meshes.append(_box_mesh(
@@ -514,7 +524,7 @@ def _preview_double_winder(p):
             corner2_x, corner2_y, ns, width,
             turn2_dir, i, actual_winders2,
             rotation=turn2_rotation,
-            riser_extension=riser_t)
+            riser_extension=riser_t + nosing)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -527,7 +537,7 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner2_x, corner2_y, ns, width, turn2_dir,
         actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
-        rotation=turn2_rotation))
+        nosing=nosing, rotation=turn2_rotation))
 
     # Newel post at turn 2
     meshes.append(_box_mesh(
