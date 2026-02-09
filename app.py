@@ -302,8 +302,9 @@ def _preview_single_winder(p):
     hp = ns / 2.0
     wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
-    # Shift flight 1 back so it terminates at the post face
-    flight1_shift_y = -hp if actual_winders > 0 else 0.0
+    # Shift flight 1 back so it terminates at the post face,
+    # plus nosing so the top riser tucks under the first winder
+    flight1_shift_y = -(hp - nosing) if actual_winders > 0 else 0.0
 
     # Flight 1 treads (shifted back to post face)
     for i in range(flight1_treads):
@@ -418,9 +419,9 @@ def _preview_double_winder(p):
     offset = wg["offset"]
 
     riser_idx = 0
-    flight1_shift_y = -hp if actual_winders1 > 0 else 0.0
+    flight1_shift_y = -(hp - nosing) if actual_winders1 > 0 else 0.0
 
-    # Flight 1 (shifted back to post face)
+    # Flight 1 (shifted toward winders so top riser tucks under first winder)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
