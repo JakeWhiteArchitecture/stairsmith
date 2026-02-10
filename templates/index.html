@@ -387,11 +387,11 @@
             <div class="field-row">
                 <div class="field">
                     <label>Winder X <span class="unit">mm</span></label>
-                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="updatePreview();">
+                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
                 </div>
                 <div class="field">
                     <label>Winder Y <span class="unit">mm</span></label>
-                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="updatePreview();">
+                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
                 </div>
             </div>
 
@@ -627,6 +627,13 @@
         }
 
         // ─── 3D PREVIEW UPDATE ───
+        let winderDebounceTimer = null;
+        function winderInputChanged() {
+            // 1-second debounce for Winder X/Y to let user finish input
+            if (winderDebounceTimer) clearTimeout(winderDebounceTimer);
+            winderDebounceTimer = setTimeout(updatePreview, 1000);
+        }
+
         function updatePreview() {
             // Debounce
             if (updateTimeout) clearTimeout(updateTimeout);

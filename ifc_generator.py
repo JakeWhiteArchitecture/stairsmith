@@ -585,10 +585,21 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     if winder_index == 0:
         # Extend leading edge toward flight 1 by flight_extension
         entry_y = post_bottom_y - flight_extension
-        profile = [
-            (pc_x, entry_y),             # inner bottom-right (extended)
-            (outer_f1_x, entry_y),       # outer bottom-right (extended)
-        ]
+
+        if flight_extension > 0:
+            # Winder extends below post — full flight width with L-shaped
+            # inner edge that wraps around the post bottom face
+            profile = [
+                (post_cx, entry_y),          # inner bottom at flight width
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+        else:
+            # Winder doesn't extend below post — inner edge at post face
+            profile = [
+                (pc_x, entry_y),             # inner bottom at post face
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+
         # outer_s is at a0=0 which is along flight-1 axis
         if straddles_outer:
             profile.append((outer_f1_x, outer_f2_y))
@@ -598,15 +609,34 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
             profile.append(ext_inner)
         profile.append(mark_a)           # fixed 25mm mark on Face A
 
+        if flight_extension > 0:
+            # Close the L-shape: down post face to post bottom, jog to flight edge
+            profile.append((pc_x, post_bottom_y))
+            profile.append((post_cx, post_bottom_y))
+
     # Last winder (flight-2 side flank)
     elif winder_index == num_winders - 1:
         # Extend rear edge toward flight 2 by flight_extension
         exit_x = post_opp_x - x_sign * flight_extension
-        profile = [
-            mark_b,                          # fixed 25mm mark on Face B
-            (exit_x, pc_y),                  # exit edge inner (extended)
-            (exit_x, outer_f2_y),            # exit edge outer (extended)
-        ]
+
+        if flight_extension > 0:
+            # Exit extends past post — full flight width with L-shaped
+            # inner edge that wraps around the post opposite face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (post_opp_x, pc_y),              # along post face to post edge
+                (post_opp_x, post_cy),           # jog to flight inner edge
+                (exit_x, post_cy),               # continue at flight width
+                (exit_x, outer_f2_y),            # exit outer
+            ]
+        else:
+            # Exit doesn't extend past post — inner edge at post face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (exit_x, pc_y),                  # exit edge inner
+                (exit_x, outer_f2_y),            # exit edge outer
+            ]
+
         # outer_e is at a1=90° which is along flight-2 axis
         if straddles_outer:
             profile.append((outer_f1_x, outer_f2_y))
