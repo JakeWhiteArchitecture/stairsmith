@@ -302,12 +302,11 @@ def _preview_single_winder(p):
     hp = ns / 2.0
     wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
-    kite_going = wg["kite_going"]  # 50mm — fixed minimum going at inner string
-    # Shift flight 1 toward winders so nosing distance is kite_going (50mm),
-    # not linked to the newel face (hp)
-    flight1_shift_y = -(kite_going - nosing) if actual_winders > 0 else 0.0
+    # Shift flight 1 back so it terminates at the post face,
+    # plus nosing so the top riser tucks under the first winder
+    flight1_shift_y = -(hp - nosing) if actual_winders > 0 else 0.0
 
-    # Flight 1 treads
+    # Flight 1 treads (shifted back to post face)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -357,9 +356,10 @@ def _preview_single_winder(p):
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
-    # Flight 2 treads (perpendicular, nosing at kite_going from post centre)
+    # Flight 2 treads (perpendicular, aligned so first tread's leading edge
+    # meets the last winder's exit edge at the opposite post face)
     flight2_start_riser = winder_start_riser + actual_winders
-    flight2_shift = kite_going + nosing + riser_t / 2 if actual_winders > 0 else 0.0
+    flight2_shift = hp + nosing + riser_t / 2 if actual_winders > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
@@ -376,9 +376,9 @@ def _preview_single_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
             if turn_dir == "left":
-                riser_x = -(i * going) - kite_going - riser_t / 2
+                riser_x = -(i * going) - hp - riser_t / 2
             else:
-                riser_x = width + i * going + kite_going + riser_t / 2
+                riser_x = width + i * going + hp + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
@@ -417,12 +417,11 @@ def _preview_double_winder(p):
     hp = ns / 2.0
     wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
-    kite_going = wg["kite_going"]  # 50mm — fixed minimum going at inner string
 
     riser_idx = 0
-    flight1_shift_y = -(kite_going - nosing) if actual_winders1 > 0 else 0.0
+    flight1_shift_y = -(hp - nosing) if actual_winders1 > 0 else 0.0
 
-    # Flight 1 (shifted toward winders so nosing distance = kite_going)
+    # Flight 1 (shifted toward winders so top riser tucks under first winder)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -476,8 +475,9 @@ def _preview_double_winder(p):
     riser_idx += actual_winders1
     flight2_riser_start = riser_idx
 
-    # Flight 2 (perpendicular, nosing at kite_going from post centre)
-    flight2_shift = kite_going + nosing + riser_t / 2 if actual_winders1 > 0 else 0.0
+    # Flight 2 (perpendicular, aligned so first tread's leading edge
+    # meets the last winder's exit edge at the opposite post face)
+    flight2_shift = hp + nosing + riser_t / 2 if actual_winders1 > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
@@ -494,9 +494,9 @@ def _preview_double_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
-                riser_x = -(i * going) - kite_going - riser_t / 2
+                riser_x = -(i * going) - hp - riser_t / 2
             else:
-                riser_x = width + i * going + kite_going + riser_t / 2
+                riser_x = width + i * going + hp + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner1_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
