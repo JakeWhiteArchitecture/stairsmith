@@ -470,7 +470,8 @@ def compute_winder_geometry(newel_size, stair_width):
 
 def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
                                          turn_direction, winder_index, num_winders=3,
-                                         rotation=0, riser_extension=0):
+                                         rotation=0, riser_extension=0,
+                                         flight_extension=0):
     """Generate winder tread profile using angular division lines.
 
     Division lines radiate from the winder centre point at equal angles
@@ -582,9 +583,11 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
 
     # First winder (flight-1 side flank)
     if winder_index == 0:
+        # Extend leading edge toward flight 1 by flight_extension
+        entry_y = post_bottom_y - flight_extension
         profile = [
-            (pc_x, post_bottom_y),       # inner bottom-right
-            (outer_f1_x, post_bottom_y), # outer bottom-right
+            (pc_x, entry_y),             # inner bottom-right (extended)
+            (outer_f1_x, entry_y),       # outer bottom-right (extended)
         ]
         # outer_s is at a0=0 which is along flight-1 axis
         if straddles_outer:
@@ -597,10 +600,12 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
 
     # Last winder (flight-2 side flank)
     elif winder_index == num_winders - 1:
+        # Extend rear edge toward flight 2 by flight_extension
+        exit_x = post_opp_x - x_sign * flight_extension
         profile = [
             mark_b,                          # fixed 25mm mark on Face B
-            (post_opp_x, pc_y),              # opposite post face
-            (post_opp_x, outer_f2_y),        # outer corner
+            (exit_x, pc_y),                  # exit edge inner (extended)
+            (exit_x, outer_f2_y),            # exit edge outer (extended)
         ]
         # outer_e is at a1=90° which is along flight-2 axis
         if straddles_outer:
