@@ -471,7 +471,7 @@ def compute_winder_geometry(newel_size, stair_width):
 def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
                                          turn_direction, winder_index, num_winders=3,
                                          rotation=0, riser_extension=0,
-                                         flight_extension=0):
+                                         flight_extension=0, winder_x=25.0):
     """Generate winder tread profile using angular division lines.
 
     Division lines radiate from the winder centre point at equal angles
@@ -509,9 +509,9 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     pc_x = post_cx + x_sign * hp
     pc_y = post_cy + hp
 
-    # Winder centre: intersection of 25mm marks on both post faces
-    wc_x = pc_x - x_sign * 25.0
-    wc_y = pc_y - 25.0
+    # Winder centre: intersection of winder_x marks on both post faces
+    wc_x = pc_x - x_sign * winder_x
+    wc_y = pc_y - winder_x
 
     # Outer string positions
     outer_f1_x = post_cx + x_sign * stair_width
@@ -558,7 +558,7 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     # the division line so the riser above can sit on the tread.
     ext_inner = ext_outer = None
     if riser_extension > 0 and winder_index < num_winders - 1:
-        a_ic = math.atan2(25.0, 25.0)
+        a_ic = math.atan2(winder_x, winder_x)
         if a1 < a_ic - 1e-6:
             inner_a1 = mark_a
         elif a1 > a_ic + 1e-6:

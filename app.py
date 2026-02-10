@@ -131,7 +131,7 @@ def _box_mesh(x, y, z, w, d, h, color):
 
 def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
                          num_winders, winder_start_riser, rise, tread_t,
-                         riser_t, nosing=0, rotation=0):
+                         riser_t, nosing=0, rotation=0, winder_x=25.0):
     """Generate riser meshes between consecutive winder treads.
 
     Returns a list of winder_polygon mesh dicts (thin strips along division
@@ -147,8 +147,8 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
 
     pc_x = corner_x + x_sign * hp
     pc_y = corner_y + hp
-    wc_x = pc_x - x_sign * 25.0
-    wc_y = pc_y - 25.0
+    wc_x = pc_x - x_sign * winder_x
+    wc_y = pc_y - winder_x
 
     outer_f1_x = corner_x + x_sign * width
     outer_f2_y = corner_y + width
@@ -157,7 +157,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
     mark_b = (wc_x, pc_y)
 
     angle_step = (math.pi / 2.0) / num_winders
-    a_inner_corner = math.atan2(25.0, 25.0)  # pi/4
+    a_inner_corner = math.atan2(winder_x, winder_x)  # pi/4
 
     def ray_outer(angle):
         dx = x_sign * math.cos(angle)
@@ -344,7 +344,8 @@ def _preview_single_winder(p):
             corner_x, corner_y, p["newel_size"], width,
             turn_dir, i, actual_winders,
             riser_extension=riser_t + nosing,
-            flight_extension=wx + wy - 2 * hp)
+            flight_extension=wx + wy - 2 * hp,
+            winder_x=wx)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -357,7 +358,7 @@ def _preview_single_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner_x, corner_y, ns, width, turn_dir,
         actual_winders, winder_start_riser, rise, tread_t, riser_t,
-        nosing=nosing))
+        nosing=nosing, winder_x=wx))
 
     # Newel post (fixed position, Step 2)
     meshes.append(_box_mesh(
@@ -462,7 +463,8 @@ def _preview_double_winder(p):
             corner1_x, corner1_y, ns, width,
             turn1_dir, i, actual_winders1,
             riser_extension=riser_t + nosing,
-            flight_extension=wx + wy - 2 * hp)
+            flight_extension=wx + wy - 2 * hp,
+            winder_x=wx)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -475,7 +477,7 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner1_x, corner1_y, ns, width, turn1_dir,
         actual_winders1, turn1_winder_start, rise, tread_t, riser_t,
-        nosing=nosing))
+        nosing=nosing, winder_x=wx))
 
     # Newel post at turn 1
     meshes.append(_box_mesh(
@@ -536,7 +538,8 @@ def _preview_double_winder(p):
             turn2_dir, i, actual_winders2,
             rotation=turn2_rotation,
             riser_extension=riser_t + nosing,
-            flight_extension=wx + wy - 2 * hp)
+            flight_extension=wx + wy - 2 * hp,
+            winder_x=wx)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -549,7 +552,7 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner2_x, corner2_y, ns, width, turn2_dir,
         actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
-        nosing=nosing, rotation=turn2_rotation))
+        nosing=nosing, rotation=turn2_rotation, winder_x=wx))
 
     # Newel post at turn 2
     meshes.append(_box_mesh(
