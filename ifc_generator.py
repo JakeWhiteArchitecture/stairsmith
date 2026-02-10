@@ -572,6 +572,26 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
             pnx = x_sign * (-dly / dl) * riser_extension
             pny = x_sign * (dlx / dl) * riser_extension
             ext_inner = (inner_a1[0] + pnx, inner_a1[1] + pny)
+            # Clamp ext_inner to post face so it doesn't protrude past
+            # or pull away from the post. The inner end of the riser
+            # extension strip should meet the post surface.
+            ex, ey = ext_inner
+            if abs(inner_a1[0] - pc_x) < 1e-6:
+                # inner_a1 is on Face A — keep x on Face A, cap y at Face B
+                ex = pc_x
+                ey = min(ey, pc_y)
+            elif abs(inner_a1[1] - pc_y) < 1e-6:
+                # inner_a1 is on Face B — keep y on Face B, cap x at post edge
+                ey = pc_y
+                if x_sign > 0:
+                    ex = max(ex, post_opp_x)
+                else:
+                    ex = min(ex, post_opp_x)
+            else:
+                # At post corner — no inner extension needed
+                ex = pc_x
+                ey = pc_y
+            ext_inner = (ex, ey)
             # Trace from ext_inner along division line to hit the outer
             # L-boundary so the tread extension is flush with the wall
             t_f1 = (outer_f1_x - ext_inner[0]) / dlx if abs(dlx) > 1e-9 else float('inf')
