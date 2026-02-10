@@ -107,6 +107,12 @@ def _parse(params):
     p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
     p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
     p["newel_size"] = float(params.get("newel_size", 80))
+    # Winder X: distance from internal corner of newel along post face (min 25, max newel_size)
+    raw_x = float(params.get("winder_x", 25))
+    p["winder_x"] = max(25.0, min(p["newel_size"], raw_x))
+    # Winder Y: going from X endpoint toward flight (min 50)
+    raw_y = float(params.get("winder_y", 50))
+    p["winder_y"] = max(50.0, raw_y)
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -302,11 +308,13 @@ def _preview_single_winder(p):
     hp = ns / 2.0
     wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
-    # Shift flight 1 back so it terminates at the post face,
-    # plus nosing so the top riser tucks under the first winder
-    flight1_shift_y = -(hp - nosing) if actual_winders > 0 else 0.0
+    wx = p["winder_x"]  # distance from internal corner along post face
+    wy = p["winder_y"]  # going from X endpoint toward flight
 
-    # Flight 1 treads (shifted back to post face)
+    # Flight shift: X+Y measured from internal corner (at hp above post centre)
+    flight1_shift_y = (hp - wx - wy + nosing) if actual_winders > 0 else 0.0
+
+    # Flight 1 treads
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -356,10 +364,9 @@ def _preview_single_winder(p):
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
-    # Flight 2 treads (perpendicular, aligned so first tread's leading edge
-    # meets the last winder's exit edge at the opposite post face)
+    # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
     flight2_start_riser = winder_start_riser + actual_winders
-    flight2_shift = hp + nosing + riser_t / 2 if actual_winders > 0 else 0.0
+    flight2_shift = (wx + wy - hp + nosing + riser_t / 2) if actual_winders > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
@@ -376,9 +383,9 @@ def _preview_single_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
             if turn_dir == "left":
-                riser_x = -(i * going) - hp - riser_t / 2
+                riser_x = -(i * going) + hp - wx - wy - riser_t / 2
             else:
-                riser_x = width + i * going + hp + riser_t / 2
+                riser_x = width + i * going - hp + wx + wy + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
@@ -417,11 +424,13 @@ def _preview_double_winder(p):
     hp = ns / 2.0
     wg = compute_winder_geometry(ns, width)
     offset = wg["offset"]
+    wx = p["winder_x"]
+    wy = p["winder_y"]
 
     riser_idx = 0
-    flight1_shift_y = -(hp - nosing) if actual_winders1 > 0 else 0.0
+    flight1_shift_y = (hp - wx - wy + nosing) if actual_winders1 > 0 else 0.0
 
-    # Flight 1 (shifted toward winders so top riser tucks under first winder)
+    # Flight 1 (offset by X+Y from internal corner)
     for i in range(flight1_treads):
         tread_y = i * going - nosing + flight1_shift_y
         tread_z = (i + 1) * rise - tread_t
@@ -475,9 +484,8 @@ def _preview_double_winder(p):
     riser_idx += actual_winders1
     flight2_riser_start = riser_idx
 
-    # Flight 2 (perpendicular, aligned so first tread's leading edge
-    # meets the last winder's exit edge at the opposite post face)
-    flight2_shift = hp + nosing + riser_t / 2 if actual_winders1 > 0 else 0.0
+    # Flight 2 (perpendicular, offset by X+Y from internal corner)
+    flight2_shift = (wx + wy - hp + nosing + riser_t / 2) if actual_winders1 > 0 else 0.0
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
@@ -494,9 +502,9 @@ def _preview_double_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
-                riser_x = -(i * going) - hp - riser_t / 2
+                riser_x = -(i * going) + hp - wx - wy - riser_t / 2
             else:
-                riser_x = width + i * going + hp + riser_t / 2
+                riser_x = width + i * going - hp + wx + wy + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner1_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
