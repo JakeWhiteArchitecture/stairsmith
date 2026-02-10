@@ -645,10 +645,12 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
 
     # Last winder (flight-2 side flank)
     elif winder_index == num_winders - 1:
-        # Extend rear edge toward flight 2 by flight_extension
-        exit_x = post_opp_x - x_sign * flight_extension
+        # Extend rear edge toward flight 2 so it runs under flight 2's
+        # first riser. Total extension = flight_extension + riser_extension.
+        total_exit_ext = flight_extension + riser_extension
+        exit_x = post_opp_x - x_sign * total_exit_ext
 
-        if flight_extension > 0:
+        if total_exit_ext > 0:
             # Exit extends past post — full flight width with L-shaped
             # inner edge that wraps around the post opposite face
             profile = [
