@@ -203,6 +203,29 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
         inner_front = (inner[0] + unx * front_off, inner[1] + uny * front_off)
         inner_back = (inner[0] + unx * back_off, inner[1] + uny * back_off)
 
+        # Clamp inner riser ends to post face so they meet the post surface
+        post_opp_x = corner_x - x_sign * hp
+        def _clamp_to_post(pt):
+            ex, ey = pt
+            if abs(inner[0] - pc_x) < 1e-6:
+                # inner is on Face A — keep x on Face A, cap y at Face B
+                ex = pc_x
+                ey = min(ey, pc_y)
+            elif abs(inner[1] - pc_y) < 1e-6:
+                # inner is on Face B — keep y on Face B, cap x at post edge
+                ey = pc_y
+                if x_sign > 0:
+                    ex = max(ex, post_opp_x)
+                else:
+                    ex = min(ex, post_opp_x)
+            else:
+                # At post corner
+                ex = pc_x
+                ey = pc_y
+            return (ex, ey)
+        inner_front = _clamp_to_post(inner_front)
+        inner_back = _clamp_to_post(inner_back)
+
         # Trace both outer points along division line to hit the wall
         def _trace_to_wall(pt):
             tf1 = (outer_f1_x - pt[0]) / lx if abs(lx) > 1e-9 else float('inf')
