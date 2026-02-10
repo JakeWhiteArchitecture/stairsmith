@@ -423,9 +423,9 @@ def _preview_single_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
             if turn_dir == "left":
-                riser_x = -(i * going) + hp - wx - wy - riser_t / 2
+                riser_x = -(i * going) + hp - wx - wy - nosing - riser_t / 2
             else:
-                riser_x = width + i * going - hp + wx + wy + riser_t / 2
+                riser_x = width + i * going - hp + wx + wy + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
@@ -544,9 +544,9 @@ def _preview_double_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
-                riser_x = -(i * going) + hp - wx - wy - riser_t / 2
+                riser_x = -(i * going) + hp - wx - wy - nosing - riser_t / 2
             else:
-                riser_x = width + i * going - hp + wx + wy + riser_t / 2
+                riser_x = width + i * going - hp + wx + wy + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner1_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
