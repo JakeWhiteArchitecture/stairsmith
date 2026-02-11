@@ -106,7 +106,7 @@ def _parse(params):
     p["turn2_winders"] = int(params.get("turn2_winders", 3))
     p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
     p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
-    p["newel_size"] = float(params.get("newel_size", 80))
+    p["newel_size"] = float(params.get("newel_size", 90))
     # Winder X: distance from internal corner of newel along post face (min 25, max newel_size)
     raw_x = float(params.get("winder_x", 25))
     p["winder_x"] = max(25.0, min(p["newel_size"], raw_x))
@@ -601,8 +601,8 @@ def _preview_double_winder(p):
     riser_idx += actual_winders2
     flight3_riser_start = riser_idx
 
-    # Flight 3 — align nosing of first tread with turn 2 winder exit edge
-    flight3_shift_y = -(hp + riser_t) if actual_winders2 > 0 else 0.0
+    # Flight 3 — shift by X+Y from internal corner (mirrors flight 1 pattern)
+    flight3_shift_y = (hp - wx - wy - riser_t) if actual_winders2 > 0 else 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
@@ -630,7 +630,7 @@ def _preview_double_winder(p):
     if riser_t > 0:
         for i in range(flight3_treads + 1):
             riser_z = (flight3_riser_start + i - 1) * rise + riser_h / 2
-            riser_y = flight3_start_y - i * going + riser_t / 2 + flight3_shift_y
+            riser_y = flight3_start_y - i * going - nosing + riser_t / 2 + flight3_shift_y
             meshes.append(_box_mesh(
                 flight3_start_x + width / 2, riser_y, riser_z,
                 width, riser_t, riser_h, "#e8dcc8"
