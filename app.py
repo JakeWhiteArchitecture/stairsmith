@@ -412,13 +412,19 @@ def _preview_single_winder(p):
     # Landing tread when winders are off
     if actual_winders == 0:
         landing_z = winder_start_riser * rise - tread_t
-        # Rectangle covering corner: width in X, (width + nosing) in Y
+        # Rectangle covering corner: extends under flight 2's first riser
         # Nosing overhangs flight 1's last riser toward -Y
+        ext = nosing + riser_t  # extension under first riser of departing flight
+        landing_w = width + ext
+        if turn_dir == "left":
+            landing_cx = (width - ext) / 2
+        else:
+            landing_cx = (width + ext) / 2
         meshes.append(_box_mesh(
-            width / 2,
+            landing_cx,
             corner_y + (width - nosing) / 2,
             landing_z + tread_t / 2,
-            width, width + nosing, tread_t, "#c8a87c"
+            landing_w, width + nosing, tread_t, "#c8a87c"
         ))
 
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
@@ -550,11 +556,17 @@ def _preview_double_winder(p):
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
         landing1_z = turn1_winder_start * rise - tread_t
+        ext = nosing + riser_t  # extension under first riser of flight 2
+        landing1_w = width + ext
+        if turn1_dir == "left":
+            landing1_cx = (width - ext) / 2
+        else:
+            landing1_cx = (width + ext) / 2
         meshes.append(_box_mesh(
-            width / 2,
+            landing1_cx,
             corner1_y + (width - nosing) / 2,
             landing1_z + tread_t / 2,
-            width, width + nosing, tread_t, "#c8a87c"
+            landing1_w, width + nosing, tread_t, "#c8a87c"
         ))
 
     riser_idx += actual_winders1
@@ -657,16 +669,18 @@ def _preview_double_winder(p):
     # Turn 2 landing tread when winders are off
     if actual_winders2 == 0:
         landing2_z = turn2_winder_start * rise - tread_t
+        ext = nosing + riser_t  # extension under first riser of flight 3
         # Nosing overhangs toward flight 2's approach direction (X axis)
         if turn1_dir == "left":
             landing2_cx = flight3_start_x + (width + nosing) / 2
         else:
             landing2_cx = flight3_start_x + (width - nosing) / 2
+        # Flight 3 departs in -Y, extend landing in -Y under its first riser
         meshes.append(_box_mesh(
             landing2_cx,
-            corner2_y + width / 2,
+            corner2_y + (width - ext) / 2,
             landing2_z + tread_t / 2,
-            width + nosing, width, tread_t, "#c8a87c"
+            width + nosing, width + ext, tread_t, "#c8a87c"
         ))
 
     # Flight 3 shift — nosing centred on post when winders off
