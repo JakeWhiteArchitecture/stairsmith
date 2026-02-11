@@ -565,19 +565,11 @@ def _preview_single_winder(p):
         f1_y1 = flight1_treads * going + flight1_shift_y  # last riser Y
         f1_z0 = 0.0
         f1_z1 = flight1_treads * rise
-
-        # Landing Z and the lowered stringer top Z
-        landing_z_base = winder_start_riser * rise
-        landing_stringer_top = landing_z_base + STRINGER_DROP
-
-        # Extend flight 1 along pitch to meet the lowered landing stringer top
-        pitch1 = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-        z1_ext = landing_stringer_top - STRINGER_HEIGHT
-        y1_ext = f1_y1 + (z1_ext - f1_z1) / pitch1 if abs(pitch1) > 1e-9 else f1_y1
-        meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, y1_ext, z1_ext))
-        meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, y1_ext, z1_ext))
+        meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
 
         # Landing flat stringers
+        landing_z_base = winder_start_riser * rise
         f2_first_riser_x = -(winder_offset + nosing + riser_t / 2) if turn_dir == "left" \
             else width + winder_offset + nosing + riser_t / 2
         t = STRINGER_THICKNESS
@@ -601,13 +593,8 @@ def _preview_single_winder(p):
             f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
         f2_z0 = (flight2_start_riser - 1) * rise
         f2_z1 = (flight2_start_riser + flight2_treads - 1) * rise
-
-        # Extend flight 2 near end along pitch to meet the lowered landing stringer top
-        pitch2 = (f2_z1 - f2_z0) / (f2_x1 - f2_x0) if abs(f2_x1 - f2_x0) > 1e-9 else 0
-        z2_ext = landing_stringer_top - STRINGER_HEIGHT
-        x2_ext = f2_x0 + (z2_ext - f2_z0) / pitch2 if abs(pitch2) > 1e-9 else f2_x0
-        meshes.append(_stringer_flight_x(inner_y, x2_ext, z2_ext, f2_x1, f2_z1))
-        meshes.append(_stringer_flight_x(outer_y, x2_ext, z2_ext, f2_x1, f2_z1))
+        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
+        meshes.append(_stringer_flight_x(outer_y, f2_x0, f2_z0, f2_x1, f2_z1))
 
     return meshes
 
@@ -867,20 +854,11 @@ def _preview_double_winder(p):
             f1_y1 = flight1_treads * going + flight1_shift_y
             f1_z0 = 0.0
             f1_z1 = flight1_treads * rise
-
-            # Turn 1 landing Z and lowered stringer top
-            landing1_z = turn1_winder_start * rise
-            land1_top = landing1_z + STRINGER_DROP
-
-            # Extend flight 1 end along pitch to meet lowered landing stringer top
-            h = STRINGER_HEIGHT
-            pitch1 = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-            z1_ext = land1_top - h
-            y1_ext = f1_y1 + (z1_ext - f1_z1) / pitch1 if abs(pitch1) > 1e-9 else f1_y1
-            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, y1_ext, z1_ext))
-            meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, y1_ext, z1_ext))
+            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
 
             # Turn 1 landing stringers
+            landing1_z = turn1_winder_start * rise
             if turn1_dir == "left":
                 f2_x0 = -winder_offset1 - nosing - riser_t / 2
                 meshes.append(_stringer_landing_x(corner1_y, f2_x0, f1_inner_x, landing1_z))
@@ -905,23 +883,16 @@ def _preview_double_winder(p):
                 f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
             f2_z_first = (flight2_riser_start - 1) * rise
             f2_z_last = (flight2_riser_start + flight2_treads - 1) * rise
-
-            # Extend flight 2 near end along pitch to meet lowered landing 1 top
-            pitch2 = (f2_z_last - f2_z_first) / (f2_x_last - f2_x_first) if abs(f2_x_last - f2_x_first) > 1e-9 else 0
-            z2_near_ext = land1_top - h
-            x2_near_ext = f2_x_first + (z2_near_ext - f2_z_first) / pitch2 if abs(pitch2) > 1e-9 else f2_x_first
-
             # Clip far end at corner2 post centre if turn 2 also has a landing
             if actual_winders2 == 0 and flight2_treads > 0:
-                landing2_z_pre = turn2_winder_start * rise
-                land2_top = landing2_z_pre + STRINGER_DROP
-                # Extend flight 2 far end to meet lowered landing 2 top
-                z2_far_ext = land2_top - h
-                x2_far_ext = f2_x_last + (z2_far_ext - f2_z_last) / pitch2 if abs(pitch2) > 1e-9 else f2_x_last
-                f2_x_last = x2_far_ext
-                f2_z_last = z2_far_ext
-            meshes.append(_stringer_flight_x(f2_inner_y, x2_near_ext, z2_near_ext, f2_x_last, f2_z_last))
-            meshes.append(_stringer_flight_x(f2_outer_y, x2_near_ext, z2_near_ext, f2_x_last, f2_z_last))
+                dx = f2_x_last - f2_x_first
+                if abs(dx) > 1e-9:
+                    t_clip = (corner2_x - f2_x_first) / dx
+                    t_clip = max(0.0, min(1.0, t_clip))
+                    f2_x_last = f2_x_first + t_clip * dx
+                    f2_z_last = f2_z_first + t_clip * (f2_z_last - f2_z_first)
+            meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+            meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
 
         if actual_winders2 == 0:
             # Turn 2 landing stringers — wall (outer) side path
@@ -947,15 +918,14 @@ def _preview_double_winder(p):
             f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
             f3_z_first = (flight3_riser_start - 1) * rise
             f3_z_last = (flight3_riser_start + flight3_treads - 1) * rise
-            # Extend near end along pitch to meet lowered landing 2 stringer top
-            h = STRINGER_HEIGHT
-            land2_top = landing2_z + STRINGER_DROP
+            # Clip near end at corner2 post centre Y
             if flight3_treads > 0:
-                pitch3 = (f3_z_last - f3_z_first) / (f3_y_last - f3_y_first) if abs(f3_y_last - f3_y_first) > 1e-9 else 0
-                z3_ext = land2_top - h
-                y3_ext = f3_y_first + (z3_ext - f3_z_first) / pitch3 if abs(pitch3) > 1e-9 else f3_y_first
-                f3_y_first = y3_ext
-                f3_z_first = z3_ext
+                dy = f3_y_last - f3_y_first
+                if abs(dy) > 1e-9:
+                    t_clip = (corner2_y - f3_y_first) / dy
+                    t_clip = max(0.0, min(1.0, t_clip))
+                    f3_y_first = f3_y_first + t_clip * dy if t_clip > 0 else f3_y_first
+                    f3_z_first = f3_z_first + t_clip * (f3_z_last - f3_z_first) if t_clip > 0 else f3_z_first
             meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
             meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
 
