@@ -558,11 +558,9 @@ def _preview_double_winder(p):
     # Place turn 2 post hp beyond flight 2's end (matching how flight 1
     # terminates at turn 1's post face)
     if turn1_dir == "left":
-        flight2_end_x = -(flight2_treads * going) - flight2_shift
-        corner2_x = flight2_end_x - hp
+        corner2_x = -(flight2_treads * going) - hp + (wx + wy - 2 * hp)
     else:
-        flight2_end_x = width + flight2_treads * going + flight2_shift
-        corner2_x = flight2_end_x + hp
+        corner2_x = width + flight2_treads * going + hp - (wx + wy - 2 * hp)
     corner2_y = corner1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
