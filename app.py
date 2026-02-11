@@ -134,7 +134,7 @@ def _box_mesh(x, y, z, w, d, h, color):
     }
 
 
-STRINGER_THICKNESS = 25.0   # mm
+STRINGER_THICKNESS = 32.0   # mm
 STRINGER_HEIGHT = 225.0     # mm
 STRINGER_COLOR = "#b5a48a"
 
@@ -569,9 +569,11 @@ def _preview_single_winder(p):
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_first_riser_x, inner_x, landing_z_base))
             meshes.append(_stringer_landing_y(outer_x, f1_y1, corner_y + width, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, f2_first_riser_x, outer_x, landing_z_base))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_first_riser_x, landing_z_base))
             meshes.append(_stringer_landing_y(outer_x, f1_y1, corner_y + width, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, outer_x, f2_first_riser_x, landing_z_base))
 
         # Flight 2: runs along X. Inner side = corner_y, outer side = corner_y + width.
         inner_y = corner_y
@@ -857,6 +859,10 @@ def _preview_double_winder(p):
                 f2_x0 = width + winder_offset1 + nosing + riser_t / 2
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x0, landing1_z))
             meshes.append(_stringer_landing_y(f1_outer_x, f1_y1, corner1_y + width, landing1_z))
+            if turn1_dir == "left":
+                meshes.append(_stringer_landing_x(corner1_y + width, f2_x0, f1_outer_x, landing1_z))
+            else:
+                meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x, f2_x0, landing1_z))
 
             # Flight 2 stringers (along X) — clipped at post centres
             f2_inner_y = corner1_y
@@ -882,16 +888,17 @@ def _preview_double_winder(p):
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
 
         if actual_winders2 == 0:
-            # Turn 2 landing stringers
+            # Turn 2 landing stringers — wall (outer) side path
             landing2_z = turn2_winder_start * rise
-            # Inner stringer: along X from corner2 post to flight 2 approach
-            if turn1_dir == "left":
-                meshes.append(_stringer_landing_x(corner2_y + width, corner2_x, corner1_x, landing2_z))
+            # Wall side of flight 3 = side opposite the turn 2 post
+            if turn1_dir == turn2_dir:
+                f3_wall_x = flight3_start_x + corner1_x
             else:
-                meshes.append(_stringer_landing_x(corner2_y + width, corner1_x, corner2_x, landing2_z))
-            # Outer stringer: along Y from corner2_y to corner2_y + width
-            meshes.append(_stringer_landing_y(flight3_start_x + width - corner1_x,
-                                              corner2_y, corner2_y + width, landing2_z))
+                f3_wall_x = flight3_start_x + width - corner1_x
+            # X segment at outer Y from corner2 to flight 3 wall side
+            meshes.append(_stringer_landing_x(corner2_y + width, corner2_x, f3_wall_x, landing2_z))
+            # Y segment at flight 3 wall X from corner2_y to corner2_y + width
+            meshes.append(_stringer_landing_y(f3_wall_x, corner2_y, corner2_y + width, landing2_z))
 
             # Flight 3 stringers (along -Y) — clip near end at corner2 post
             f3_inner_x = flight3_start_x + corner1_x       # newel side
