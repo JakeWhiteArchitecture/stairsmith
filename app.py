@@ -136,7 +136,7 @@ def _box_mesh(x, y, z, w, d, h, color):
 
 STRINGER_THICKNESS = 32.0   # mm
 STRINGER_HEIGHT = 225.0     # mm
-STRINGER_DROP = 75.0        # mm – landing stringers sit this far below the tread plane
+STRINGER_DROP = 75.0        # mm – landing stringer top sits this far above the tread plane
 STRINGER_COLOR = "#b5a48a"
 
 
@@ -188,9 +188,9 @@ def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end):
 def _stringer_landing_y(x_pos, y_start, y_end, z):
     """Flat (horizontal) stringer across a landing, running in Y.
 
-    The stringer top sits STRINGER_DROP below z (the tread plane).
+    The stringer top sits STRINGER_DROP above z (the tread plane).
     """
-    z_top = z - STRINGER_DROP
+    z_top = z + STRINGER_DROP
     z_bot = z_top - STRINGER_HEIGHT
     profile = [
         [y_start, z_bot],
@@ -210,9 +210,9 @@ def _stringer_landing_y(x_pos, y_start, y_end, z):
 def _stringer_landing_x(y_pos, x_start, x_end, z):
     """Flat (horizontal) stringer across a landing, running in X.
 
-    The stringer top sits STRINGER_DROP below z (the tread plane).
+    The stringer top sits STRINGER_DROP above z (the tread plane).
     """
-    z_top = z - STRINGER_DROP
+    z_top = z + STRINGER_DROP
     z_bot = z_top - STRINGER_HEIGHT
     profile = [
         [x_start, z_bot],
@@ -568,7 +568,7 @@ def _preview_single_winder(p):
 
         # Landing Z and the lowered stringer top Z
         landing_z_base = winder_start_riser * rise
-        landing_stringer_top = landing_z_base - STRINGER_DROP
+        landing_stringer_top = landing_z_base + STRINGER_DROP
 
         # Extend flight 1 along pitch to meet the lowered landing stringer top
         pitch1 = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
@@ -870,7 +870,7 @@ def _preview_double_winder(p):
 
             # Turn 1 landing Z and lowered stringer top
             landing1_z = turn1_winder_start * rise
-            land1_top = landing1_z - STRINGER_DROP
+            land1_top = landing1_z + STRINGER_DROP
 
             # Extend flight 1 end along pitch to meet lowered landing stringer top
             h = STRINGER_HEIGHT
@@ -914,7 +914,7 @@ def _preview_double_winder(p):
             # Clip far end at corner2 post centre if turn 2 also has a landing
             if actual_winders2 == 0 and flight2_treads > 0:
                 landing2_z_pre = turn2_winder_start * rise
-                land2_top = landing2_z_pre - STRINGER_DROP
+                land2_top = landing2_z_pre + STRINGER_DROP
                 # Extend flight 2 far end to meet lowered landing 2 top
                 z2_far_ext = land2_top - h
                 x2_far_ext = f2_x_last + (z2_far_ext - f2_z_last) / pitch2 if abs(pitch2) > 1e-9 else f2_x_last
@@ -949,7 +949,7 @@ def _preview_double_winder(p):
             f3_z_last = (flight3_riser_start + flight3_treads - 1) * rise
             # Extend near end along pitch to meet lowered landing 2 stringer top
             h = STRINGER_HEIGHT
-            land2_top = landing2_z - STRINGER_DROP
+            land2_top = landing2_z + STRINGER_DROP
             if flight3_treads > 0:
                 pitch3 = (f3_z_last - f3_z_first) / (f3_y_last - f3_y_first) if abs(f3_y_last - f3_y_first) > 1e-9 else 0
                 z3_ext = land2_top - h
