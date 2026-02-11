@@ -716,6 +716,10 @@
                     const polyMesh = createWinderPolygonMesh(m);
                     if (polyMesh) staircaseGroup.add(polyMesh);
 
+                } else if (m.type === 'stringer') {
+                    const strMesh = createStringerMesh(m);
+                    if (strMesh) staircaseGroup.add(strMesh);
+
                 } else if (m.type === 'winder' || m.type === 'winder_turn2') {
                     const winderMesh = createWinderMesh(m);
                     if (winderMesh) staircaseGroup.add(winderMesh);
@@ -760,6 +764,55 @@
             const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
             line.rotation.x = -Math.PI / 2;
             line.position.set(0, m.z, 0);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
+        }
+
+        function createStringerMesh(m) {
+            // Stringer: side profile in IFC Y-Z plane, extruded by thickness in X.
+            // m.profile = [[y,z], ...] in IFC coords
+            // m.x = IFC X position of the stringer centre
+            // m.thickness = extrusion depth (25mm)
+            // m.axis = 'y' (extrude along IFC Y) or 'x' (extrude along IFC X, default)
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.closePath();
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: m.thickness,
+                bevelEnabled: false,
+            });
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            if (m.axis === 'y') {
+                // Profile in IFC X-Z plane, extrude along IFC +Y (Three.js -Z).
+                // No rotation: local X→X, local Y→Y (IFC Z→Three Y), extrude→+Z.
+                // Position so extrusion spans from Three.js Z = -m.y to -(m.y+thickness).
+                mesh.position.set(0, 0, -(m.y + m.thickness));
+            } else {
+                // Profile in IFC Y-Z plane, extrude along IFC +X (Three.js +X).
+                // Rotate Y 90°: local X (IFC Y)→-Z, local Y (IFC Z)→+Y, extrude→+X.
+                mesh.rotation.y = Math.PI / 2;
+                mesh.position.set(m.x, 0, 0);
+            }
+
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.copy(mesh.rotation);
+            line.position.copy(mesh.position);
 
             const group = new THREE.Group();
             group.add(mesh);
