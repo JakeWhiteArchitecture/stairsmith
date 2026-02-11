@@ -113,6 +113,11 @@ def _parse(params):
     # Winder Y: going from X endpoint toward flight (min 50)
     raw_y = float(params.get("winder_y", 50))
     p["winder_y"] = max(50.0, raw_y)
+    # Turn 2 winder X/Y (default to turn 1 values)
+    raw_x2 = float(params.get("winder_x2", params.get("winder_x", 25)))
+    p["winder_x2"] = max(25.0, min(p["newel_size"], raw_x2))
+    raw_y2 = float(params.get("winder_y2", params.get("winder_y", 50)))
+    p["winder_y2"] = max(50.0, raw_y2)
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -466,6 +471,8 @@ def _preview_double_winder(p):
     offset = wg["offset"]
     wx = p["winder_x"]
     wy = p["winder_y"]
+    wx2 = p["winder_x2"]
+    wy2 = p["winder_y2"]
 
     riser_idx = 0
     flight1_shift_y = (hp - wx - wy + nosing) if actual_winders1 > 0 else 0.0
@@ -554,13 +561,11 @@ def _preview_double_winder(p):
 
     riser_idx += flight2_treads
 
-    # Turn 2 winders — construction-based profiles
-    # Place turn 2 post hp beyond flight 2's end (matching how flight 1
-    # terminates at turn 1's post face)
+    # Turn 2 winders — corner2 links flight 2 top riser (wx/wy) to turn 2 entry (wx2/wy2)
     if turn1_dir == "left":
-        corner2_x = -(flight2_treads * going) - hp + (wx + wy - 2 * hp)
+        corner2_x = -(flight2_treads * going) + 2 * hp - wx - wy - wx2 - wy2
     else:
-        corner2_x = width + flight2_treads * going + hp - (wx + wy - 2 * hp)
+        corner2_x = width + flight2_treads * going - 2 * hp + wx + wy + wx2 + wy2
     corner2_y = corner1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
@@ -574,8 +579,8 @@ def _preview_double_winder(p):
             turn2_dir, i, actual_winders2,
             rotation=turn2_rotation,
             riser_extension=riser_t + nosing,
-            flight_extension=wx + wy - 2 * hp,
-            winder_x=wx)
+            flight_extension=wx2 + wy2 - 2 * hp,
+            winder_x=wx2)
         meshes.append({
             "type": "winder_polygon",
             "profile": [[pt[0], pt[1]] for pt in profile],
@@ -588,7 +593,7 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner2_x, corner2_y, ns, width, turn2_dir,
         actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
-        nosing=nosing, rotation=turn2_rotation, winder_x=wx))
+        nosing=nosing, rotation=turn2_rotation, winder_x=wx2))
 
     # Newel post at turn 2
     meshes.append(_box_mesh(
@@ -599,8 +604,8 @@ def _preview_double_winder(p):
     riser_idx += actual_winders2
     flight3_riser_start = riser_idx
 
-    # Flight 3 — shift by X+Y from internal corner (mirrors flight 1 pattern)
-    flight3_shift_y = (hp - wx - wy - riser_t) if actual_winders2 > 0 else 0.0
+    # Flight 3 — shift by X2+Y2 from turn 2's internal corner
+    flight3_shift_y = (hp - wx2 - wy2 - riser_t) if actual_winders2 > 0 else 0.0
 
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
