@@ -411,6 +411,10 @@ def _preview_single_winder(p):
 
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
     flight2_start_riser = winder_start_riser + actual_winders
+    # When winders are off, the landing consumes 1 rise — shift flight 2 up
+    if actual_winders == 0:
+        flight2_start_riser += 1
+        flight2_treads = max(0, flight2_treads - 1)
     winder_offset = (wx + wy - hp) if actual_winders > 0 else 0.0
     flight2_shift = winder_offset + nosing + riser_t / 2
     for i in range(flight2_treads):
@@ -532,6 +536,10 @@ def _preview_double_winder(p):
     ))
 
     riser_idx += actual_winders1
+    # When turn 1 winders are off, the landing consumes 1 rise — shift flight 2 up
+    if actual_winders1 == 0:
+        riser_idx += 1
+        flight2_treads = max(0, flight2_treads - 1)
     flight2_riser_start = riser_idx
 
     # Flight 2 (perpendicular, offset by X+Y from internal corner)
@@ -605,6 +613,10 @@ def _preview_double_winder(p):
     ))
 
     riser_idx += actual_winders2
+    # When turn 2 winders are off, the landing consumes 1 rise — shift flight 3 up
+    if actual_winders2 == 0:
+        riser_idx += 1
+        flight3_treads = max(0, flight3_treads - 1)
     flight3_riser_start = riser_idx
 
     if turn1_dir == "left" and turn2_dir == "left":
