@@ -432,10 +432,6 @@
                             <option value="right">Right</option>
                         </select>
                     </div>
-                    <div class="field">
-                        <label>Winder Treads</label>
-                        <input type="number" id="turn1_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
-                    </div>
                 </div>
             </div>
         </div>
@@ -456,10 +452,6 @@
                             <option value="left" selected>Left</option>
                             <option value="right">Right</option>
                         </select>
-                    </div>
-                    <div class="field">
-                        <label>Winder Treads</label>
-                        <input type="number" id="turn2_winders" value="3" min="2" max="4" step="1" oninput="updatePreview();">
                     </div>
                 </div>
             </div>
@@ -584,10 +576,8 @@
                 nosing: parseFloat(document.getElementById('nosing').value),
                 staircase_type: document.getElementById('staircase_type').value,
                 turn1_direction: document.getElementById('turn1_direction').value,
-                turn1_winders: parseInt(document.getElementById('turn1_winders').value),
                 turn1_enabled: document.getElementById('turn1_enabled').checked,
                 turn2_direction: document.getElementById('turn2_direction').value,
-                turn2_winders: parseInt(document.getElementById('turn2_winders').value),
                 turn2_enabled: document.getElementById('turn2_enabled').checked,
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),

@@ -101,9 +101,9 @@ def _parse(params):
     p["nosing"] = float(params.get("nosing", 16))
     p["staircase_type"] = params.get("staircase_type", "double_winder")
     p["turn1_direction"] = params.get("turn1_direction", "left")
-    p["turn1_winders"] = int(params.get("turn1_winders", 3))
+    p["turn1_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
     p["turn2_direction"] = params.get("turn2_direction", "left")
-    p["turn2_winders"] = int(params.get("turn2_winders", 3))
+    p["turn2_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
     p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
     p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
     p["newel_size"] = float(params.get("newel_size", 90))
@@ -409,6 +409,18 @@ def _preview_single_winder(p):
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
+    # Landing tread when winders are off
+    if actual_winders == 0:
+        landing_z = winder_start_riser * rise - tread_t
+        # Rectangle covering corner: width in X, (width + nosing) in Y
+        # Nosing overhangs flight 1's last riser toward -Y
+        meshes.append(_box_mesh(
+            width / 2,
+            corner_y + (width - nosing) / 2,
+            landing_z + tread_t / 2,
+            width, width + nosing, tread_t, "#c8a87c"
+        ))
+
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
     flight2_start_riser = winder_start_riser + actual_winders
     # When winders are off, the landing consumes 1 rise — shift flight 2 up
@@ -535,6 +547,16 @@ def _preview_double_winder(p):
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
+    # Turn 1 landing tread when winders are off
+    if actual_winders1 == 0:
+        landing1_z = turn1_winder_start * rise - tread_t
+        meshes.append(_box_mesh(
+            width / 2,
+            corner1_y + (width - nosing) / 2,
+            landing1_z + tread_t / 2,
+            width, width + nosing, tread_t, "#c8a87c"
+        ))
+
     riser_idx += actual_winders1
     # When turn 1 winders are off, the landing consumes 1 rise — shift flight 2 up
     if actual_winders1 == 0:
@@ -631,6 +653,21 @@ def _preview_double_winder(p):
     else:
         flight3_start_x = corner2_x - width
         flight3_start_y = corner2_y + width
+
+    # Turn 2 landing tread when winders are off
+    if actual_winders2 == 0:
+        landing2_z = turn2_winder_start * rise - tread_t
+        # Nosing overhangs toward flight 2's approach direction (X axis)
+        if turn1_dir == "left":
+            landing2_cx = flight3_start_x + (width + nosing) / 2
+        else:
+            landing2_cx = flight3_start_x + (width - nosing) / 2
+        meshes.append(_box_mesh(
+            landing2_cx,
+            corner2_y + width / 2,
+            landing2_z + tread_t / 2,
+            width + nosing, width, tread_t, "#c8a87c"
+        ))
 
     # Flight 3 shift — nosing centred on post when winders off
     if actual_winders2 > 0:
