@@ -411,7 +411,8 @@ def _preview_single_winder(p):
 
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
     flight2_start_riser = winder_start_riser + actual_winders
-    flight2_shift = (wx + wy - hp + nosing + riser_t / 2) if actual_winders > 0 else 0.0
+    winder_offset = (wx + wy - hp) if actual_winders > 0 else 0.0
+    flight2_shift = winder_offset + nosing + riser_t / 2
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
         if turn_dir == "left":
@@ -428,9 +429,9 @@ def _preview_single_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
             if turn_dir == "left":
-                riser_x = -(i * going) + hp - wx - wy - nosing - riser_t / 2
+                riser_x = -(i * going) - winder_offset - nosing - riser_t / 2
             else:
-                riser_x = width + i * going - hp + wx + wy + nosing + riser_t / 2
+                riser_x = width + i * going + winder_offset + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
@@ -534,7 +535,8 @@ def _preview_double_winder(p):
     flight2_riser_start = riser_idx
 
     # Flight 2 (perpendicular, offset by X+Y from internal corner)
-    flight2_shift = (wx + wy - hp + nosing + riser_t / 2) if actual_winders1 > 0 else 0.0
+    winder_offset1 = (wx + wy - hp) if actual_winders1 > 0 else 0.0
+    flight2_shift = winder_offset1 + nosing + riser_t / 2
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
         if turn1_dir == "left":
@@ -551,9 +553,9 @@ def _preview_double_winder(p):
         for i in range(flight2_treads + 1):
             riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
-                riser_x = -(i * going) + hp - wx - wy - nosing - riser_t / 2
+                riser_x = -(i * going) - winder_offset1 - nosing - riser_t / 2
             else:
-                riser_x = width + i * going - hp + wx + wy + nosing + riser_t / 2
+                riser_x = width + i * going + winder_offset1 + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, corner1_y + width / 2, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
@@ -561,11 +563,12 @@ def _preview_double_winder(p):
 
     riser_idx += flight2_treads
 
-    # Turn 2 winders — corner2 links flight 2 top riser (wx/wy) to turn 2 entry (wx2/wy2)
+    # Turn 2 winders — corner2 links flight 2 top riser (offset1) to turn 2 entry (offset2)
+    winder_offset2 = (wx2 + wy2 - hp) if actual_winders2 > 0 else 0.0
     if turn1_dir == "left":
-        corner2_x = -(flight2_treads * going) + 2 * hp - wx - wy - wx2 - wy2
+        corner2_x = -(flight2_treads * going) - winder_offset1 - winder_offset2
     else:
-        corner2_x = width + flight2_treads * going - 2 * hp + wx + wy + wx2 + wy2
+        corner2_x = width + flight2_treads * going + winder_offset1 + winder_offset2
     corner2_y = corner1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
@@ -604,9 +607,6 @@ def _preview_double_winder(p):
     riser_idx += actual_winders2
     flight3_riser_start = riser_idx
 
-    # Flight 3 — shift by X2+Y2 from turn 2's internal corner
-    flight3_shift_y = (hp - wx2 - wy2 - riser_t) if actual_winders2 > 0 else 0.0
-
     if turn1_dir == "left" and turn2_dir == "left":
         flight3_start_x = corner2_x - width
         flight3_start_y = corner2_y
@@ -619,6 +619,12 @@ def _preview_double_winder(p):
     else:
         flight3_start_x = corner2_x - width
         flight3_start_y = corner2_y + width
+
+    # Flight 3 shift — nosing centred on post when winders off
+    if actual_winders2 > 0:
+        flight3_shift_y = -(winder_offset2 + riser_t)
+    else:
+        flight3_shift_y = -(flight3_start_y - corner2_y) - riser_t
 
     for i in range(flight3_treads):
         tread_z = (riser_idx + i) * rise - tread_t
