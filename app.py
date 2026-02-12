@@ -692,14 +692,82 @@ def _preview_straight(p):
         width, threshold_d, tread_t, "#c8a87c"
     ))
 
-    # --- Stringers (notched at top for threshold) ---
+    # --- Stringers ---
     nzs = rise * nosing / going
+    ns = p["newel_size"]
+    hp = ns / 2.0
     y0 = 0.0
     y1 = num_treads * going + riser_t / 2       # flush with riser back face
+    y1_nf = num_treads * going                  # non-flushed (at last riser)
     z0 = rise + nzs
     z1 = (num_treads + 1) * rise + nzs + riser_t * rise / (2 * going)
-    meshes.append(_stringer_flight_y_notched(0.0, y0, z0, y1, z1, ftf, threshold_back, tread_t))
+    z1_nf = (num_treads + 1) * rise + nzs
+
+    # Balustrade keyword dicts
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
+    # Newel post positions
+    bottom_post_y = -nosing
+    top_post_y = threshold_y  # threshold nosing line
+
+    # Left stringer (x=0): plain, clipped at post faces, with balustrade
+    bot_face_y = bottom_post_y + hp
+    top_face_y = top_post_y - hp
+    dy = y1 - y0
+    # Clip start at bottom post face
+    y0_c, z0_c = y0, z0
+    if abs(dy) > 1e-9 and bot_face_y > y0:
+        t_c = min(1.0, (bot_face_y - y0) / dy)
+        y0_c = y0 + t_c * dy
+        z0_c = z0 + t_c * (z1 - z0)
+    # Clip end at top post face (stringer uses flushed endpoint)
+    y1_c, z1_c = y1, z1
+    if abs(dy) > 1e-9 and top_face_y < y1:
+        t_c = max(0.0, (top_face_y - y0) / dy)
+        y1_c = y0 + t_c * dy
+        z1_c = z0 + t_c * (z1 - z0)
+    meshes.append(_stringer_flight_y(0.0, y0_c, z0_c, y1_c, z1_c))
+    # Handrail clip (using non-flushed endpoint)
+    dy_nf = y1_nf - y0
+    y1_hr, z1_hr = y1_nf, z1_nf
+    if abs(dy_nf) > 1e-9 and top_face_y < y1_nf:
+        t_c = max(0.0, (top_face_y - y0) / dy_nf)
+        y1_hr = y0 + t_c * dy_nf
+        z1_hr = z0 + t_c * (z1_nf - z0)
+    meshes.append(_handrail_flight_y(0.0, y0_c, z0_c, y1_hr, z1_hr, **hr_kw))
+    meshes.append(_baserail_flight_y(0.0, y0_c, z0_c, y1_c, z1_c, **br_kw))
+    # Spindles: from bottom post face to top post face
+    if abs(dy_nf) > 1e-9:
+        t_sp0 = (bot_face_y - y0) / dy_nf
+        t_sp1 = (top_face_y - y0) / dy_nf
+        sp_z0 = z0 + t_sp0 * (z1_nf - z0)
+        sp_z1 = z0 + t_sp1 * (z1_nf - z0)
+        meshes.extend(_spindles_flight_y(0.0, bot_face_y, sp_z0, top_face_y, sp_z1, **sp_kw))
+
+    # Right stringer (x=width): notched at top for threshold
     meshes.append(_stringer_flight_y_notched(width, y0, z0, y1, z1, ftf, threshold_back, tread_t))
+
+    # --- Newel posts (top = 150mm above highest abutting handrail) ---
+    NEWEL_CAP = 150.0
+    hr_rise = p["handrail_rise"]
+    # Bottom newel
+    hr_bot = rise + nzs + hr_rise
+    bot_h = hr_bot + NEWEL_CAP
+    meshes.append(_box_mesh(
+        0.0, bottom_post_y, bot_h / 2,
+        ns, ns, bot_h, "#8B7355"
+    ))
+    # Top newel
+    hr_top = ftf + nzs + hr_rise
+    top_h = hr_top + NEWEL_CAP
+    meshes.append(_box_mesh(
+        0.0, top_post_y, top_h / 2,
+        ns, ns, top_h, "#8B7355"
+    ))
 
     return meshes
 
