@@ -421,6 +421,15 @@ def _preview_straight(p):
                 width, riser_t, riser_h, "#e8dcc8"
             ))
 
+    # --- Stringers ---
+    nzs = rise * nosing / going
+    y0 = 0.0
+    y1 = num_treads * going
+    z0 = rise + nzs
+    z1 = (num_treads + 1) * rise + nzs
+    meshes.append(_stringer_flight_y(0.0, y0, z0, y1, z1))
+    meshes.append(_stringer_flight_y(width, y0, z0, y1, z1))
+
     return meshes
 
 
