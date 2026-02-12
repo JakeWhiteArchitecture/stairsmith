@@ -321,6 +321,52 @@
         .viewport.measuring {
             cursor: crosshair;
         }
+
+        /* ─── FLIGHT DISTRIBUTION ─── */
+        .dist-row {
+            display: flex;
+            align-items: center;
+            padding: 3px 0;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .dist-row strong {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        .dist-arrows {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 3px 0;
+        }
+
+        .dist-btn {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4a80;
+            border-radius: 4px;
+            width: 32px;
+            height: 24px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            padding: 0;
+        }
+
+        .dist-btn:hover:not(:disabled) {
+            background: #1a4a80;
+        }
+
+        .dist-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -338,6 +384,30 @@
                     <option value="single_winder">Single Winder (L-shape)</option>
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
                 </select>
+            </div>
+        </div>
+
+        <!-- Flight Distribution -->
+        <div class="section" id="flight-dist-section" style="display:none;">
+            <h2>Flight Distribution</h2>
+            <div class="dist-row">
+                <span>Flight 1: <strong id="dist-f1">0</strong> steps</span>
+            </div>
+            <div class="dist-arrows">
+                <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
+                <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
+            </div>
+            <div class="dist-row">
+                <span>Flight 2: <strong id="dist-f2">0</strong> steps</span>
+            </div>
+            <div id="dist-f3-group" style="display:none;">
+                <div class="dist-arrows">
+                    <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
+                    <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
+                </div>
+                <div class="dist-row">
+                    <span>Flight 3: <strong id="dist-f3">0</strong> steps</span>
+                </div>
             </div>
         </div>
 
@@ -561,6 +631,104 @@
             controls.update();
         }
 
+        // ─── FLIGHT DISTRIBUTION ───
+        let flightDist = { f1: 0, f2: 0, f3: 0 };
+
+        function getStraightTreads() {
+            const type = document.getElementById('staircase_type').value;
+            const numTreads = parseInt(document.getElementById('num_risers').value) - 1;
+            if (type === 'single_winder') {
+                const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
+                return Math.max(0, numTreads - t1);
+            } else if (type === 'double_winder') {
+                const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
+                const t2 = document.getElementById('turn2_enabled').checked ? 3 : 0;
+                return Math.max(0, numTreads - t1 - t2);
+            }
+            return numTreads;
+        }
+
+        function redistributeFlights() {
+            const type = document.getElementById('staircase_type').value;
+            const st = getStraightTreads();
+            if (type === 'single_winder') {
+                flightDist.f1 = Math.floor(st / 2);
+                flightDist.f2 = st - flightDist.f1;
+                flightDist.f3 = 0;
+            } else if (type === 'double_winder') {
+                flightDist.f1 = Math.floor(st / 3);
+                flightDist.f2 = Math.floor(st / 3);
+                flightDist.f3 = st - flightDist.f1 - flightDist.f2;
+                if (flightDist.f2 < 1 && st > 0) {
+                    flightDist.f2 = 1;
+                    const rem = st - 1;
+                    flightDist.f1 = Math.floor(rem / 2);
+                    flightDist.f3 = rem - flightDist.f1;
+                }
+            } else {
+                flightDist.f1 = st;
+                flightDist.f2 = 0;
+                flightDist.f3 = 0;
+            }
+            updateFlightDistUI();
+        }
+
+        function ensureFlightDistValid() {
+            const st = getStraightTreads();
+            const type = document.getElementById('staircase_type').value;
+            let total;
+            if (type === 'double_winder') {
+                total = flightDist.f1 + flightDist.f2 + flightDist.f3;
+            } else {
+                total = flightDist.f1 + flightDist.f2;
+            }
+            if (total !== st) {
+                redistributeFlights();
+            } else {
+                updateFlightDistUI();
+            }
+        }
+
+        function transferStep(fromFlight, toFlight) {
+            const type = document.getElementById('staircase_type').value;
+            const minF2 = (type === 'double_winder') ? 1 : 0;
+            const mins = { f1: 0, f2: minF2, f3: 0 };
+            const fromKey = 'f' + fromFlight;
+            const toKey = 'f' + toFlight;
+            if (flightDist[fromKey] > mins[fromKey]) {
+                flightDist[fromKey]--;
+                flightDist[toKey]++;
+                updateFlightDistUI();
+                updatePreview();
+            }
+        }
+
+        function updateFlightDistUI() {
+            const type = document.getElementById('staircase_type').value;
+            const section = document.getElementById('flight-dist-section');
+            if (type === 'straight') {
+                section.style.display = 'none';
+                return;
+            }
+            section.style.display = 'block';
+            document.getElementById('dist-f3-group').style.display =
+                (type === 'double_winder') ? 'block' : 'none';
+
+            document.getElementById('dist-f1').textContent = flightDist.f1;
+            document.getElementById('dist-f2').textContent = flightDist.f2;
+            document.getElementById('dist-f3').textContent = flightDist.f3;
+
+            const minF2 = (type === 'double_winder') ? 1 : 0;
+            // F1 ↔ F2 buttons
+            document.getElementById('btn-f1-to-f2').disabled = (flightDist.f1 <= 0);
+            document.getElementById('btn-f2-to-f1').disabled = (flightDist.f2 <= minF2);
+            if (type === 'double_winder') {
+                // F2 ↔ F3 buttons
+                document.getElementById('btn-f2-to-f3').disabled = (flightDist.f2 <= minF2);
+                document.getElementById('btn-f3-to-f2').disabled = (flightDist.f3 <= 0);
+            }
+        }
+
         // ─── PARAMETER GATHERING ───
         function getParams() {
             return {
@@ -580,6 +748,9 @@
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
                 winder_y: parseFloat(document.getElementById('winder_y').value),
+                flight1_steps: flightDist.f1,
+                flight2_steps: flightDist.f2,
+                flight3_steps: flightDist.f3,
             };
         }
 
@@ -603,6 +774,9 @@
             document.getElementById('dim-going').textContent = going + ' mm';
             document.getElementById('dim-height').textContent = ftf + ' mm';
             document.getElementById('dim-width').textContent = document.getElementById('stair_width').value + ' mm';
+
+            // Revalidate flight distribution when risers change
+            ensureFlightDistValid();
         }
 
         function onTypeChange() {
@@ -615,6 +789,8 @@
 
             // Toggle detail visibility based on checkbox
             updateToggleState();
+            // Reset flight distribution for new type
+            redistributeFlights();
         }
 
         function updateToggleState() {
@@ -622,6 +798,7 @@
             const t2 = document.getElementById('turn2_enabled').checked;
             document.getElementById('turn1-details').classList.toggle('turn-disabled', !t1);
             document.getElementById('turn2-details').classList.toggle('turn-disabled', !t2);
+            ensureFlightDistValid();
         }
 
         // ─── 3D PREVIEW UPDATE ───

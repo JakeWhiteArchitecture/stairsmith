@@ -117,6 +117,10 @@ def _parse(params):
     p["winder_x2"] = p["winder_x"]
     p["winder_y2"] = p["winder_y"]
     p["threshold_depth"] = float(params.get("threshold_depth", 75))
+    # Flight distribution overrides (-1 = auto / equal split)
+    p["flight1_steps"] = int(params.get("flight1_steps", -1))
+    p["flight2_steps"] = int(params.get("flight2_steps", -1))
+    p["flight3_steps"] = int(params.get("flight3_steps", -1))
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -555,8 +559,14 @@ def _preview_single_winder(p):
 
     actual_winders = winders if turn1_enabled else 0
     straight_treads = num_treads - actual_winders
-    flight1_treads = straight_treads // 2
-    flight2_treads = straight_treads - flight1_treads
+    # Use custom flight distribution if provided and valid
+    f1_ov, f2_ov = p.get("flight1_steps", -1), p.get("flight2_steps", -1)
+    if f1_ov >= 0 and f2_ov >= 0 and f1_ov + f2_ov == straight_treads:
+        flight1_treads = f1_ov
+        flight2_treads = f2_ov
+    else:
+        flight1_treads = straight_treads // 2
+        flight2_treads = straight_treads - flight1_treads
 
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
@@ -804,9 +814,18 @@ def _preview_double_winder(p):
     actual_winders2 = winders2 if turn2_enabled else 0
     total_winders = actual_winders1 + actual_winders2
     straight_treads = num_treads - total_winders
-    flight1_treads = straight_treads // 3
-    flight2_treads = straight_treads // 3
-    flight3_treads = straight_treads - flight1_treads - flight2_treads
+    # Use custom flight distribution if provided and valid
+    f1_ov = p.get("flight1_steps", -1)
+    f2_ov = p.get("flight2_steps", -1)
+    f3_ov = p.get("flight3_steps", -1)
+    if f1_ov >= 0 and f2_ov >= 0 and f3_ov >= 0 and f1_ov + f2_ov + f3_ov == straight_treads:
+        flight1_treads = f1_ov
+        flight2_treads = f2_ov
+        flight3_treads = f3_ov
+    else:
+        flight1_treads = straight_treads // 3
+        flight2_treads = straight_treads // 3
+        flight3_treads = straight_treads - flight1_treads - flight2_treads
 
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
