@@ -241,6 +241,10 @@ def _stringer_landing_x(y_pos, x_start, x_end, z):
     }
 
 
+SPINDLE_SIZE = 32.0              # mm – square cross-section
+SPINDLE_MAX_GAP = 99.0           # mm – max clear gap between spindles (building regs: 100mm sphere)
+
+
 def _handrail_flight_y(x_pos, y_start, z_start, y_end, z_end):
     """Pitched handrail along Y.  z_start/z_end are nosing pitch-line z values.
     Top of handrail sits HANDRAIL_RISE above the pitch line.
@@ -280,6 +284,99 @@ def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end):
         "thickness": HANDRAIL_WIDTH,
         "color": HANDRAIL_COLOR,
     }
+
+
+def _baserail_flight_y(x_pos, y_start, z_start, y_end, z_end):
+    """Base rail along Y sitting on top of the inner stringer."""
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + HANDRAIL_HEIGHT
+    profile = [
+        [y_start, z_start + bot],
+        [y_end,   z_end + bot],
+        [y_end,   z_end + top],
+        [y_start, z_start + top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - HANDRAIL_WIDTH / 2,
+        "thickness": HANDRAIL_WIDTH,
+        "color": HANDRAIL_COLOR,
+    }
+
+
+def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end):
+    """Base rail along X sitting on top of the inner stringer."""
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + HANDRAIL_HEIGHT
+    profile = [
+        [x_start, z_start + bot],
+        [x_end,   z_end + bot],
+        [x_end,   z_end + top],
+        [x_start, z_start + top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - HANDRAIL_WIDTH / 2,
+        "thickness": HANDRAIL_WIDTH,
+        "color": HANDRAIL_COLOR,
+    }
+
+
+def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end):
+    """Spindles along a Y-direction flight between base rail top and handrail bottom."""
+    import math
+    meshes = []
+    br_top = STRINGER_PITCH_OFFSET + HANDRAIL_HEIGHT
+    hr_bot = HANDRAIL_RISE - HANDRAIL_HEIGHT
+    dy = y_end - y_start
+    length = abs(dy)
+    if length < 1e-9:
+        return meshes
+    spacing = SPINDLE_SIZE + SPINDLE_MAX_GAP
+    n = max(1, round(length / spacing))
+    for i in range(1, n):
+        t = i / n
+        y = y_start + t * dy
+        z = z_start + t * (z_end - z_start)
+        z_bot = z + br_top
+        z_top = z + hr_bot
+        h = z_top - z_bot
+        if h > SPINDLE_SIZE:
+            meshes.append(_box_mesh(
+                x_pos, y, (z_bot + z_top) / 2,
+                SPINDLE_SIZE, SPINDLE_SIZE, h, HANDRAIL_COLOR
+            ))
+    return meshes
+
+
+def _spindles_flight_x(y_pos, x_start, z_start, x_end, z_end):
+    """Spindles along an X-direction flight between base rail top and handrail bottom."""
+    import math
+    meshes = []
+    br_top = STRINGER_PITCH_OFFSET + HANDRAIL_HEIGHT
+    hr_bot = HANDRAIL_RISE - HANDRAIL_HEIGHT
+    dx = x_end - x_start
+    length = abs(dx)
+    if length < 1e-9:
+        return meshes
+    spacing = SPINDLE_SIZE + SPINDLE_MAX_GAP
+    n = max(1, round(length / spacing))
+    for i in range(1, n):
+        t = i / n
+        x = x_start + t * dx
+        z = z_start + t * (z_end - z_start)
+        z_bot = z + br_top
+        z_top = z + hr_bot
+        h = z_top - z_bot
+        if h > SPINDLE_SIZE:
+            meshes.append(_box_mesh(
+                x, y_pos, (z_bot + z_top) / 2,
+                SPINDLE_SIZE, SPINDLE_SIZE, h, HANDRAIL_COLOR
+            ))
+    return meshes
 
 
 def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back, tread_t):
@@ -1139,6 +1236,8 @@ def _preview_double_winder(p):
                 f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
             meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
             meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+            meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+            meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext1))
 
             # === Turn 1 landing stringers — outer endpoints linked to extensions ===
@@ -1155,6 +1254,8 @@ def _preview_double_winder(p):
             # === Flight 2 stringers ===
             meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
             meshes.append(_handrail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+            meshes.append(_baserail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+            meshes.extend(_spindles_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first_ext, f2_z_first_ext,
                                              f2_x_last_ext_v, f2_z_last_ext))
 
@@ -1226,6 +1327,10 @@ def _preview_double_winder(p):
                                              f3_y_end_c, f3_z_end_c))
             meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
                                              f3_y_hr_c, f3_z_hr_c))
+            meshes.append(_baserail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                             f3_y_end_c, f3_z_end_c))
+            meshes.extend(_spindles_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                             f3_y_hr_c, f3_z_hr_c))
             meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
                                                      f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
@@ -1250,6 +1355,8 @@ def _preview_double_winder(p):
             f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
         meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
         meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
         meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
 
         # Flight 2 stringers
@@ -1265,6 +1372,8 @@ def _preview_double_winder(p):
         f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
         meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
         meshes.append(_handrail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+        meshes.append(_baserail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+        meshes.extend(_spindles_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
         meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
 
         # Turn 1 winder outer stringers (Y then X along outer wall)
@@ -1313,6 +1422,10 @@ def _preview_double_winder(p):
                                          f3_y_end_c, f3_z_end_c))
         meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
                                          f3_y_hr_c, f3_z_hr_c))
+        meshes.append(_baserail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                         f3_y_end_c, f3_z_end_c))
+        meshes.extend(_spindles_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                         f3_y_hr_c, f3_z_hr_c))
         meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
                                                  f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
@@ -1338,13 +1451,14 @@ def _preview_double_winder(p):
     NEWEL_CAP = 150.0
     nzs_hr = rise * nosing / going
 
-    # Bottom newel: only flight 1 handrail abuts (at its start endpoint)
-    hr_bot = rise + nzs_hr + HANDRAIL_RISE
-    bot_h = hr_bot + NEWEL_CAP
-    meshes.append(_box_mesh(
-        corner1_x, bottom_post_y, bot_h / 2,
-        ns, ns, bot_h, "#8B7355"
-    ))
+    # Bottom newel: only render when flight 1 has treads (otherwise corner 1 suffices)
+    if flight1_treads > 0:
+        hr_bot = rise + nzs_hr + HANDRAIL_RISE
+        bot_h = hr_bot + NEWEL_CAP
+        meshes.append(_box_mesh(
+            corner1_x, bottom_post_y, bot_h / 2,
+            ns, ns, bot_h, "#8B7355"
+        ))
 
     # Corner 1: flight 1 end + flight 2 start — use the higher
     hr_c1_f1 = (flight1_treads + 1) * rise + nzs_hr + HANDRAIL_RISE
@@ -1364,13 +1478,14 @@ def _preview_double_winder(p):
         ns, ns, c2_h, "#8B7355"
     ))
 
-    # Top newel: only flight 3 handrail abuts (at its end endpoint)
-    hr_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr + HANDRAIL_RISE
-    top_h = hr_top + NEWEL_CAP
-    meshes.append(_box_mesh(
-        corner2_x, top_post_y, top_h / 2,
-        ns, ns, top_h, "#8B7355"
-    ))
+    # Top newel: only render when flight 3 has treads (otherwise corner 2 suffices)
+    if flight3_treads > 0:
+        hr_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr + HANDRAIL_RISE
+        top_h = hr_top + NEWEL_CAP
+        meshes.append(_box_mesh(
+            corner2_x, top_post_y, top_h / 2,
+            ns, ns, top_h, "#8B7355"
+        ))
 
     return meshes
 
