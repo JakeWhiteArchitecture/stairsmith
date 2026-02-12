@@ -286,22 +286,31 @@ def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_bac
     """Pitched stringer along Y with a notch at the top for landing threshold.
 
     The stringer bottom continues at pitch to y_end (riser back face), then a
-    vertical cut rises to ftf - tread_t (threshold underside).  Above that a
-    rectangular overrun extends to y_back with a 50 mm raised cap.
+    vertical cut rises to ftf - tread_t (threshold underside).  The notch under
+    the threshold extends to y_back up to ftf.  Above ftf the overrun cap stays
+    flush at y_end and extends 50 mm back toward the stairs.
     """
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
     overrun_top = z_end + off + 50.0
     overrun_bot = ftf - tread_t
+    # Overrun cap: 50 mm back from y_end toward y_start along the pitch line
+    cap = 50.0
+    flight_len = abs(y_end - y_start)
+    frac = min(cap / flight_len, 0.3) if flight_len > 0 else 0
+    y_cap = y_end + frac * (y_start - y_end)
+    z_cap = z_end + off + frac * (z_start - z_end)
     profile = [
         [y_start, z_start - drop],      # 0  bottom at start
         [y_end,   z_end - drop],         # 1  bottom at riser back
         [y_end,   overrun_bot],          # 2  vertical cut to threshold underside
         [y_back,  overrun_bot],          # 3  horizontal to threshold back
-        [y_back,  overrun_top],          # 4  up to overrun top
-        [y_end,   overrun_top],          # 5  back to riser back at overrun top
-        [y_end,   z_end + off],          # 6  drop to pitch line at end
-        [y_start, z_start + off],        # 7  pitch line back to start
+        [y_back,  ftf],                  # 4  up to floor level at threshold back
+        [y_end,   ftf],                  # 5  back to riser at floor level
+        [y_end,   overrun_top],          # 6  up to overrun top at riser back
+        [y_cap,   overrun_top],          # 7  overrun cap extends toward stairs
+        [y_cap,   z_cap],               # 8  meet pitch line
+        [y_start, z_start + off],        # 9  pitch line back to start
     ]
     return {
         "type": "stringer",
@@ -318,14 +327,22 @@ def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_bac
     drop = STRINGER_HEIGHT - off
     overrun_top = z_end + off + 50.0
     overrun_bot = ftf - tread_t
+    # Overrun cap: 50 mm back from x_end toward x_start along the pitch line
+    cap = 50.0
+    flight_len = abs(x_end - x_start)
+    frac = min(cap / flight_len, 0.3) if flight_len > 0 else 0
+    x_cap = x_end + frac * (x_start - x_end)
+    z_cap = z_end + off + frac * (z_start - z_end)
     profile = [
         [x_start, z_start - drop],
         [x_end,   z_end - drop],
         [x_end,   overrun_bot],
         [x_back,  overrun_bot],
-        [x_back,  overrun_top],
+        [x_back,  ftf],
+        [x_end,   ftf],
         [x_end,   overrun_top],
-        [x_end,   z_end + off],
+        [x_cap,   overrun_top],
+        [x_cap,   z_cap],
         [x_start, z_start + off],
     ]
     return {
