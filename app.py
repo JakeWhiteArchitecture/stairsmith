@@ -611,6 +611,34 @@ def _preview_single_winder(p):
         meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
         meshes.append(_stringer_flight_x(outer_y, f2_x0_ext, z_ext2, f2_x1, f2_z1))
 
+    # --- Pitched stringers for winder flights ---
+    if actual_winders > 0:
+        inner_x = corner_x
+        outer_x = width - corner_x
+        nzs = rise * nosing / going
+
+        # Flight 1
+        f1_y0 = flight1_shift_y
+        f1_y1 = flight1_treads * going + flight1_shift_y
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
+        meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+
+        # Flight 2
+        inner_y = corner_y
+        outer_y = corner_y + width
+        if turn_dir == "left":
+            f2_x0 = -winder_offset - nosing - riser_t / 2
+            f2_x1 = -(flight2_treads * going) - winder_offset - nosing - riser_t / 2
+        else:
+            f2_x0 = width + winder_offset + nosing + riser_t / 2
+            f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
+        f2_z0 = flight2_start_riser * rise + nzs
+        f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
+        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
+        meshes.append(_stringer_flight_x(outer_y, f2_x0, f2_z0, f2_x1, f2_z1))
+
     return meshes
 
 
@@ -985,6 +1013,52 @@ def _preview_double_winder(p):
             meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
             meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
                                              f3_y_last, f3_z_last))
+
+    # --- Pitched stringers for winder flights ---
+    if actual_winders1 > 0:
+        nzs = rise * nosing / going
+        f1_inner_x = corner1_x
+        f1_outer_x = width - corner1_x
+
+        # Flight 1 stringers
+        f1_y0 = flight1_shift_y
+        f1_y1 = flight1_treads * going + flight1_shift_y
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
+        meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+
+        # Flight 2 stringers
+        f2_inner_y = corner1_y
+        f2_outer_y = corner1_y + width
+        if turn1_dir == "left":
+            f2_x_first = -winder_offset1 - nosing - riser_t / 2
+            f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+            f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f2_z_first = flight2_riser_start * rise + nzs
+        f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+        meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+        meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+
+    if actual_winders2 > 0:
+        nzs = rise * nosing / going
+        # Flight 3 X positions
+        if turn1_dir == turn2_dir:
+            f3_outer_x = flight3_start_x + corner1_x
+            f3_inner_x = flight3_start_x + width - corner1_x
+        else:
+            f3_outer_x = flight3_start_x + width - corner1_x
+            f3_inner_x = flight3_start_x + corner1_x
+
+        # Flight 3 stringers
+        f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+        f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
+        f3_z_first = flight3_riser_start * rise + nzs
+        f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
+        meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+        meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
 
     return meshes
 
