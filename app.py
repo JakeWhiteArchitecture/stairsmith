@@ -1066,8 +1066,8 @@ def _preview_double_winder(p):
         width, threshold_d, tread_t, "#c8a87c"
     ))
 
-    # Top newel post y position (centred on last tread nosing line)
-    top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y
+    # Top newel post y position (centred on threshold nosing line)
+    top_post_y = thresh_front_y
 
     # --- Stringers (only for flat landings) ---
     if actual_winders1 == 0 or actual_winders2 == 0:
@@ -1129,8 +1129,16 @@ def _preview_double_winder(p):
             f2_x_last_ext = f2_x_last_ext_v  # share with turn 2 section
 
             # === Flight 1 stringers ===
-            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
-            meshes.append(_handrail_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            # Clip inner stringer/handrail start at bottom post +Y face
+            bot_face_y = bottom_post_y + hp
+            f1_y0_c, f1_z0_c = f1_y0, f1_z0
+            dy1 = f1_y1 - f1_y0
+            if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                f1_y0_c = f1_y0 + t_c * dy1
+                f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+            meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext1))
 
             # === Turn 1 landing stringers — outer endpoints linked to extensions ===
@@ -1200,9 +1208,24 @@ def _preview_double_winder(p):
             z_fl = riser_t * rise / (2 * going)
             f3_y_last_fl = f3_y_last - riser_t / 2
             f3_z_last_fl = f3_z_last + z_fl
-            meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
-                                                     f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
-            meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+            # Inner stringer/handrail terminate at top post +Y face
+            top_face_y = top_post_y + hp
+            dy3s = f3_y_last_fl - f3_y_first
+            f3_y_end_c, f3_z_end_c = f3_y_last_fl, f3_z_last_fl
+            if abs(dy3s) > 1e-9 and top_face_y > f3_y_last_fl:
+                t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3s))
+                f3_y_end_c = f3_y_first + t_c * dy3s
+                f3_z_end_c = f3_z_first + t_c * (f3_z_last_fl - f3_z_first)
+            dy3h = f3_y_last - f3_y_first
+            f3_y_hr_c, f3_z_hr_c = f3_y_last, f3_z_last
+            if abs(dy3h) > 1e-9 and top_face_y > f3_y_last:
+                t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3h))
+                f3_y_hr_c = f3_y_first + t_c * dy3h
+                f3_z_hr_c = f3_z_first + t_c * (f3_z_last - f3_z_first)
+            meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                             f3_y_end_c, f3_z_end_c))
+            meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                             f3_y_hr_c, f3_z_hr_c))
             meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
                                                      f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
@@ -1217,8 +1240,16 @@ def _preview_double_winder(p):
         f1_y1 = flight1_treads * going + flight1_shift_y
         f1_z0 = rise + nzs
         f1_z1 = (flight1_treads + 1) * rise + nzs
-        meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
-        meshes.append(_handrail_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Clip inner stringer/handrail start at bottom post +Y face
+        bot_face_y = bottom_post_y + hp
+        f1_y0_c, f1_z0_c = f1_y0, f1_z0
+        dy1 = f1_y1 - f1_y0
+        if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+            t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+            f1_y0_c = f1_y0 + t_c * dy1
+            f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+        meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
         meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
 
         # Flight 2 stringers
@@ -1264,9 +1295,24 @@ def _preview_double_winder(p):
         z_fl = riser_t * rise / (2 * going)
         f3_y_last_fl = f3_y_last - riser_t / 2
         f3_z_last_fl = f3_z_last + z_fl
-        meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
-                                                 f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
-        meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+        # Inner stringer/handrail terminate at top post +Y face
+        top_face_y = top_post_y + hp
+        dy3s = f3_y_last_fl - f3_y_first
+        f3_y_end_c, f3_z_end_c = f3_y_last_fl, f3_z_last_fl
+        if abs(dy3s) > 1e-9 and top_face_y > f3_y_last_fl:
+            t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3s))
+            f3_y_end_c = f3_y_first + t_c * dy3s
+            f3_z_end_c = f3_z_first + t_c * (f3_z_last_fl - f3_z_first)
+        dy3h = f3_y_last - f3_y_first
+        f3_y_hr_c, f3_z_hr_c = f3_y_last, f3_z_last
+        if abs(dy3h) > 1e-9 and top_face_y > f3_y_last:
+            t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3h))
+            f3_y_hr_c = f3_y_first + t_c * dy3h
+            f3_z_hr_c = f3_z_first + t_c * (f3_z_last - f3_z_first)
+        meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                         f3_y_end_c, f3_z_end_c))
+        meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first,
+                                         f3_y_hr_c, f3_z_hr_c))
         meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
                                                  f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
