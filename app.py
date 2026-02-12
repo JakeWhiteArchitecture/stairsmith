@@ -135,7 +135,7 @@ def _box_mesh(x, y, z, w, d, h, color):
 STRINGER_THICKNESS = 32.0        # mm
 STRINGER_HEIGHT = 275.0          # mm
 STRINGER_PITCH_OFFSET = 25.0     # mm – stringer top sits this far above the pitch line
-STRINGER_DROP = STRINGER_PITCH_OFFSET  # landing stringer top above tread plane
+STRINGER_DROP = 75.0                    # landing stringer top above tread plane
 STRINGER_COLOR = "#b5a48a"
 
 
@@ -564,8 +564,9 @@ def _preview_single_winder(p):
         outer_x = width - corner_x  # width for left, 0 for right
         f1_y0 = flight1_shift_y  # first riser Y
         f1_y1 = flight1_treads * going + flight1_shift_y  # last riser Y
-        f1_z0 = rise
-        f1_z1 = (flight1_treads + 1) * rise
+        nzs = rise * nosing / going  # nosing z-shift: pitch line offset at nosing vs riser
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
 
         landing_z_base = winder_start_riser * rise
         land_top = landing_z_base + STRINGER_DROP
@@ -584,8 +585,8 @@ def _preview_single_winder(p):
         else:
             f2_x0 = width + winder_offset + nosing + riser_t / 2
             f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
-        f2_z0 = flight2_start_riser * rise
-        f2_z1 = (flight2_start_riser + flight2_treads) * rise
+        f2_z0 = flight2_start_riser * rise + nzs
+        f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
         z_ext2 = land_top - STRINGER_PITCH_OFFSET
         dx2 = f2_x1 - f2_x0
         dz2 = f2_z1 - f2_z0
@@ -862,13 +863,14 @@ def _preview_double_winder(p):
         f1_inner_x = corner1_x          # 0 for left, width for right
         f1_outer_x = width - corner1_x  # width for left, 0 for right
         f2_x_last_ext = None  # set below if flight 2 outer extends to landing 2
+        nzs = rise * nosing / going  # nosing z-shift: pitch line offset at nosing vs riser
 
         if actual_winders1 == 0:
             # === Flight 1 coordinates ===
             f1_y0 = flight1_shift_y
             f1_y1 = flight1_treads * going + flight1_shift_y
-            f1_z0 = rise
-            f1_z1 = (flight1_treads + 1) * rise
+            f1_z0 = rise + nzs
+            f1_z1 = (flight1_treads + 1) * rise + nzs
 
             landing1_z = turn1_winder_start * rise
             land1_top = landing1_z + STRINGER_DROP
@@ -887,8 +889,8 @@ def _preview_double_winder(p):
             else:
                 f2_x_first = width + winder_offset1 + nosing + riser_t / 2
                 f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
-            f2_z_first = flight2_riser_start * rise
-            f2_z_last = (flight2_riser_start + flight2_treads) * rise
+            f2_z_first = flight2_riser_start * rise + nzs
+            f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
             # Clip far end at corner2 post centre if turn 2 also has a landing
             if actual_winders2 == 0 and flight2_treads > 0:
                 dx = f2_x_last - f2_x_first
@@ -949,8 +951,8 @@ def _preview_double_winder(p):
             # Flight 3 coordinates + clipping + outer extension
             f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
             f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
-            f3_z_first = flight3_riser_start * rise
-            f3_z_last = (flight3_riser_start + flight3_treads) * rise
+            f3_z_first = flight3_riser_start * rise + nzs
+            f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
             # Clip near end at corner2 post centre Y
             if flight3_treads > 0:
                 dy = f3_y_last - f3_y_first
