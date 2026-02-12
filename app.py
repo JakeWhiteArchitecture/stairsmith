@@ -718,6 +718,13 @@ def _preview_single_winder(p):
     turn_dir = p["turn1_direction"]
     turn1_enabled = p.get("turn1_enabled", True)
 
+    # Balustrade keyword dicts
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
     actual_winders = winders if turn1_enabled else 0
     straight_treads = num_treads - actual_winders
     # Use custom flight distribution if provided and valid
@@ -739,6 +746,7 @@ def _preview_single_winder(p):
 
     # Flight shift: X+Y measured from internal corner (at hp above post centre)
     flight1_shift_y = (hp - wx - wy + nosing) if actual_winders > 0 else 0.0
+    bottom_post_y = flight1_shift_y - nosing
 
     # Flight 1 treads
     for i in range(flight1_treads):
@@ -785,12 +793,6 @@ def _preview_single_winder(p):
         corner_x, corner_y, ns, width, turn_dir,
         actual_winders, winder_start_riser, rise, tread_t, riser_t,
         nosing=nosing, winder_x=wx))
-
-    # Newel post (fixed position, Step 2)
-    meshes.append(_box_mesh(
-        corner_x, corner_y, p["floor_to_floor"] / 2,
-        ns, ns, p["floor_to_floor"], "#8B7355"
-    ))
 
     # Landing tread when winders are off
     if actual_winders == 0:
@@ -856,6 +858,11 @@ def _preview_single_winder(p):
         threshold_d, width, tread_t, "#c8a87c"
     ))
 
+    # --- Balustrade helpers ---
+    c_ns = max(ns, 100.0) if (flight1_treads == 0 or flight2_treads == 0) else ns
+    c_hp = c_ns / 2.0
+    top_post_x = thresh_front
+
     # --- Stringers (only for flat landings) ---
     if actual_winders == 0:
         # Flight 1: runs along +Y. Inner side = corner_x (0 for left, width for right),
@@ -892,8 +899,26 @@ def _preview_single_winder(p):
         dz2 = f2_z1 - f2_z0
         f2_x0_ext = f2_x0 + (z_ext2 - f2_z0) * dx2 / dz2 if abs(dz2) > 1e-9 else f2_x0
 
-        # Flight 1 stringers
-        meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Flight 1 inner stringer (clipped at bottom post face) + balustrade
+        bot_face_y = bottom_post_y + hp
+        f1_y0_c, f1_z0_c = f1_y0, f1_z0
+        dy1 = f1_y1 - f1_y0
+        if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+            t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+            f1_y0_c = f1_y0 + t_c * dy1
+            f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+        meshes.append(_stringer_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
+        meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+        # Spindles: from bottom post face to corner post face
+        c_face_y = corner_y - c_hp
+        if abs(dy1) > 1e-9:
+            t_sp = (c_face_y - f1_y0) / dy1
+            f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
+        else:
+            f1_sp_z1 = f1_z1
+        meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
+        # Flight 1 outer stringer
         meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext))
 
         # Landing flat stringers — outer endpoints linked to flight stringer extensions
@@ -911,7 +936,38 @@ def _preview_single_winder(p):
         z_fl = riser_t * rise / (2 * going)
         f2_x1_fl = f2_x1 + (-riser_t / 2 if turn_dir == "left" else riser_t / 2)
         f2_z1_fl = f2_z1 + z_fl
-        meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+        # Flight 2 inner stringer (clipped at top post face) + balustrade
+        if turn_dir == "left":
+            top_face_x = top_post_x + hp
+            c_face_x = corner_x - c_hp
+        else:
+            top_face_x = top_post_x - hp
+            c_face_x = corner_x + c_hp
+        dx_s = f2_x1_fl - f2_x0
+        f2_x1_c, f2_z1_c = f2_x1_fl, f2_z1_fl
+        if abs(dx_s) > 1e-9:
+            t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_s))
+            f2_x1_c = f2_x0 + t_c * dx_s
+            f2_z1_c = f2_z0 + t_c * (f2_z1_fl - f2_z0)
+        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1_c, f2_z1_c))
+        dx_h = f2_x1 - f2_x0
+        f2_x1_hr, f2_z1_hr = f2_x1, f2_z1
+        if abs(dx_h) > 1e-9:
+            t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_h))
+            f2_x1_hr = f2_x0 + t_c * dx_h
+            f2_z1_hr = f2_z0 + t_c * (f2_z1 - f2_z0)
+        meshes.append(_handrail_flight_x(inner_y, f2_x0, f2_z0, f2_x1_hr, f2_z1_hr, **hr_kw))
+        meshes.append(_baserail_flight_x(inner_y, f2_x0, f2_z0, f2_x1_c, f2_z1_c, **br_kw))
+        # Spindles: from corner post face to top post face
+        if abs(dx_h) > 1e-9:
+            t0 = (c_face_x - f2_x0) / dx_h
+            t1 = (top_face_x - f2_x0) / dx_h
+            f2_sp_z0 = f2_z0 + t0 * (f2_z1 - f2_z0)
+            f2_sp_z1 = f2_z0 + t1 * (f2_z1 - f2_z0)
+            meshes.extend(_spindles_flight_x(inner_y, c_face_x, f2_sp_z0, top_face_x, f2_sp_z1, **sp_kw))
+        else:
+            meshes.extend(_spindles_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1, **sp_kw))
+        # Flight 2 outer stringer (notched for threshold)
         meshes.append(_stringer_flight_x_notched(outer_y, f2_x0_ext, z_ext2, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
 
     # --- Pitched stringers for winder flights ---
@@ -920,12 +976,30 @@ def _preview_single_winder(p):
         outer_x = width - corner_x
         nzs = rise * nosing / going
 
-        # Flight 1
+        # Flight 1 inner stringer (clipped at bottom post face) + balustrade
         f1_y0 = flight1_shift_y
         f1_y1 = flight1_treads * going + flight1_shift_y
         f1_z0 = rise + nzs
         f1_z1 = (flight1_treads + 1) * rise + nzs
-        meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        bot_face_y = bottom_post_y + hp
+        f1_y0_c, f1_z0_c = f1_y0, f1_z0
+        dy1 = f1_y1 - f1_y0
+        if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+            t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+            f1_y0_c = f1_y0 + t_c * dy1
+            f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+        meshes.append(_stringer_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
+        meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+        # Spindles: from bottom post face to corner post face
+        c_face_y = corner_y - c_hp
+        if abs(dy1) > 1e-9:
+            t_sp = (c_face_y - f1_y0) / dy1
+            f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
+        else:
+            f1_sp_z1 = f1_z1
+        meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
+        # Flight 1 outer stringer
         meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
 
         # Flight 2
@@ -942,7 +1016,38 @@ def _preview_single_winder(p):
         z_fl = riser_t * rise / (2 * going)
         f2_x1_fl = f2_x1 + (-riser_t / 2 if turn_dir == "left" else riser_t / 2)
         f2_z1_fl = f2_z1 + z_fl
-        meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+        # Flight 2 inner stringer (clipped at top post face) + balustrade
+        if turn_dir == "left":
+            top_face_x = top_post_x + hp
+            c_face_x = corner_x - c_hp
+        else:
+            top_face_x = top_post_x - hp
+            c_face_x = corner_x + c_hp
+        dx_s = f2_x1_fl - f2_x0
+        f2_x1_c, f2_z1_c = f2_x1_fl, f2_z1_fl
+        if abs(dx_s) > 1e-9:
+            t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_s))
+            f2_x1_c = f2_x0 + t_c * dx_s
+            f2_z1_c = f2_z0 + t_c * (f2_z1_fl - f2_z0)
+        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1_c, f2_z1_c))
+        dx_h = f2_x1 - f2_x0
+        f2_x1_hr, f2_z1_hr = f2_x1, f2_z1
+        if abs(dx_h) > 1e-9:
+            t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_h))
+            f2_x1_hr = f2_x0 + t_c * dx_h
+            f2_z1_hr = f2_z0 + t_c * (f2_z1 - f2_z0)
+        meshes.append(_handrail_flight_x(inner_y, f2_x0, f2_z0, f2_x1_hr, f2_z1_hr, **hr_kw))
+        meshes.append(_baserail_flight_x(inner_y, f2_x0, f2_z0, f2_x1_c, f2_z1_c, **br_kw))
+        # Spindles: from corner post face to top post face
+        if abs(dx_h) > 1e-9:
+            t0 = (c_face_x - f2_x0) / dx_h
+            t1 = (top_face_x - f2_x0) / dx_h
+            f2_sp_z0 = f2_z0 + t0 * (f2_z1 - f2_z0)
+            f2_sp_z1 = f2_z0 + t1 * (f2_z1 - f2_z0)
+            meshes.extend(_spindles_flight_x(inner_y, c_face_x, f2_sp_z0, top_face_x, f2_sp_z1, **sp_kw))
+        else:
+            meshes.extend(_spindles_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1, **sp_kw))
+        # Flight 2 outer stringer (notched for threshold)
         meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
 
         # Winder outer stringers (2 pieces along outer wall: Y then X)
@@ -956,6 +1061,38 @@ def _preview_single_winder(p):
         meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, outer_corner_y, z_corner))
         # X-piece (along flight 2 outer wall)
         meshes.append(_stringer_flight_x(outer_corner_y, outer_x, z_corner, f2_x0, f2_z0))
+
+    # --- Newel posts (top = 150mm above highest abutting handrail) ---
+    NEWEL_CAP = 150.0
+    hr_rise = p["handrail_rise"]
+    nzs_hr = rise * nosing / going
+
+    # Bottom newel: only render when flight 1 has treads
+    if flight1_treads > 0:
+        hr_bot = rise + nzs_hr + hr_rise
+        bot_h = hr_bot + NEWEL_CAP
+        meshes.append(_box_mesh(
+            corner_x, bottom_post_y, bot_h / 2,
+            ns, ns, bot_h, "#8B7355"
+        ))
+
+    # Corner newel: height = max of flight 1 end and flight 2 start handrails
+    hr_c_f1 = (flight1_treads + 1) * rise + nzs_hr + hr_rise
+    hr_c_f2 = flight2_start_riser * rise + nzs_hr + hr_rise
+    c_h = max(hr_c_f1, hr_c_f2) + NEWEL_CAP
+    meshes.append(_box_mesh(
+        corner_x, corner_y, c_h / 2,
+        c_ns, c_ns, c_h, "#8B7355"
+    ))
+
+    # Top newel: only render when flight 2 has treads
+    if flight2_treads > 0:
+        hr_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr + hr_rise
+        top_h = hr_top + NEWEL_CAP
+        meshes.append(_box_mesh(
+            top_post_x, corner_y, top_h / 2,
+            ns, ns, top_h, "#8B7355"
+        ))
 
     return meshes
 
