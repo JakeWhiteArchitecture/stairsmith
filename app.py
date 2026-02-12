@@ -427,8 +427,27 @@ def _preview_straight(p):
     y1 = num_treads * going
     z0 = rise + nzs
     z1 = (num_treads + 1) * rise + nzs
+    dy = y1 - y0
+    dz = z1 - z0
     meshes.append(_stringer_flight_y(0.0, y0, z0, y1, z1))
     meshes.append(_stringer_flight_y(width, y0, z0, y1, z1))
+
+    # Bottom extensions + landing pieces at floor level (z=0)
+    z_ext_bot = STRINGER_DROP - STRINGER_PITCH_OFFSET  # where stringer top meets landing top
+    y_ext_bot = y0 + (z_ext_bot - z0) * dy / dz if abs(dz) > 1e-9 else y0
+    meshes.append(_stringer_flight_y(0.0, y_ext_bot, z_ext_bot, y0, z0))
+    meshes.append(_stringer_flight_y(width, y_ext_bot, z_ext_bot, y0, z0))
+    meshes.append(_stringer_landing_y(0.0, y_ext_bot - going, y_ext_bot, 0.0))
+    meshes.append(_stringer_landing_y(width, y_ext_bot - going, y_ext_bot, 0.0))
+
+    # Top extensions + landing pieces at top floor level
+    ftf = num_risers * rise
+    z_ext_top = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+    y_ext_top = y1 + (z_ext_top - z1) * dy / dz if abs(dz) > 1e-9 else y1
+    meshes.append(_stringer_flight_y(0.0, y1, z1, y_ext_top, z_ext_top))
+    meshes.append(_stringer_flight_y(width, y1, z1, y_ext_top, z_ext_top))
+    meshes.append(_stringer_landing_y(0.0, y_ext_top, y_ext_top + going, ftf))
+    meshes.append(_stringer_landing_y(width, y_ext_top, y_ext_top + going, ftf))
 
     return meshes
 
@@ -620,6 +639,22 @@ def _preview_single_winder(p):
         meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
         meshes.append(_stringer_flight_x(outer_y, f2_x0_ext, z_ext2, f2_x1, f2_z1))
 
+        # Bottom inner stringer at floor level (z=0)
+        z_ext_bot = STRINGER_DROP - STRINGER_PITCH_OFFSET
+        dy1 = f1_y1 - f1_y0
+        dz1 = f1_z1 - f1_z0
+        f1_y0_ext = f1_y0 + (z_ext_bot - f1_z0) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y0
+        meshes.append(_stringer_flight_y(inner_x, f1_y0_ext, z_ext_bot, f1_y0, f1_z0))
+        meshes.append(_stringer_landing_y(inner_x, f1_y0_ext - going, f1_y0_ext, 0.0))
+
+        # Top inner stringer at top floor level
+        ftf = p["floor_to_floor"]
+        z_ext_top_i = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+        f2_x1_ext_i = f2_x1 + (z_ext_top_i - f2_z1) * dx2 / dz2 if abs(dz2) > 1e-9 else f2_x1
+        meshes.append(_stringer_flight_x(inner_y, f2_x1, f2_z1, f2_x1_ext_i, z_ext_top_i))
+        x_dir = 1.0 if dx2 > 0 else -1.0
+        meshes.append(_stringer_landing_x(inner_y, f2_x1_ext_i, f2_x1_ext_i + x_dir * going, ftf))
+
     # --- Pitched stringers for winder flights ---
     if actual_winders > 0:
         inner_x = corner_x
@@ -659,6 +694,24 @@ def _preview_single_winder(p):
         meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, outer_corner_y, z_corner))
         # X-piece (along flight 2 outer wall)
         meshes.append(_stringer_flight_x(outer_corner_y, outer_x, z_corner, f2_x0, f2_z0))
+
+        # Bottom inner stringer at floor level (z=0)
+        z_ext_bot = STRINGER_DROP - STRINGER_PITCH_OFFSET
+        dy1 = f1_y1 - f1_y0
+        dz1 = f1_z1 - f1_z0
+        f1_y0_ext = f1_y0 + (z_ext_bot - f1_z0) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y0
+        meshes.append(_stringer_flight_y(inner_x, f1_y0_ext, z_ext_bot, f1_y0, f1_z0))
+        meshes.append(_stringer_landing_y(inner_x, f1_y0_ext - going, f1_y0_ext, 0.0))
+
+        # Top inner stringer at top floor level
+        ftf = p["floor_to_floor"]
+        z_ext_top = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+        dx2 = f2_x1 - f2_x0
+        dz2 = f2_z1 - f2_z0
+        f2_x1_ext = f2_x1 + (z_ext_top - f2_z1) * dx2 / dz2 if abs(dz2) > 1e-9 else f2_x1
+        meshes.append(_stringer_flight_x(inner_y, f2_x1, f2_z1, f2_x1_ext, z_ext_top))
+        x_dir = 1.0 if dx2 > 0 else -1.0
+        meshes.append(_stringer_landing_x(inner_y, f2_x1_ext, f2_x1_ext + x_dir * going, ftf))
 
     return meshes
 
@@ -984,6 +1037,22 @@ def _preview_double_winder(p):
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first_ext, f2_z_first_ext,
                                              f2_x_last_ext_v, f2_z_last_ext))
 
+            # Bottom inner stringer at floor level (z=0)
+            z_ext_bot = STRINGER_DROP - STRINGER_PITCH_OFFSET
+            f1_y0_ext = f1_y0 + (z_ext_bot - f1_z0) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y0
+            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_ext, z_ext_bot, f1_y0, f1_z0))
+            meshes.append(_stringer_landing_y(f1_inner_x, f1_y0_ext - going, f1_y0_ext, 0.0))
+
+            # Top inner stringer at top floor level
+            ftf = p["floor_to_floor"]
+            z_ext_top_i = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+            f2_dx = f2_x_last - f2_x_first
+            f2_dz_i = f2_z_last - f2_z_first
+            f2_xlast_ext_i = f2_x_last + (z_ext_top_i - f2_z_last) * f2_dx / f2_dz_i if abs(f2_dz_i) > 1e-9 else f2_x_last
+            meshes.append(_stringer_flight_x(f2_inner_y, f2_x_last, f2_z_last, f2_xlast_ext_i, z_ext_top_i))
+            x_dir = 1.0 if f2_dx > 0 else -1.0
+            meshes.append(_stringer_landing_x(f2_inner_y, f2_xlast_ext_i, f2_xlast_ext_i + x_dir * going, ftf))
+
         if actual_winders2 == 0:
             landing2_z = turn2_winder_start * rise
             land2_top = landing2_z + STRINGER_DROP
@@ -1035,6 +1104,14 @@ def _preview_double_winder(p):
             meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
                                              f3_y_last, f3_z_last))
 
+            # Top inner stringer at top floor level
+            ftf = p["floor_to_floor"]
+            z_ext_top_f3 = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+            f3_y_last_ext = f3_y_last + (z_ext_top_f3 - f3_z_last) * f3_dy / f3_dz if abs(f3_dz) > 1e-9 else f3_y_last
+            meshes.append(_stringer_flight_y(f3_inner_x, f3_y_last, f3_z_last, f3_y_last_ext, z_ext_top_f3))
+            y_dir = 1.0 if f3_dy > 0 else -1.0
+            meshes.append(_stringer_landing_y(f3_inner_x, f3_y_last_ext, f3_y_last_ext + y_dir * going, ftf))
+
     # --- Pitched stringers for winder flights ---
     if actual_winders1 > 0:
         nzs = rise * nosing / going
@@ -1073,6 +1150,14 @@ def _preview_double_winder(p):
         meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, outer_corner_y1, z_corner))
         meshes.append(_stringer_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first))
 
+        # Bottom inner stringer at floor level (z=0)
+        z_ext_bot = STRINGER_DROP - STRINGER_PITCH_OFFSET
+        dy1 = f1_y1 - f1_y0
+        dz1 = f1_z1 - f1_z0
+        f1_y0_ext = f1_y0 + (z_ext_bot - f1_z0) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y0
+        meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_ext, z_ext_bot, f1_y0, f1_z0))
+        meshes.append(_stringer_landing_y(f1_inner_x, f1_y0_ext - going, f1_y0_ext, 0.0))
+
     if actual_winders2 > 0:
         nzs = rise * nosing / going
         # Flight 3 X positions
@@ -1108,6 +1193,16 @@ def _preview_double_winder(p):
         meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner))
         # Y-piece (along flight 3 outer wall)
         meshes.append(_stringer_flight_y(f3_outer_x, outer_corner_y2, z_corner, f3_y_first, f3_z_first))
+
+        # Top inner stringer at top floor level
+        ftf = p["floor_to_floor"]
+        z_ext_top = ftf + STRINGER_DROP - STRINGER_PITCH_OFFSET
+        dy3 = f3_y_last - f3_y_first
+        dz3 = f3_z_last - f3_z_first
+        f3_y_last_ext = f3_y_last + (z_ext_top - f3_z_last) * dy3 / dz3 if abs(dz3) > 1e-9 else f3_y_last
+        meshes.append(_stringer_flight_y(f3_inner_x, f3_y_last, f3_z_last, f3_y_last_ext, z_ext_top))
+        y_dir = 1.0 if dy3 > 0 else -1.0
+        meshes.append(_stringer_landing_y(f3_inner_x, f3_y_last_ext, f3_y_last_ext + y_dir * going, ftf))
 
     return meshes
 
