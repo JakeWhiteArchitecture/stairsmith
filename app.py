@@ -116,6 +116,7 @@ def _parse(params):
     # Same X/Y applies to both turns
     p["winder_x2"] = p["winder_x"]
     p["winder_y2"] = p["winder_y"]
+    p["threshold_depth"] = float(params.get("threshold_depth", 75))
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -274,6 +275,55 @@ def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end):
         "y": y_pos - HANDRAIL_WIDTH / 2,
         "thickness": HANDRAIL_WIDTH,
         "color": HANDRAIL_COLOR,
+    }
+
+
+def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back):
+    """Pitched stringer along Y with a notch at the top for landing threshold.
+
+    The stringer bottom continues at pitch to y_end, then a vertical cut
+    rises to ftf.  Above ftf a rectangular cap extends to y_back.
+    """
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    profile = [
+        [y_start, z_start - drop],      # 0  bottom-left
+        [y_end,   z_end - drop],         # 1  bottom at end
+        [y_end,   ftf],                  # 2  vertical cut to landing level
+        [y_back,  ftf],                  # 3  horizontal to threshold back
+        [y_back,  z_end + off],          # 4  up to extension top
+        [y_end,   z_end + off],          # 5  back to stringer top at end
+        [y_start, z_start + off],        # 6  top-left
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+    }
+
+
+def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_back):
+    """Pitched stringer along X with a notch at the top for landing threshold."""
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    profile = [
+        [x_start, z_start - drop],
+        [x_end,   z_end - drop],
+        [x_end,   ftf],
+        [x_back,  ftf],
+        [x_back,  z_end + off],
+        [x_end,   z_end + off],
+        [x_start, z_start + off],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
     }
 
 
@@ -467,14 +517,24 @@ def _preview_straight(p):
                 width, riser_t, riser_h, "#e8dcc8"
             ))
 
-    # --- Stringers ---
+    # --- Landing threshold strip ---
+    ftf = num_risers * rise
+    threshold_d = p["threshold_depth"]
+    threshold_y = num_treads * going - nosing            # front (nosing overhang)
+    threshold_back = num_treads * going - nosing + threshold_d
+    meshes.append(_box_mesh(
+        width / 2, threshold_y + threshold_d / 2, ftf - tread_t + tread_t / 2,
+        width, threshold_d, tread_t, "#c8a87c"
+    ))
+
+    # --- Stringers (notched at top for threshold) ---
     nzs = rise * nosing / going
     y0 = 0.0
     y1 = num_treads * going
     z0 = rise + nzs
     z1 = (num_treads + 1) * rise + nzs
-    meshes.append(_stringer_flight_y(0.0, y0, z0, y1, z1))
-    meshes.append(_stringer_flight_y(width, y0, z0, y1, z1))
+    meshes.append(_stringer_flight_y_notched(0.0, y0, z0, y1, z1, ftf, threshold_back))
+    meshes.append(_stringer_flight_y_notched(width, y0, z0, y1, z1, ftf, threshold_back))
 
     return meshes
 
@@ -611,6 +671,20 @@ def _preview_single_winder(p):
                 riser_t, width, riser_h, "#e8dcc8"
             ))
 
+    # --- Landing threshold strip ---
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    if turn_dir == "left":
+        thresh_front = -(flight2_treads * going) - winder_offset + nosing
+        thresh_back = thresh_front - threshold_d
+    else:
+        thresh_front = width + flight2_treads * going + winder_offset - nosing
+        thresh_back = thresh_front + threshold_d
+    meshes.append(_box_mesh(
+        (thresh_front + thresh_back) / 2, corner_y + width / 2, ftf - tread_t / 2,
+        threshold_d, width, tread_t, "#c8a87c"
+    ))
+
     # --- Stringers (only for flat landings) ---
     if actual_winders == 0:
         # Flight 1: runs along +Y. Inner side = corner_x (0 for left, width for right),
@@ -662,9 +736,9 @@ def _preview_single_winder(p):
             meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width, landing_z_base))
             meshes.append(_stringer_landing_x(corner_y + width, outer_x + t, f2_x0_ext, landing_z_base))
 
-        # Flight 2 stringers
-        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
-        meshes.append(_stringer_flight_x(outer_y, f2_x0_ext, z_ext2, f2_x1, f2_z1))
+        # Flight 2 stringers (notched for threshold)
+        meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1, f2_z1, ftf, thresh_back))
+        meshes.append(_stringer_flight_x_notched(outer_y, f2_x0_ext, z_ext2, f2_x1, f2_z1, ftf, thresh_back))
 
     # --- Pitched stringers for winder flights ---
     if actual_winders > 0:
@@ -691,8 +765,8 @@ def _preview_single_winder(p):
             f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
         f2_z0 = flight2_start_riser * rise + nzs
         f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
-        meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
-        meshes.append(_stringer_flight_x(outer_y, f2_x0, f2_z0, f2_x1, f2_z1))
+        meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1, f2_z1, ftf, thresh_back))
+        meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1, f2_z1, ftf, thresh_back))
 
         # Winder outer stringers (2 pieces along outer wall: Y then X)
         outer_corner_y = corner_y + width
@@ -946,6 +1020,19 @@ def _preview_double_winder(p):
                 width, riser_t, riser_h, "#e8dcc8"
             ))
 
+    # --- Landing threshold strip (flight 3 top) ---
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    thresh_riser_y = flight3_start_y - flight3_treads * going + flight3_shift_y
+    thresh_front_y = thresh_riser_y + nosing
+    thresh_back_y = thresh_front_y - threshold_d
+    meshes.append(_box_mesh(
+        flight3_start_x + width / 2,
+        (thresh_front_y + thresh_back_y) / 2,
+        ftf - tread_t / 2,
+        width, threshold_d, tread_t, "#c8a87c"
+    ))
+
     # Top newel post y position (placed at end with handrail-based height)
     top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y - hp
 
@@ -1076,11 +1163,12 @@ def _preview_double_winder(p):
             else:
                 meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - t, landing2_z))
 
-            # === Flight 3 stringers ===
-            meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+            # === Flight 3 stringers (notched for threshold) ===
+            meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
+                                                     f3_y_last, f3_z_last, ftf, thresh_back_y))
             meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
-            meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
-                                             f3_y_last, f3_z_last))
+            meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
+                                                     f3_y_last, f3_z_last, ftf, thresh_back_y))
 
     # --- Pitched stringers for winder flights ---
     if actual_winders1 > 0:
@@ -1132,14 +1220,16 @@ def _preview_double_winder(p):
             f3_outer_x = flight3_start_x + width - corner1_x
             f3_inner_x = flight3_start_x + corner1_x
 
-        # Flight 3 stringers
+        # Flight 3 stringers (notched for threshold)
         f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
         f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
         f3_z_first = flight3_riser_start * rise + nzs
         f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
-        meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+        meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
+                                                 f3_y_last, f3_z_last, ftf, thresh_back_y))
         meshes.append(_handrail_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
-        meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+        meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
+                                                 f3_y_last, f3_z_last, ftf, thresh_back_y))
 
         # Turn 2 winder outer stringers (X then Y along outer wall)
         # Recompute flight 2 end position for this section
