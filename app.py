@@ -639,6 +639,18 @@ def _preview_single_winder(p):
         meshes.append(_stringer_flight_x(inner_y, f2_x0, f2_z0, f2_x1, f2_z1))
         meshes.append(_stringer_flight_x(outer_y, f2_x0, f2_z0, f2_x1, f2_z1))
 
+        # Winder outer stringers (2 pieces along outer wall: Y then X)
+        outer_corner_y = corner_y + width
+        wy_len = abs(outer_corner_y - f1_y1)
+        wx_len = abs(outer_x - f2_x0)
+        total_path = wy_len + wx_len
+        z_winder = f2_z0 - f1_z1
+        z_corner = f1_z1 + z_winder * wy_len / total_path if total_path > 1e-9 else f1_z1
+        # Y-piece (along flight 1 outer wall)
+        meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, outer_corner_y, z_corner))
+        # X-piece (along flight 2 outer wall)
+        meshes.append(_stringer_flight_x(outer_corner_y, outer_x, z_corner, f2_x0, f2_z0))
+
     return meshes
 
 
@@ -1042,6 +1054,16 @@ def _preview_double_winder(p):
         meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
         meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
 
+        # Turn 1 winder outer stringers (Y then X along outer wall)
+        outer_corner_y1 = corner1_y + width
+        wy_len = abs(outer_corner_y1 - f1_y1)
+        wx_len = abs(f1_outer_x - f2_x_first)
+        total_path = wy_len + wx_len
+        z_winder = f2_z_first - f1_z1
+        z_corner = f1_z1 + z_winder * wy_len / total_path if total_path > 1e-9 else f1_z1
+        meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, outer_corner_y1, z_corner))
+        meshes.append(_stringer_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first))
+
     if actual_winders2 > 0:
         nzs = rise * nosing / going
         # Flight 3 X positions
@@ -1059,6 +1081,24 @@ def _preview_double_winder(p):
         f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
         meshes.append(_stringer_flight_y(f3_inner_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
         meshes.append(_stringer_flight_y(f3_outer_x, f3_y_first, f3_z_first, f3_y_last, f3_z_last))
+
+        # Turn 2 winder outer stringers (X then Y along outer wall)
+        # Recompute flight 2 end position for this section
+        if turn1_dir == "left":
+            f2_x_end = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x_end = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f2_z_end = (flight2_riser_start + flight2_treads) * rise + nzs
+        outer_corner_y2 = corner2_y + width
+        wx_len = abs(f3_outer_x - f2_x_end)
+        wy_len = abs(outer_corner_y2 - f3_y_first)
+        total_path = wx_len + wy_len
+        z_winder = f3_z_first - f2_z_end
+        z_corner = f2_z_end + z_winder * wx_len / total_path if total_path > 1e-9 else f2_z_end
+        # X-piece (along flight 2 outer wall)
+        meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner))
+        # Y-piece (along flight 3 outer wall)
+        meshes.append(_stringer_flight_y(f3_outer_x, outer_corner_y2, z_corner, f3_y_first, f3_z_first))
 
     return meshes
 
