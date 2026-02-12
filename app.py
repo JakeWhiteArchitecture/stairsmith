@@ -754,6 +754,13 @@ def _preview_double_winder(p):
         ns, ns, p["floor_to_floor"], "#8B7355"
     ))
 
+    # Bottom newel post (foot of staircase, flight 1 inner side)
+    bottom_post_y = flight1_shift_y - hp
+    meshes.append(_box_mesh(
+        corner1_x, bottom_post_y, p["floor_to_floor"] / 2,
+        ns, ns, p["floor_to_floor"], "#8B7355"
+    ))
+
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
         landing1_z = turn1_winder_start * rise - tread_t
@@ -904,6 +911,13 @@ def _preview_double_winder(p):
                 flight3_start_x + width / 2, riser_y, riser_z,
                 width, riser_t, riser_h, "#e8dcc8"
             ))
+
+    # Top newel post (head of staircase, flight 3 inner side)
+    top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y - hp
+    meshes.append(_box_mesh(
+        corner2_x, top_post_y, p["floor_to_floor"] / 2,
+        ns, ns, p["floor_to_floor"], "#8B7355"
+    ))
 
     # --- Stringers (only for flat landings) ---
     if actual_winders1 == 0 or actual_winders2 == 0:
