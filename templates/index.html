@@ -394,16 +394,6 @@
                     <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
                 </div>
             </div>
-            <div class="field-row">
-                <div class="field">
-                    <label>Winder X2 <span class="unit">mm</span></label>
-                    <input type="number" id="winder_x2" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
-                </div>
-                <div class="field">
-                    <label>Winder Y2 <span class="unit">mm</span></label>
-                    <input type="number" id="winder_y2" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
-                </div>
-            </div>
 
             <!-- Derived values -->
             <div class="derived" id="derived-values">
@@ -582,8 +572,6 @@
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
                 winder_y: parseFloat(document.getElementById('winder_y').value),
-                winder_x2: parseFloat(document.getElementById('winder_x2').value),
-                winder_y2: parseFloat(document.getElementById('winder_y2').value),
             };
         }
 

@@ -113,11 +113,9 @@ def _parse(params):
     # Winder Y: going from X endpoint toward flight (min 50)
     raw_y = float(params.get("winder_y", 50))
     p["winder_y"] = max(50.0, raw_y)
-    # Turn 2 winder X/Y (default to turn 1 values)
-    raw_x2 = float(params.get("winder_x2", params.get("winder_x", 25)))
-    p["winder_x2"] = max(25.0, min(p["newel_size"], raw_x2))
-    raw_y2 = float(params.get("winder_y2", params.get("winder_y", 50)))
-    p["winder_y2"] = max(50.0, raw_y2)
+    # Same X/Y applies to both turns
+    p["winder_x2"] = p["winder_x"]
+    p["winder_y2"] = p["winder_y"]
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
@@ -134,9 +132,10 @@ def _box_mesh(x, y, z, w, d, h, color):
     }
 
 
-STRINGER_THICKNESS = 32.0   # mm
-STRINGER_HEIGHT = 225.0     # mm
-STRINGER_DROP = 75.0        # mm – landing stringer top sits this far above the tread plane
+STRINGER_THICKNESS = 32.0        # mm
+STRINGER_HEIGHT = 275.0          # mm
+STRINGER_PITCH_OFFSET = 25.0     # mm – stringer top sits this far above the pitch line
+STRINGER_DROP = STRINGER_PITCH_OFFSET  # landing stringer top above tread plane
 STRINGER_COLOR = "#b5a48a"
 
 
@@ -146,12 +145,13 @@ def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end):
     Returns a stringer mesh dict.  The profile is a parallelogram in the
     Y-Z plane, extruded by STRINGER_THICKNESS in X centred on *x_pos*.
     """
-    h = STRINGER_HEIGHT
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
     profile = [
-        [y_start, z_start],
-        [y_end,   z_end],
-        [y_end,   z_end + h],
-        [y_start, z_start + h],
+        [y_start, z_start - drop],
+        [y_end,   z_end - drop],
+        [y_end,   z_end + off],
+        [y_start, z_start + off],
     ]
     return {
         "type": "stringer",
@@ -168,12 +168,13 @@ def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end):
     Profile is in the X-Z plane, extruded by STRINGER_THICKNESS in Y
     centred on *y_pos*.
     """
-    h = STRINGER_HEIGHT
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
     profile = [
-        [x_start, z_start],
-        [x_end,   z_end],
-        [x_end,   z_end + h],
-        [x_start, z_start + h],
+        [x_start, z_start - drop],
+        [x_end,   z_end - drop],
+        [x_end,   z_end + off],
+        [x_start, z_start + off],
     ]
     return {
         "type": "stringer",
@@ -569,7 +570,7 @@ def _preview_single_winder(p):
         landing_z_base = winder_start_riser * rise
         land_top = landing_z_base + STRINGER_DROP
         # Extend outer flight 1 along pitch until top edge meets landing stringer top
-        z_ext = land_top - STRINGER_HEIGHT
+        z_ext = land_top - STRINGER_PITCH_OFFSET
         dy = f1_y1 - f1_y0
         dz = f1_z1 - f1_z0
         f1_y1_ext = f1_y1 + (z_ext - f1_z1) * dy / dz if abs(dz) > 1e-9 else f1_y1
@@ -585,7 +586,7 @@ def _preview_single_winder(p):
             f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
         f2_z0 = (flight2_start_riser - 1) * rise
         f2_z1 = (flight2_start_riser + flight2_treads - 1) * rise
-        z_ext2 = land_top - STRINGER_HEIGHT
+        z_ext2 = land_top - STRINGER_PITCH_OFFSET
         dx2 = f2_x1 - f2_x0
         dz2 = f2_z1 - f2_z0
         f2_x0_ext = f2_x0 + (z_ext2 - f2_z0) * dx2 / dz2 if abs(dz2) > 1e-9 else f2_x0
@@ -872,7 +873,7 @@ def _preview_double_winder(p):
             landing1_z = turn1_winder_start * rise
             land1_top = landing1_z + STRINGER_DROP
             # Flight 1 outer extension along pitch
-            z_ext1 = land1_top - STRINGER_HEIGHT
+            z_ext1 = land1_top - STRINGER_PITCH_OFFSET
             dy1 = f1_y1 - f1_y0
             dz1 = f1_z1 - f1_z0
             f1_y1_ext = f1_y1 + (z_ext1 - f1_z1) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y1
@@ -902,12 +903,12 @@ def _preview_double_winder(p):
             f2_x_first_ext, f2_z_first_ext = f2_x_first, f2_z_first
             f2_x_last_ext_v, f2_z_last_ext = f2_x_last, f2_z_last
             if abs(f2_dz) > 1e-9:
-                z_ext_s = land1_top - STRINGER_HEIGHT
+                z_ext_s = land1_top - STRINGER_PITCH_OFFSET
                 f2_x_first_ext = f2_x_first + (z_ext_s - f2_z_first) * f2_dx / f2_dz
                 f2_z_first_ext = z_ext_s
             if actual_winders2 == 0 and abs(f2_dz) > 1e-9:
                 land2_top_pre = turn2_winder_start * rise + STRINGER_DROP
-                z_ext_e = land2_top_pre - STRINGER_HEIGHT
+                z_ext_e = land2_top_pre - STRINGER_PITCH_OFFSET
                 f2_x_last_ext_v = f2_x_last + (z_ext_e - f2_z_last) * f2_dx / f2_dz
                 f2_z_last_ext = z_ext_e
             f2_x_last_ext = f2_x_last_ext_v  # share with turn 2 section
@@ -963,7 +964,7 @@ def _preview_double_winder(p):
             f3_dy = f3_y_last - f3_y_first
             f3_dz = f3_z_last - f3_z_first
             if abs(f3_dz) > 1e-9:
-                z_ext3 = land2_top - STRINGER_HEIGHT
+                z_ext3 = land2_top - STRINGER_PITCH_OFFSET
                 f3_y_first_ext = f3_y_first + (z_ext3 - f3_z_first) * f3_dy / f3_dz
                 f3_z_first_ext = z_ext3
 
