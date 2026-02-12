@@ -794,18 +794,10 @@ def _preview_double_winder(p):
         actual_winders1, turn1_winder_start, rise, tread_t, riser_t,
         nosing=nosing, winder_x=wx))
 
-    # Newel post at turn 1
-    meshes.append(_box_mesh(
-        corner1_x, corner1_y, p["floor_to_floor"] / 2,
-        ns, ns, p["floor_to_floor"], "#8B7355"
-    ))
+    # Newel post at turn 1 — placed at end with handrail-based height
 
     # Bottom newel post (foot of staircase, flight 1 inner side)
     bottom_post_y = flight1_shift_y - hp
-    meshes.append(_box_mesh(
-        corner1_x, bottom_post_y, p["floor_to_floor"] / 2,
-        ns, ns, p["floor_to_floor"], "#8B7355"
-    ))
 
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
@@ -894,11 +886,7 @@ def _preview_double_winder(p):
         actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
         nosing=nosing, rotation=turn2_rotation, winder_x=wx2))
 
-    # Newel post at turn 2
-    meshes.append(_box_mesh(
-        corner2_x, corner2_y, p["floor_to_floor"] / 2,
-        ns, ns, p["floor_to_floor"], "#8B7355"
-    ))
+    # Newel post at turn 2 — placed at end with handrail-based height
 
     riser_idx += actual_winders2
     # When turn 2 winders are off, the landing consumes 1 rise — shift flight 3 up
@@ -958,12 +946,8 @@ def _preview_double_winder(p):
                 width, riser_t, riser_h, "#e8dcc8"
             ))
 
-    # Top newel post (head of staircase, flight 3 inner side)
+    # Top newel post y position (placed at end with handrail-based height)
     top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y - hp
-    meshes.append(_box_mesh(
-        corner2_x, top_post_y, p["floor_to_floor"] / 2,
-        ns, ns, p["floor_to_floor"], "#8B7355"
-    ))
 
     # --- Stringers (only for flat landings) ---
     if actual_winders1 == 0 or actual_winders2 == 0:
@@ -1174,6 +1158,44 @@ def _preview_double_winder(p):
         meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner))
         # Y-piece (along flight 3 outer wall)
         meshes.append(_stringer_flight_y(f3_outer_x, outer_corner_y2, z_corner, f3_y_first, f3_z_first))
+
+    # --- Newel posts (top = 150mm above highest abutting handrail) ---
+    NEWEL_CAP = 150.0
+    nzs_hr = rise * nosing / going
+
+    # Bottom newel: only flight 1 handrail abuts (at its start endpoint)
+    hr_bot = rise + nzs_hr + HANDRAIL_RISE
+    bot_h = hr_bot + NEWEL_CAP
+    meshes.append(_box_mesh(
+        corner1_x, bottom_post_y, bot_h / 2,
+        ns, ns, bot_h, "#8B7355"
+    ))
+
+    # Corner 1: flight 1 end + flight 2 start — use the higher
+    hr_c1_f1 = (flight1_treads + 1) * rise + nzs_hr + HANDRAIL_RISE
+    hr_c1_f2 = flight2_riser_start * rise + nzs_hr + HANDRAIL_RISE
+    c1_h = max(hr_c1_f1, hr_c1_f2) + NEWEL_CAP
+    meshes.append(_box_mesh(
+        corner1_x, corner1_y, c1_h / 2,
+        ns, ns, c1_h, "#8B7355"
+    ))
+
+    # Corner 2: flight 2 end + flight 3 start — use the higher
+    hr_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr + HANDRAIL_RISE
+    hr_c2_f3 = flight3_riser_start * rise + nzs_hr + HANDRAIL_RISE
+    c2_h = max(hr_c2_f2, hr_c2_f3) + NEWEL_CAP
+    meshes.append(_box_mesh(
+        corner2_x, corner2_y, c2_h / 2,
+        ns, ns, c2_h, "#8B7355"
+    ))
+
+    # Top newel: only flight 3 handrail abuts (at its end endpoint)
+    hr_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr + HANDRAIL_RISE
+    top_h = hr_top + NEWEL_CAP
+    meshes.append(_box_mesh(
+        corner2_x, top_post_y, top_h / 2,
+        ns, ns, top_h, "#8B7355"
+    ))
 
     return meshes
 
