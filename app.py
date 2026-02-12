@@ -286,22 +286,23 @@ def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_bac
     """Pitched stringer along Y with a notch at the top for landing threshold.
 
     The stringer bottom continues at pitch to y_end (riser back face), then a
-    vertical cut rises to ftf - tread_t (threshold underside).  Above that a
-    rectangular overrun extends to y_back with a 50 mm raised cap.
+    vertical cut rises to ftf - tread_t (threshold underside).  The overrun
+    extends to y_back with its top flush with the pitched stringer surface.
     """
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
-    overrun_top = z_end + off + 50.0
     overrun_bot = ftf - tread_t
+    # Extend pitch line to y_back so overrun top is flush with stringer surface
+    dy = y_end - y_start
+    slope = (z_end - z_start) / dy if dy != 0 else 0
+    z_back_top = z_end + off + slope * (y_back - y_end)
     profile = [
         [y_start, z_start - drop],      # 0  bottom at start
         [y_end,   z_end - drop],         # 1  bottom at riser back
         [y_end,   overrun_bot],          # 2  vertical cut to threshold underside
         [y_back,  overrun_bot],          # 3  horizontal to threshold back
-        [y_back,  overrun_top],          # 4  up to overrun top
-        [y_end,   overrun_top],          # 5  back to riser back at overrun top
-        [y_end,   z_end + off],          # 6  drop to pitch line at end
-        [y_start, z_start + off],        # 7  pitch line back to start
+        [y_back,  z_back_top],           # 4  up to pitch line at threshold back
+        [y_start, z_start + off],        # 5  pitch line back to start
     ]
     return {
         "type": "stringer",
@@ -316,16 +317,16 @@ def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_bac
     """Pitched stringer along X with a notch at the top for landing threshold."""
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
-    overrun_top = z_end + off + 50.0
     overrun_bot = ftf - tread_t
+    dx = x_end - x_start
+    slope = (z_end - z_start) / dx if dx != 0 else 0
+    z_back_top = z_end + off + slope * (x_back - x_end)
     profile = [
         [x_start, z_start - drop],
         [x_end,   z_end - drop],
         [x_end,   overrun_bot],
         [x_back,  overrun_bot],
-        [x_back,  overrun_top],
-        [x_end,   overrun_top],
-        [x_end,   z_end + off],
+        [x_back,  z_back_top],
         [x_start, z_start + off],
     ]
     return {
