@@ -903,8 +903,8 @@ def _preview_double_winder(p):
 
     # Newel post at turn 1 — placed at end with handrail-based height
 
-    # Bottom newel post (foot of staircase, flight 1 inner side)
-    bottom_post_y = flight1_shift_y - hp
+    # Bottom newel post (foot of staircase, centred on first tread nosing line)
+    bottom_post_y = flight1_shift_y - nosing
 
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
@@ -1066,8 +1066,8 @@ def _preview_double_winder(p):
         width, threshold_d, tread_t, "#c8a87c"
     ))
 
-    # Top newel post y position (placed at end with handrail-based height)
-    top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y - hp
+    # Top newel post y position (centred on last tread nosing line)
+    top_post_y = flight3_start_y - flight3_treads * going - nosing + flight3_shift_y
 
     # --- Stringers (only for flat landings) ---
     if actual_winders1 == 0 or actual_winders2 == 0:
