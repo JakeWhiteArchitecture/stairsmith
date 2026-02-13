@@ -1488,6 +1488,7 @@ _json.dumps({"geometry": _geo, "checks": _chk})
             if (ifcReady) return;
             const btn = document.querySelector('.btn-primary');
             btn.textContent = 'Installing IfcOpenShell...';
+            await pyodide.loadPackage("numpy");
             await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(
