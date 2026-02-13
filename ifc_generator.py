@@ -1492,6 +1492,18 @@ def generate_double_winder(ifc, context, p):
         ifc, context, "Threshold", thresh_profile, tread_t, thresh_z)
     elements.append(thresh)
 
+    # Balustrade elements
+    _generate_ifc_balustrade_double_winder(
+        ifc, context, p, elements,
+        flight1_treads, flight2_treads, flight3_treads,
+        corner1_x, corner1_y, corner2_x, corner2_y,
+        flight1_shift_y, flight3_shift_y,
+        winder_offset1, winder_offset2,
+        flight2_riser_start, flight3_riser_start,
+        turn1_winder_start, turn2_winder_start,
+        actual_winders1, actual_winders2,
+        flight3_start_x, flight3_start_y)
+
     return elements
 
 
@@ -2037,6 +2049,333 @@ def _generate_ifc_balustrade_single_winder(ifc, context, p, elements, flight1_tr
             hr_top = (flight2_start_riser + flight2_treads) * rise + nzs + hr_rise_val
             top_h = hr_top + NEWEL_CAP
             newel = _create_newel_post(ifc, context, "Outer Top Post", top_post_x, outer_y, ns, top_h)
+            if newel:
+                elements.append(newel)
+
+
+def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
+                                            flight1_treads, flight2_treads, flight3_treads,
+                                            corner1_x, corner1_y, corner2_x, corner2_y,
+                                            flight1_shift_y, flight3_shift_y,
+                                            winder_offset1, winder_offset2,
+                                            flight2_riser_start, flight3_riser_start,
+                                            turn1_winder_start, turn2_winder_start,
+                                            actual_winders1, actual_winders2,
+                                            flight3_start_x, flight3_start_y):
+    """Generate balustrade elements for a double-winder staircase."""
+    width = p["stair_width"]
+    going = p["going"]
+    rise = p["rise"]
+    tread_t = p["tread_thickness"]
+    riser_t = p["riser_thickness"]
+    nosing = p["nosing"]
+    num_treads = p["num_treads"]
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    turn1_dir = p["turn1_direction"]
+    turn2_dir = p["turn2_direction"]
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    bottom_post_y = flight1_shift_y - nosing
+    nzs = rise * nosing / going
+
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+    NEWEL_CAP = 150.0
+    hr_rise_val = p["handrail_rise"]
+
+    # Map left/right conditions to inner/outer based on turn1 direction
+    if turn1_dir == "left":
+        render_inner = p["left_condition"] == "balustrade"
+        render_outer = p["right_condition"] == "balustrade"
+    else:
+        render_inner = p["right_condition"] == "balustrade"
+        render_outer = p["left_condition"] == "balustrade"
+
+    # Corner / end post half-sizes (auto-enlarged to 100mm when absorbing a 0-tread flight)
+    c1_ns = max(ns, 100.0) if flight1_treads == 0 else ns
+    c2_ns = max(ns, 100.0) if flight3_treads == 0 else ns
+    c1_hp = c1_ns / 2.0
+    c2_hp = c2_ns / 2.0
+
+    f1_inner_x = corner1_x
+    f1_outer_x = width - corner1_x
+    f2_inner_y = corner1_y
+    f2_outer_y = corner1_y + width
+
+    # Threshold Y (flight 3 top)
+    thresh_riser_y = flight3_start_y - flight3_treads * going + flight3_shift_y
+    top_post_y = thresh_riser_y + nosing
+
+    # ─── Flight 1 coordinates ───
+    f1_y0 = flight1_shift_y
+    f1_y1 = flight1_treads * going + flight1_shift_y
+    f1_z0 = rise + nzs
+    f1_z1 = (flight1_treads + 1) * rise + nzs
+    bot_face_y = bottom_post_y + hp
+    dy1 = f1_y1 - f1_y0
+
+    # ─── Flight 2 coordinates ───
+    if turn1_dir == "left":
+        f2_x_first = -winder_offset1 - nosing - riser_t / 2
+        f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+    else:
+        f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+        f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+    f2_z_first = flight2_riser_start * rise + nzs
+    f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+
+    # ─── Flight 3 coordinates ───
+    if turn1_dir == turn2_dir:
+        f3_outer_x = flight3_start_x + corner1_x
+        f3_inner_x = flight3_start_x + width - corner1_x
+    else:
+        f3_outer_x = flight3_start_x + width - corner1_x
+        f3_inner_x = flight3_start_x + corner1_x
+
+    f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+    f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
+    f3_z_first = flight3_riser_start * rise + nzs
+    f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
+    z_fl = riser_t * rise / (2 * going)
+    f3_y_last_fl = f3_y_last - riser_t / 2
+    f3_z_last_fl = f3_z_last + z_fl
+    top_face_y = top_post_y + hp
+    dy3h = f3_y_last - f3_y_first
+
+    # ─── Flight 1 inner stringer + balustrade ───
+    if render_inner and flight1_treads > 0:
+        f1_y0_c, f1_z0_c = f1_y0, f1_z0
+        if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+            t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+            f1_y0_c = f1_y0 + t_c * dy1
+            f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
+        elements.append(_ifc_handrail_flight_y(ifc, context, "Inner F1 Handrail", f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
+        elements.append(_ifc_baserail_flight_y(ifc, context, "Inner F1 Baserail", f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+        c1_face_y = corner1_y - c1_hp
+        if abs(dy1) > 1e-9:
+            t_sp = (c1_face_y - f1_y0) / dy1
+            f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
+        else:
+            f1_sp_z1 = f1_z1
+        elements.extend(_ifc_spindles_flight_y(ifc, context, "Inner F1 Spindle", f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
+    elif not render_inner and flight1_treads > 0:
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+
+    # ─── Flight 1 outer stringer + balustrade ───
+    if render_outer and flight1_treads > 0:
+        f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
+        if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+            t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+            f1_y0_oc = f1_y0 + t_c * dy1
+            f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
+        elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F1 Handrail", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
+        elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F1 Baserail", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
+        pc_face_y = f1_y1 - hp
+        if abs(dy1) > 1e-9:
+            t_sp = (pc_face_y - f1_y0) / dy1
+            f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
+        else:
+            f1_sp_z1 = f1_z1
+        elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F1 Spindle", f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
+    elif not render_outer and flight1_treads > 0:
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+
+    # ─── Flight 2 inner stringer + balustrade ───
+    f2_dx = f2_x_last - f2_x_first
+    if render_inner and flight2_treads > 0:
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Inner F2 Stringer", f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+        elements.append(_ifc_handrail_flight_x(ifc, context, "Inner F2 Handrail", f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **hr_kw))
+        elements.append(_ifc_baserail_flight_x(ifc, context, "Inner F2 Baserail", f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **br_kw))
+        if abs(f2_dx) > 1e-9:
+            if turn1_dir == "left":
+                c1_face_x = corner1_x - c1_hp
+                c2_face_x = corner2_x + c2_hp
+            else:
+                c1_face_x = corner1_x + c1_hp
+                c2_face_x = corner2_x - c2_hp
+            t0 = (c1_face_x - f2_x_first) / f2_dx
+            t1 = (c2_face_x - f2_x_first) / f2_dx
+            f2_sp_z0 = f2_z_first + t0 * (f2_z_last - f2_z_first)
+            f2_sp_z1 = f2_z_first + t1 * (f2_z_last - f2_z_first)
+            elements.extend(_ifc_spindles_flight_x(ifc, context, "Inner F2 Spindle", f2_inner_y, c1_face_x, f2_sp_z0, c2_face_x, f2_sp_z1, **sp_kw))
+    elif not render_inner and flight2_treads > 0:
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Inner F2 Stringer", f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+
+    # ─── Flight 2 outer stringer + balustrade ───
+    if render_outer and flight2_treads > 0:
+        if turn1_dir == "left":
+            pc1_face_x = f2_x_first + hp
+            pc2_face_x = f2_x_last - hp if actual_winders2 > 0 else f2_x_last + hp
+        else:
+            pc1_face_x = f2_x_first - hp
+            pc2_face_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last - hp
+        f2_x0_oc, f2_z0_oc = f2_x_first, f2_z_first
+        f2_x1_oc, f2_z1_oc = f2_x_last, f2_z_last
+        if abs(f2_dx) > 1e-9:
+            t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
+            f2_x0_oc = f2_x_first + t_c * f2_dx
+            f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
+            t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
+            f2_x1_oc = f2_x_first + t_c2 * f2_dx
+            f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
+        elements.append(_ifc_handrail_flight_x(ifc, context, "Outer F2 Handrail", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
+        elements.append(_ifc_baserail_flight_x(ifc, context, "Outer F2 Baserail", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+        if abs(f2_dx) > 1e-9:
+            elements.extend(_ifc_spindles_flight_x(ifc, context, "Outer F2 Spindle", f2_outer_y, pc1_face_x, f2_z0_oc, pc2_face_x, f2_z1_oc, **sp_kw))
+    elif not render_outer and flight2_treads > 0:
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+
+    # ─── Flight 3 inner stringer + balustrade ───
+    if render_inner and flight3_treads > 0:
+        dy3s = f3_y_last_fl - f3_y_first
+        f3_y_end_c, f3_z_end_c = f3_y_last_fl, f3_z_last_fl
+        if abs(dy3s) > 1e-9 and top_face_y > f3_y_last_fl:
+            t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3s))
+            f3_y_end_c = f3_y_first + t_c * dy3s
+            f3_z_end_c = f3_z_first + t_c * (f3_z_last_fl - f3_z_first)
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F3 Stringer", f3_inner_x, f3_y_first, f3_z_first, f3_y_end_c, f3_z_end_c))
+        f3_y_hr_c, f3_z_hr_c = f3_y_last, f3_z_last
+        if abs(dy3h) > 1e-9 and top_face_y > f3_y_last:
+            t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3h))
+            f3_y_hr_c = f3_y_first + t_c * dy3h
+            f3_z_hr_c = f3_z_first + t_c * (f3_z_last - f3_z_first)
+        elements.append(_ifc_handrail_flight_y(ifc, context, "Inner F3 Handrail", f3_inner_x, f3_y_first, f3_z_first, f3_y_hr_c, f3_z_hr_c, **hr_kw))
+        elements.append(_ifc_baserail_flight_y(ifc, context, "Inner F3 Baserail", f3_inner_x, f3_y_first, f3_z_first, f3_y_end_c, f3_z_end_c, **br_kw))
+        c2_face_f3 = (corner2_y + c2_hp) if f3_y_first > corner2_y else (corner2_y - c2_hp)
+        dy3_full = f3_y_last - f3_y_first
+        if abs(dy3_full) > 1e-9:
+            t_sp3 = (c2_face_f3 - f3_y_first) / dy3_full
+            f3_sp_z0 = f3_z_first + t_sp3 * (f3_z_last - f3_z_first)
+        else:
+            f3_sp_z0 = f3_z_first
+        elements.extend(_ifc_spindles_flight_y(ifc, context, "Inner F3 Spindle", f3_inner_x, c2_face_f3, f3_sp_z0, f3_y_hr_c, f3_z_hr_c, **sp_kw))
+    elif not render_inner and flight3_treads > 0:
+        thresh_back_y = top_post_y - threshold_d
+        elements.append(_ifc_stringer_flight_y_notched(
+            ifc, context, "Inner F3 Stringer", f3_inner_x, f3_y_first, f3_z_first,
+            f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+
+    # ─── Flight 3 outer stringer + balustrade ───
+    if render_outer and flight3_treads > 0:
+        pc_face_f3 = f3_y_first - hp
+        top_face_y_out = top_post_y + hp
+        f3_y0_oc, f3_z0_oc = f3_y_first, f3_z_first
+        f3_y1_oc, f3_z1_oc = f3_y_last, f3_z_last
+        if abs(dy3h) > 1e-9:
+            t_c0 = max(0.0, min(1.0, (pc_face_f3 - f3_y_first) / dy3h))
+            f3_y0_oc = f3_y_first + t_c0 * dy3h
+            f3_z0_oc = f3_z_first + t_c0 * (f3_z_last - f3_z_first)
+            t_c1 = max(0.0, min(1.0, (top_face_y_out - f3_y_first) / dy3h))
+            f3_y1_oc = f3_y_first + t_c1 * dy3h
+            f3_z1_oc = f3_z_first + t_c1 * (f3_z_last - f3_z_first)
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F3 Stringer", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc))
+        elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F3 Handrail", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **hr_kw))
+        elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F3 Baserail", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **br_kw))
+        if abs(dy3h) > 1e-9:
+            elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F3 Spindle", f3_outer_x, pc_face_f3, f3_z0_oc, top_face_y_out, f3_z1_oc, **sp_kw))
+    elif not render_outer and flight3_treads > 0:
+        thresh_back_y = top_post_y - threshold_d
+        elements.append(_ifc_stringer_flight_y_notched(
+            ifc, context, "Outer F3 Stringer", f3_outer_x, f3_y_first, f3_z_first,
+            f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+
+    # ─── Inner newel posts ───
+    if render_inner:
+        if flight1_treads > 0:
+            hr_bot = rise + nzs + hr_rise_val
+            bot_h = hr_bot + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Inner Bottom Post", corner1_x, bottom_post_y, ns, bot_h)
+            if newel:
+                elements.append(newel)
+        hr_c1_f1 = (flight1_treads + 1) * rise + nzs + hr_rise_val
+        hr_c1_f2 = flight2_riser_start * rise + nzs + hr_rise_val
+        c1_h = max(hr_c1_f1, hr_c1_f2) + NEWEL_CAP
+        newel = _create_newel_post(ifc, context, "Inner Corner1 Post", corner1_x, corner1_y, c1_ns, c1_h)
+        if newel:
+            elements.append(newel)
+        hr_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs + hr_rise_val
+        hr_c2_f3 = flight3_riser_start * rise + nzs + hr_rise_val
+        c2_h = max(hr_c2_f2, hr_c2_f3) + NEWEL_CAP
+        newel = _create_newel_post(ifc, context, "Inner Corner2 Post", corner2_x, corner2_y, c2_ns, c2_h)
+        if newel:
+            elements.append(newel)
+        if flight3_treads > 0:
+            hr_top = (flight3_riser_start + flight3_treads) * rise + nzs + hr_rise_val
+            top_h = hr_top + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Inner Top Post", corner2_x, top_post_y, ns, top_h)
+            if newel:
+                elements.append(newel)
+
+    # ─── Outer newel posts ───
+    if render_outer:
+        outer_x = width - corner1_x
+        outer_y_pos = corner1_y + width
+        if turn1_dir == turn2_dir:
+            f3_outer_x_val = flight3_start_x + corner1_x
+        else:
+            f3_outer_x_val = flight3_start_x + width - corner1_x
+        if turn1_dir == "left":
+            f2_x0_val = -winder_offset1 - nosing - riser_t / 2
+            f2_x_end_val = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x0_val = width + winder_offset1 + nosing + riser_t / 2
+            f2_x_end_val = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f3_y_first_val = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+
+        if flight1_treads > 0:
+            hr_bot = rise + nzs + hr_rise_val
+            bot_h = hr_bot + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer Bottom Post", outer_x, bottom_post_y, ns, bot_h)
+            if newel:
+                elements.append(newel)
+        f1_y1_val = flight1_treads * going + flight1_shift_y
+        hr_pc1 = (flight1_treads + 1) * rise + nzs + hr_rise_val
+        pc1_h = hr_pc1 + NEWEL_CAP
+        newel = _create_newel_post(ifc, context, "Outer PC F1 Post", outer_x, f1_y1_val, ns, pc1_h)
+        if newel:
+            elements.append(newel)
+
+        if actual_winders1 > 0:
+            oc1_hr = max(hr_pc1, flight2_riser_start * rise + nzs + hr_rise_val)
+            oc1_h = oc1_hr + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer Corner1 Post", outer_x, outer_y_pos, ns, oc1_h)
+            if newel:
+                elements.append(newel)
+            hr_pc_f2s = flight2_riser_start * rise + nzs + hr_rise_val
+            pc_f2s_h = hr_pc_f2s + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer PC F2S Post", f2_x0_val, outer_y_pos, ns, pc_f2s_h)
+            if newel:
+                elements.append(newel)
+
+        if actual_winders2 > 0:
+            hr_pc_f2e = (flight2_riser_start + flight2_treads) * rise + nzs + hr_rise_val
+            pc_f2e_h = hr_pc_f2e + NEWEL_CAP
+            outer_corner_y2_val = corner2_y + width
+            newel = _create_newel_post(ifc, context, "Outer PC F2E Post", f2_x_end_val, outer_corner_y2_val, ns, pc_f2e_h)
+            if newel:
+                elements.append(newel)
+            oc2_hr = max(hr_pc_f2e, flight3_riser_start * rise + nzs + hr_rise_val)
+            oc2_h = oc2_hr + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer Corner2 Post", f3_outer_x_val, outer_corner_y2_val, ns, oc2_h)
+            if newel:
+                elements.append(newel)
+            hr_pc_f3s = flight3_riser_start * rise + nzs + hr_rise_val
+            pc_f3s_h = hr_pc_f3s + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer PC F3S Post", f3_outer_x_val, f3_y_first_val, ns, pc_f3s_h)
+            if newel:
+                elements.append(newel)
+
+        if flight3_treads > 0:
+            hr_top = (flight3_riser_start + flight3_treads) * rise + nzs + hr_rise_val
+            top_h = hr_top + NEWEL_CAP
+            newel = _create_newel_post(ifc, context, "Outer Top Post", f3_outer_x_val, top_post_y, ns, top_h)
             if newel:
                 elements.append(newel)
 
