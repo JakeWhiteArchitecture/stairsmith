@@ -1488,9 +1488,13 @@ _json.dumps({"geometry": _geo, "checks": _chk})
             if (ifcReady) return;
             const btn = document.querySelector('.btn-primary');
             btn.textContent = 'Installing IfcOpenShell...';
+            // numpy and shapely are Pyodide built-in packages (C extensions)
             await pyodide.loadPackage(["numpy", "shapely"]);
+            // Install pure-Python dependencies that ifcopenshell needs
+            // (the WASM wheel doesn't declare them, so micropip won't auto-fetch)
             await pyodide.runPythonAsync(`
 import micropip
+await micropip.install(["lark", "isodate", "python-dateutil", "typing_extensions"])
 await micropip.install(
     "https://ifcopenshell.github.io/wasm-wheels/ifcopenshell-0.8.2+d50e806-cp312-cp312-emscripten_3_1_58_wasm32.whl")
 `);
