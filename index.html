@@ -1492,7 +1492,7 @@ _json.dumps({"geometry": _geo, "checks": _chk})
 import micropip
 await micropip.install(
     "ifcopenshell",
-    index_url="https://ifcopenshell.github.io/wasm-wheels/")
+    index_urls=["https://ifcopenshell.github.io/wasm-wheels/"])
 `);
             // Load ifc_generator.py into Pyodide
             const resp = await fetch('ifc_generator.py');
