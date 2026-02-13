@@ -135,10 +135,16 @@ def parse_params(params):
     return p
 
 
-def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, position_xyz, direction=(0.0, 0.0, 1.0)):
+def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, position_xyz,
+                           direction=(0.0, 0.0, 1.0), axis=None, ref_direction=None):
     """
     Create an IfcExtrudedAreaSolid from a list of 2D profile coordinates,
     extruded along a direction.
+
+    axis/ref_direction: optional orientation for the placement's local
+    coordinate system.  The 2D profile lives in the local XY plane defined by
+    (ref_direction, axis × ref_direction).  *direction* is expressed in this
+    local frame.
     """
     # Create cartesian points for the profile
     points = [ifc.createIfcCartesianPoint(coord) for coord in profile_coords]
@@ -149,7 +155,9 @@ def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, positi
 
     # Position of the extrusion
     location = ifc.createIfcCartesianPoint(position_xyz)
-    axis2 = ifc.createIfcAxis2Placement3D(location, None, None)
+    axis_ifc = ifc.createIfcDirection(axis) if axis else None
+    ref_ifc = ifc.createIfcDirection(ref_direction) if ref_direction else None
+    axis2 = ifc.createIfcAxis2Placement3D(location, axis_ifc, ref_ifc)
 
     direction_ifc = ifc.createIfcDirection(direction)
 
@@ -1555,12 +1563,17 @@ def _create_pitched_profile_element_y(ifc, context, name, ifc_class, profile_yz,
     x_pos: X position of the profile start (extrusion starts here).
     thickness: extrusion depth in X.
     """
-    # Profile is in Y-Z plane, extrude along X
+    # Orient the local CS so the 2D profile maps to the YZ plane:
+    #   local X (RefDir)  = global Y  →  profile u = IFC Y
+    #   local Y (Axis×Ref)= global Z  →  profile v = IFC Z (height)
+    #   local Z (Axis)    = global X  →  extrusion along IFC X
     profile_coords = [(pt[0], pt[1]) for pt in profile_yz]
     solid = _create_extruded_solid(
         ifc, context, profile_coords, thickness,
         (x_pos, 0.0, 0.0),
-        direction=(1.0, 0.0, 0.0),
+        direction=(0.0, 0.0, 1.0),
+        axis=(1.0, 0.0, 0.0),
+        ref_direction=(0.0, 1.0, 0.0),
     )
     return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
 
@@ -1572,11 +1585,18 @@ def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz,
     y_pos: Y position of the profile start (extrusion starts here).
     thickness: extrusion depth in Y.
     """
+    # Orient the local CS so the 2D profile maps to the XZ plane:
+    #   local X (RefDir)  = global X   →  profile u = IFC X
+    #   local Y (Axis×Ref)= global Z   →  profile v = IFC Z (height)
+    #   local Z (Axis)    = global -Y   →  extrusion direction (0,0,-1)
+    #                                      in local = global +Y
     profile_coords = [(pt[0], pt[1]) for pt in profile_xz]
     solid = _create_extruded_solid(
         ifc, context, profile_coords, thickness,
         (0.0, y_pos, 0.0),
-        direction=(0.0, 1.0, 0.0),
+        direction=(0.0, 0.0, -1.0),
+        axis=(0.0, -1.0, 0.0),
+        ref_direction=(1.0, 0.0, 0.0),
     )
     return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
 
