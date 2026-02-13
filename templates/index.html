@@ -479,6 +479,22 @@
             <h2>Balustrade</h2>
             <div class="field-row">
                 <div class="field">
+                    <label>Left Side</label>
+                    <select id="left_condition" onchange="updatePreview();">
+                        <option value="balustrade">Balustrade</option>
+                        <option value="wall">Wall</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Right Side</label>
+                    <select id="right_condition" onchange="updatePreview();">
+                        <option value="wall" selected>Wall</option>
+                        <option value="balustrade">Balustrade</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
                     <label>Handrail Width <span class="unit">mm</span></label>
                     <input type="number" id="handrail_width" value="70" min="40" max="100" step="1" oninput="updatePreview();">
                 </div>
@@ -793,6 +809,8 @@
                 baserail_width: parseFloat(document.getElementById('baserail_width').value),
                 baserail_height: parseFloat(document.getElementById('baserail_height').value),
                 spindle_width: parseFloat(document.getElementById('spindle_width').value),
+                left_condition: document.getElementById('left_condition').value,
+                right_condition: document.getElementById('right_condition').value,
             };
         }
 
