@@ -84,13 +84,32 @@ def _parse(params):
     return p
 
 
-def _box_mesh(x, y, z, w, d, h, color):
-    """Create a box mesh definition for Three.js."""
+_BOX_COLOR_TO_IFC = {
+    "#c8a87c": "tread",       # treads, landings, thresholds (override for landing/threshold)
+    "#e8dcc8": "riser",       # risers
+    "#d4a574": "winder_tread",
+    "#8B7355": "newel",       # newel posts
+}
+
+
+def _box_mesh(x, y, z, w, d, h, color, name="", ifc_type=""):
+    """Create a box mesh definition for Three.js.
+
+    Stores both Three.js coords (Y-up) and IFC-native coords (Z-up) so
+    the mesh list can drive both the preview and the IFC converter.
+    ifc_type is auto-inferred from color if not provided.
+    """
+    if not ifc_type:
+        ifc_type = _BOX_COLOR_TO_IFC.get(color, "")
     return {
         "type": "box",
         "position": [x, z, -y],  # swap Y/Z for Three.js (Y-up)
         "size": [w, h, d],
+        "ifc_center": [x, y, z],  # IFC Z-up native coords
+        "ifc_size": [w, d, h],    # [width_x, depth_y, height_z]
         "color": color,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
@@ -106,7 +125,7 @@ HANDRAIL_RISE = 900.0            # mm – vertical from nosing pitch line to top
 HANDRAIL_COLOR = "#8B7355"
 
 
-def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end):
+def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Stringer", ifc_type="stringer"):
     """Stringer along a flight that runs in the Y direction.
 
     Returns a stringer mesh dict.  The profile is a parallelogram in the
@@ -126,10 +145,12 @@ def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end):
         "x": x_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
-def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end):
+def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Stringer", ifc_type="stringer"):
     """Stringer along a flight that runs in the X direction.
 
     Profile is in the X-Z plane, extruded by STRINGER_THICKNESS in Y
@@ -150,10 +171,12 @@ def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end):
         "y": y_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
-def _stringer_landing_y(x_pos, y_start, y_end, z):
+def _stringer_landing_y(x_pos, y_start, y_end, z, name="Landing Stringer", ifc_type="stringer"):
     """Flat (horizontal) stringer across a landing, running in Y.
 
     The stringer top sits STRINGER_DROP above z (the tread plane).
@@ -172,10 +195,12 @@ def _stringer_landing_y(x_pos, y_start, y_end, z):
         "x": x_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
-def _stringer_landing_x(y_pos, x_start, x_end, z):
+def _stringer_landing_x(y_pos, x_start, x_end, z, name="Landing Stringer", ifc_type="stringer"):
     """Flat (horizontal) stringer across a landing, running in X.
 
     The stringer top sits STRINGER_DROP above z (the tread plane).
@@ -195,6 +220,8 @@ def _stringer_landing_x(y_pos, x_start, x_end, z):
         "y": y_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
@@ -202,7 +229,7 @@ SPINDLE_SIZE = 32.0              # mm – square cross-section
 SPINDLE_MAX_GAP = 99.0           # mm – max clear gap between spindles (building regs: 100mm sphere)
 
 
-def _handrail_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
+def _handrail_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Handrail", **kw):
     """Pitched handrail along Y.  z_start/z_end are nosing pitch-line z values."""
     w = kw.get("hr_width", HANDRAIL_WIDTH)
     h = kw.get("hr_height", HANDRAIL_HEIGHT)
@@ -219,10 +246,12 @@ def _handrail_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
         "x": x_pos - w / 2,
         "thickness": w,
         "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
     }
 
 
-def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
+def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Handrail", **kw):
     """Pitched handrail along X.  z_start/z_end are nosing pitch-line z values."""
     w = kw.get("hr_width", HANDRAIL_WIDTH)
     h = kw.get("hr_height", HANDRAIL_HEIGHT)
@@ -240,10 +269,12 @@ def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
         "y": y_pos - w / 2,
         "thickness": w,
         "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
     }
 
 
-def _baserail_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
+def _baserail_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Baserail", **kw):
     """Base rail along Y sitting on top of the inner stringer."""
     w = kw.get("br_width", HANDRAIL_WIDTH)
     h = kw.get("br_height", HANDRAIL_HEIGHT)
@@ -261,10 +292,12 @@ def _baserail_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
         "x": x_pos - w / 2,
         "thickness": w,
         "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
     }
 
 
-def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
+def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Baserail", **kw):
     """Base rail along X sitting on top of the inner stringer."""
     w = kw.get("br_width", HANDRAIL_WIDTH)
     h = kw.get("br_height", HANDRAIL_HEIGHT)
@@ -283,10 +316,12 @@ def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
         "y": y_pos - w / 2,
         "thickness": w,
         "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
     }
 
 
-def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
+def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end, name_prefix="Spindle", **kw):
     """Spindles along a Y-direction flight with pitched top/bottom surfaces.
 
     Gaps between spindles (and between spindles and newel post faces at each
@@ -335,11 +370,13 @@ def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end, **kw):
                 "x": x_pos - sp / 2,
                 "thickness": sp,
                 "color": HANDRAIL_COLOR,
+                "name": f"{name_prefix} {i+1}",
+                "ifc_type": "spindle",
             })
     return meshes
 
 
-def _spindles_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
+def _spindles_flight_x(y_pos, x_start, z_start, x_end, z_end, name_prefix="Spindle", **kw):
     """Spindles along an X-direction flight with pitched top/bottom surfaces."""
     import math
     meshes = []
@@ -381,11 +418,14 @@ def _spindles_flight_x(y_pos, x_start, z_start, x_end, z_end, **kw):
                 "thickness": sp,
                 "axis": "y",
                 "color": HANDRAIL_COLOR,
+                "name": f"{name_prefix} {i+1}",
+                "ifc_type": "spindle",
             })
     return meshes
 
 
-def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back, tread_t):
+def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back, tread_t,
+                               name="Stringer", ifc_type="stringer"):
     """Pitched stringer along Y with a notch at the top for landing threshold.
 
     The stringer bottom continues at pitch to y_end (riser back face), then a
@@ -413,10 +453,13 @@ def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_bac
         "x": x_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
-def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_back, tread_t):
+def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_back, tread_t,
+                               name="Stringer", ifc_type="stringer"):
     """Pitched stringer along X with a notch at the top for landing threshold."""
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
@@ -439,6 +482,8 @@ def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_bac
         "y": y_pos - STRINGER_THICKNESS / 2,
         "thickness": STRINGER_THICKNESS,
         "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
     }
 
 
@@ -596,6 +641,8 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
             "z": z_bottom,
             "thickness": riser_h,
             "color": "#e8dcc8",
+            "name": f"Winder Riser {j+1}",
+            "ifc_type": "winder_riser",
         })
 
     return meshes
@@ -619,7 +666,8 @@ def _preview_straight(p):
         tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-            width, tread_length, tread_t, "#c8a87c"
+            width, tread_length, tread_t, "#c8a87c",
+            name=f"Flight 1 Tread {i+1}", ifc_type="tread",
         ))
 
     riser_h = rise - tread_t
@@ -629,7 +677,8 @@ def _preview_straight(p):
         if riser_t > 0:
             meshes.append(_box_mesh(
                 width / 2, riser_y + riser_t / 2, riser_z + riser_h / 2,
-                width, riser_t, riser_h, "#e8dcc8"
+                width, riser_t, riser_h, "#e8dcc8",
+                name=f"Riser F1-{i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip ---
@@ -639,7 +688,8 @@ def _preview_straight(p):
     threshold_back = num_treads * going - nosing + threshold_d
     meshes.append(_box_mesh(
         width / 2, threshold_y + threshold_d / 2, ftf - tread_t + tread_t / 2,
-        width, threshold_d, tread_t, "#c8a87c"
+        width, threshold_d, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
     ))
 
     # --- Stringers and balustrade ---
@@ -664,7 +714,8 @@ def _preview_straight(p):
     bottom_post_y = -nosing
     top_post_y = threshold_y
 
-    for x_pos, condition in [(0.0, p["left_condition"]), (width, p["right_condition"])]:
+    for side_idx, (x_pos, condition) in enumerate([(0.0, p["left_condition"]), (width, p["right_condition"])]):
+        side = "Left" if side_idx == 0 else "Right"
         if condition == "balustrade":
             bot_face_y = bottom_post_y + hp
             top_face_y = top_post_y - hp
@@ -681,7 +732,8 @@ def _preview_straight(p):
                 t_c = max(0.0, (top_face_y - y0) / dy)
                 y1_c = y0 + t_c * dy
                 z1_c = z0 + t_c * (z1 - z0)
-            meshes.append(_stringer_flight_y(x_pos, y0_c, z0_c, y1_c, z1_c))
+            meshes.append(_stringer_flight_y(x_pos, y0_c, z0_c, y1_c, z1_c,
+                                             name=f"{side} Stringer F1"))
             # Handrail clip (using non-flushed endpoint)
             dy_nf = y1_nf - y0
             y1_hr, z1_hr = y1_nf, z1_nf
@@ -689,24 +741,30 @@ def _preview_straight(p):
                 t_c = max(0.0, (top_face_y - y0) / dy_nf)
                 y1_hr = y0 + t_c * dy_nf
                 z1_hr = z0 + t_c * (z1_nf - z0)
-            meshes.append(_handrail_flight_y(x_pos, y0_c, z0_c, y1_hr, z1_hr, **hr_kw))
-            meshes.append(_baserail_flight_y(x_pos, y0_c, z0_c, y1_c, z1_c, **br_kw))
+            meshes.append(_handrail_flight_y(x_pos, y0_c, z0_c, y1_hr, z1_hr,
+                                             name=f"{side} Handrail F1", **hr_kw))
+            meshes.append(_baserail_flight_y(x_pos, y0_c, z0_c, y1_c, z1_c,
+                                             name=f"{side} Baserail F1", **br_kw))
             if abs(dy_nf) > 1e-9:
                 t_sp0 = (bot_face_y - y0) / dy_nf
                 t_sp1 = (top_face_y - y0) / dy_nf
                 sp_z0 = z0 + t_sp0 * (z1_nf - z0)
                 sp_z1 = z0 + t_sp1 * (z1_nf - z0)
-                meshes.extend(_spindles_flight_y(x_pos, bot_face_y, sp_z0, top_face_y, sp_z1, **sp_kw))
+                meshes.extend(_spindles_flight_y(x_pos, bot_face_y, sp_z0, top_face_y, sp_z1,
+                                                 name_prefix=f"{side} Spindle F1", **sp_kw))
             # Newel posts
             hr_bot = rise + nzs + hr_rise_val
             bot_h = hr_bot + NEWEL_CAP
-            meshes.append(_box_mesh(x_pos, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+            meshes.append(_box_mesh(x_pos, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355",
+                                    name=f"{side} Bottom Post", ifc_type="newel"))
             hr_top = ftf + nzs + hr_rise_val
             top_h = hr_top + NEWEL_CAP
-            meshes.append(_box_mesh(x_pos, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+            meshes.append(_box_mesh(x_pos, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355",
+                                    name=f"{side} Top Post", ifc_type="newel"))
         else:
             # Wall condition: just a notched stringer, no balustrade
-            meshes.append(_stringer_flight_y_notched(x_pos, y0, z0, y1, z1, ftf, threshold_back, tread_t))
+            meshes.append(_stringer_flight_y_notched(x_pos, y0, z0, y1, z1, ftf, threshold_back, tread_t,
+                                                     name=f"{side} Stringer F1"))
 
     return meshes
 
@@ -803,6 +861,8 @@ def _preview_single_winder(p):
             "z": winder_z,
             "thickness": tread_t,
             "color": "#d4a574",
+            "name": f"Winder {i+1}",
+            "ifc_type": "winder_tread",
         })
 
     # Winder risers (between consecutive winder treads)
@@ -826,7 +886,8 @@ def _preview_single_winder(p):
             landing_cx,
             corner_y + width / 2,
             landing_z + tread_t / 2,
-            landing_w, width, tread_t, "#c8a87c"
+            landing_w, width, tread_t, "#c8a87c",
+            name="Landing", ifc_type="landing",
         ))
 
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
@@ -872,7 +933,8 @@ def _preview_single_winder(p):
         thresh_back = thresh_front + threshold_d
     meshes.append(_box_mesh(
         (thresh_front + thresh_back) / 2, corner_y + width / 2, ftf - tread_t / 2,
-        threshold_d, width, tread_t, "#c8a87c"
+        threshold_d, width, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
     ))
 
     # --- Balustrade helpers ---
@@ -1344,6 +1406,8 @@ def _preview_double_winder(p):
             "z": winder_z,
             "thickness": tread_t,
             "color": "#d4a574",
+            "name": f"Turn1 Winder {i+1}",
+            "ifc_type": "winder_tread",
         })
 
     # Turn 1 winder risers
@@ -1370,7 +1434,8 @@ def _preview_double_winder(p):
             landing1_cx,
             corner1_y + width / 2,
             landing1_z + tread_t / 2,
-            landing1_w, width, tread_t, "#c8a87c"
+            landing1_w, width, tread_t, "#c8a87c",
+            name="Landing 1", ifc_type="landing",
         ))
 
     riser_idx += actual_winders1
@@ -1436,6 +1501,8 @@ def _preview_double_winder(p):
             "z": winder_z,
             "thickness": tread_t,
             "color": "#d4a574",
+            "name": f"Turn2 Winder {i+1}",
+            "ifc_type": "winder_tread",
         })
 
     # Turn 2 winder risers
@@ -1476,7 +1543,8 @@ def _preview_double_winder(p):
             landing2_cx,
             corner2_y + (width - ext) / 2,
             landing2_z + tread_t / 2,
-            width, width + ext, tread_t, "#c8a87c"
+            width, width + ext, tread_t, "#c8a87c",
+            name="Landing 2", ifc_type="landing",
         ))
 
     # Flight 3 shift — nosing centred on post when winders off
@@ -1514,7 +1582,8 @@ def _preview_double_winder(p):
         flight3_start_x + width / 2,
         (thresh_front_y + thresh_back_y) / 2,
         ftf - tread_t / 2,
-        width, threshold_d, tread_t, "#c8a87c"
+        width, threshold_d, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
     ))
 
     # Top newel post y position (centred on threshold nosing line)
@@ -2128,6 +2197,7 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
 
     return meshes
+
 
 
 

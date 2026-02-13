@@ -1525,9 +1525,10 @@ else:
                 const paramsJSON = JSON.stringify(params);
                 const ifcProxy = await pyodide.runPythonAsync(`
 import json as _json
-from ifc_generator import create_ifc_staircase as _create
+from ifc_generator import meshes_to_ifc as _to_ifc
 _p = _json.loads('''${paramsJSON}''')
-_path = _create(_p)
+_meshes = generate_preview_geometry(_p)
+_path = _to_ifc(_meshes)
 with open(_path, 'rb') as _f:
     _data = _f.read()
 import os; os.unlink(_path)
