@@ -1499,7 +1499,7 @@ await micropip.install(
     "https://ifcopenshell.github.io/wasm-wheels/ifcopenshell-0.8.2+d50e806-cp312-cp312-emscripten_3_1_58_wasm32.whl")
 `);
             // Load ifc_generator.py into Pyodide
-            const resp = await fetch('ifc_generator.py');
+            const resp = await fetch('ifc_generator.py?v=' + Date.now());
             const src = await resp.text();
             pyodide.FS.writeFile('/home/pyodide/ifc_generator.py', src);
             await pyodide.runPythonAsync(`
@@ -1565,7 +1565,7 @@ _data
                 await pyodide.loadPackage('micropip');
 
                 status.textContent = 'Loading stair engine...';
-                const resp = await fetch('stair_preview.py');
+                const resp = await fetch('stair_preview.py?v=' + Date.now());
                 const src = await resp.text();
                 pyodide.FS.writeFile('/home/pyodide/stair_preview.py', src);
 
