@@ -192,14 +192,28 @@ def _create_element_with_geometry(ifc, context, ifc_class, name, solid, placemen
 
 
 def _add_pset_stair_flight(ifc, flight, num_risers, num_treads, rise, going):
-    """Add Pset_StairFlightCommon property set to a stair flight."""
-    pset = ifcopenshell.api.run("pset.add_pset", ifc, product=flight, name="Pset_StairFlightCommon")
-    ifcopenshell.api.run("pset.edit_pset", ifc, pset=pset, properties={
-        "NumberOfRiser": num_risers,
-        "NumberOfTreads": num_treads,
-        "RiserHeight": rise,
-        "TreadLength": going,
-    })
+    """Add Pset_StairFlightCommon property set to a stair flight.
+
+    Uses low-level IFC entity creation instead of pset.edit_pset API to avoid
+    needing the Pset_IFC2X3.ifc template file (missing from the WASM wheel).
+    """
+    props = [
+        ifc.createIfcPropertySingleValue("NumberOfRiser", None,
+            ifc.create_entity("IfcCountMeasure", int(num_risers)), None),
+        ifc.createIfcPropertySingleValue("NumberOfTreads", None,
+            ifc.create_entity("IfcCountMeasure", int(num_treads)), None),
+        ifc.createIfcPropertySingleValue("RiserHeight", None,
+            ifc.create_entity("IfcPositiveLengthMeasure", float(rise)), None),
+        ifc.createIfcPropertySingleValue("TreadLength", None,
+            ifc.create_entity("IfcPositiveLengthMeasure", float(going)), None),
+    ]
+    owner_history = ifc.by_type("IfcOwnerHistory")[0] if ifc.by_type("IfcOwnerHistory") else None
+    pset = ifc.createIfcPropertySet(
+        ifcopenshell.guid.new(), owner_history,
+        "Pset_StairFlightCommon", None, props)
+    ifc.createIfcRelDefinesByProperties(
+        ifcopenshell.guid.new(), owner_history,
+        None, None, [flight], pset)
 
 
 # ────────────────────────────────────────────────────────────
