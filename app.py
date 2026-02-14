@@ -2002,11 +2002,11 @@ def _preview_double_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
             # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
-            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            # Terminate Y-piece flush with front face of X-piece stringer (X-piece masters)
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y1 - f1_y1
-            y_ext = outer_corner_y1 + st2
-            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            y_ext = outer_corner_y1 - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             pc1_face_y_end = f1_y1 + hp
             oc_face_y = outer_corner_y1 - hp
@@ -2014,9 +2014,9 @@ def _preview_double_winder(p):
             meshes.append(_baserail_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, outer_corner_y1, z_corner, **br_kw))
             meshes.extend(_spindles_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_corner, **sp_kw))
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
-            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            # X-piece extends to Y-piece outer face so upper flight masters at corner
             dx_w = f2_x_first - f1_outer_x
-            x_ext = (f1_outer_x - st2) if turn1_dir == "left" else (f1_outer_x + st2)
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
             z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             if turn1_dir == "left":
