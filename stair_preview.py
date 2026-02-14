@@ -1217,9 +1217,9 @@ def _preview_single_winder(p):
             meshes.append(_baserail_flight_y(outer_x, pc1_face_y_end, f1_z1, outer_corner_y, z_corner, **br_kw))
             meshes.extend(_spindles_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_corner, **sp_kw))
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
-            # Upper flight (X-piece) extends past lower (Y-piece) to master at corner
+            # X-piece extends to Y-piece outer face so upper flight masters at corner
             dx_w = f2_x0 - outer_x
-            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             if turn_dir == "left":
@@ -1263,7 +1263,7 @@ def _preview_single_winder(p):
             z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             dx_w = f2_x0 - outer_x
-            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
