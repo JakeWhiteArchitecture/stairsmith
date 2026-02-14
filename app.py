@@ -1263,11 +1263,11 @@ def _preview_single_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
             # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
-            # Extend stringer past corner by STRINGER_THICKNESS/2 so it meets the X-piece
+            # Terminate Y-piece flush with front face of X-piece stringer (upper masters lower)
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y - f1_y1
-            y_ext = outer_corner_y + st2
-            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            y_ext = outer_corner_y - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             pc1_face_y_end = f1_y1 + hp  # +Y face of pitch-change newel
             oc_face_y = outer_corner_y - hp  # -Y face of outer corner newel
@@ -1275,8 +1275,8 @@ def _preview_single_winder(p):
             meshes.append(_baserail_flight_y(outer_x, pc1_face_y_end, f1_z1, outer_corner_y, z_corner, **br_kw))
             meshes.extend(_spindles_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_corner, **sp_kw))
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
-            # Terminate X-piece flush with front face of Y-piece stringer
-            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
+            # Extend X-piece past Y-piece so upper flight masters lower
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
             dx_w = f2_x0 - outer_x
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
@@ -1314,13 +1314,13 @@ def _preview_single_winder(p):
                 meshes.extend(_spindles_flight_x(outer_y, pc2_start_x, f2_z0_oc, out_top_face_x, f2_z1_oc, **sp_kw))
         else:
             meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
-            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            # Extend winder corner stringers: upper flight masters lower
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y - f1_y1
-            y_ext = outer_corner_y + st2
-            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            y_ext = outer_corner_y - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
-            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
             dx_w = f2_x0 - outer_x
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
