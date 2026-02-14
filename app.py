@@ -1263,14 +1263,23 @@ def _preview_single_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
             # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
-            meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, outer_corner_y, z_corner))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 so it meets the X-piece
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y - f1_y1
+            y_ext = outer_corner_y + st2
+            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             pc1_face_y_end = f1_y1 + hp  # +Y face of pitch-change newel
             oc_face_y = outer_corner_y - hp  # -Y face of outer corner newel
             meshes.append(_handrail_flight_y(outer_x, pc1_face_y_end, f1_z1, outer_corner_y, z_corner, **hr_kw))
             meshes.append(_baserail_flight_y(outer_x, pc1_face_y_end, f1_z1, outer_corner_y, z_corner, **br_kw))
             meshes.extend(_spindles_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_corner, **sp_kw))
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
-            meshes.append(_stringer_flight_x(outer_corner_y, outer_x, z_corner, f2_x0, f2_z0))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 so it meets the Y-piece
+            dx_w = f2_x0 - outer_x
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             if turn_dir == "left":
                 oc_face_x = outer_x - hp  # -X face
                 pc2_face_x = f2_x0 + hp  # +X face of pitch-change newel at f2_x0
@@ -1305,8 +1314,16 @@ def _preview_single_winder(p):
                 meshes.extend(_spindles_flight_x(outer_y, pc2_start_x, f2_z0_oc, out_top_face_x, f2_z1_oc, **sp_kw))
         else:
             meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
-            meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, outer_corner_y, z_corner))
-            meshes.append(_stringer_flight_x(outer_corner_y, outer_x, z_corner, f2_x0, f2_z0))
+            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y - f1_y1
+            y_ext = outer_corner_y + st2
+            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
+            dx_w = f2_x0 - outer_x
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
 
     # --- Newel posts (top = 150mm above highest abutting handrail) ---
@@ -1985,14 +2002,23 @@ def _preview_double_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
             # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
-            meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, outer_corner_y1, z_corner))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y1 - f1_y1
+            y_ext = outer_corner_y1 + st2
+            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             pc1_face_y_end = f1_y1 + hp
             oc_face_y = outer_corner_y1 - hp
             meshes.append(_handrail_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, outer_corner_y1, z_corner, **hr_kw))
             meshes.append(_baserail_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, outer_corner_y1, z_corner, **br_kw))
             meshes.extend(_spindles_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_corner, **sp_kw))
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
-            meshes.append(_stringer_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            dx_w = f2_x_first - f1_outer_x
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             if turn1_dir == "left":
                 oc_face_x = f1_outer_x - hp
                 pc2_face_x = f2_x_first + hp
@@ -2026,8 +2052,16 @@ def _preview_double_winder(p):
                 meshes.extend(_spindles_flight_x(f2_outer_y, pc2_start_x, f2_z0_oc, pc2_end_x, f2_z1_oc, **sp_kw))
         else:
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
-            meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, outer_corner_y1, z_corner))
-            meshes.append(_stringer_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first))
+            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y1 - f1_y1
+            y_ext = outer_corner_y1 + st2
+            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
+            dx_w = f2_x_first - f1_outer_x
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
 
         # Flight 2 inner stringers
@@ -2120,7 +2154,12 @@ def _preview_double_winder(p):
 
         if render_outer:
             # Winder X-piece with balustrade (from pitch-change newel at f2 end to outer corner)
-            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dx_w2 = f3_outer_x - f2_x_end
+            x_ext2 = f3_outer_x + (st2 if dx_w2 > 0 else -st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
             if turn1_dir == "left":
                 pc_f2end_face_x = f2_x_end - hp  # -X face toward X-piece
                 oc2_face_x = f3_outer_x + hp  # +X face of outer corner newel
@@ -2133,7 +2172,11 @@ def _preview_double_winder(p):
             if abs(xw_dx) > 1e-9:
                 meshes.extend(_spindles_flight_x(outer_corner_y2, pc_f2end_face_x, f2_z_end, oc2_face_x, z_corner, **sp_kw))
             # Winder Y-piece with balustrade (from outer corner to pitch-change newel at f3 start)
-            meshes.append(_stringer_flight_y(f3_outer_x, outer_corner_y2, z_corner, f3_y_first, f3_z_first))
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            dy_w2 = f3_y_first - outer_corner_y2
+            y_ext2 = outer_corner_y2 + st2
+            z_y_ext2 = z_corner + st2 * (f3_z_first - z_corner) / dy_w2 if abs(dy_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
             oc2_face_y = outer_corner_y2 - hp  # -Y face of outer corner newel
             pc_f3_face_y = f3_y_first + hp  # +Y face of pitch-change newel
             meshes.append(_handrail_flight_y(f3_outer_x, oc2_face_y, z_corner, f3_y_first, f3_z_first, **hr_kw))
@@ -2157,8 +2200,16 @@ def _preview_double_winder(p):
             if abs(dy3h) > 1e-9:
                 meshes.extend(_spindles_flight_y(f3_outer_x, pc_face_f3, f3_z0_oc, top_face_y_out, f3_z1_oc, **sp_kw))
         else:
-            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner))
-            meshes.append(_stringer_flight_y(f3_outer_x, outer_corner_y2, z_corner, f3_y_first, f3_z_first))
+            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dx_w2 = f3_outer_x - f2_x_end
+            x_ext2 = f3_outer_x + (st2 if dx_w2 > 0 else -st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
+            dy_w2 = f3_y_first - outer_corner_y2
+            y_ext2 = outer_corner_y2 + st2
+            z_y_ext2 = z_corner + st2 * (f3_z_first - z_corner) / dy_w2 if abs(dy_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
             meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
                                                      f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
