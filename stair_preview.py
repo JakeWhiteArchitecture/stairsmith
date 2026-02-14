@@ -1,69 +1,11 @@
 """
-IFC Staircase Generator — Flask Application
+Stair Preview Engine — Client-side geometry module for Pyodide.
 
-A locally-hosted web application that generates valid IFC 2x3 files
-for parametric staircases (straight, single-winder, double-winder).
+Pure Python (no Flask, no IfcOpenShell) — generates Three.js-compatible
+mesh data and runs building-regulations checks.
 """
 
-import os
-import json
-from flask import Flask, render_template, request, jsonify, send_file
-from ifc_generator import (create_ifc_staircase, check_building_regs,
-                           compute_winder_geometry, _winder_profiles_from_construction,
-                           meshes_to_ifc)
-
-app = Flask(__name__)
-
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-
-@app.route("/api/preview", methods=["POST"])
-def preview():
-    """
-    Return 3D geometry data as JSON for the Three.js preview.
-    This generates the staircase geometry as mesh data without creating an IFC file.
-    """
-    params = request.get_json()
-    try:
-        geometry = generate_preview_geometry(params)
-        return jsonify({"success": True, "geometry": geometry})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
-
-
-@app.route("/api/check", methods=["POST"])
-def check():
-    """Run building regulations compliance checks."""
-    params = request.get_json()
-    try:
-        results = check_building_regs(params)
-        return jsonify({"success": True, "checks": results})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
-
-
-@app.route("/api/download", methods=["POST"])
-def download():
-    """Generate and download an IFC file.
-
-    Uses the same preview geometry as the 3D preview, converted to IFC.
-    This guarantees the IFC file matches what the user sees on screen.
-    """
-    params = request.get_json()
-    try:
-        meshes = generate_preview_geometry(params)
-        filepath = meshes_to_ifc(meshes)
-        return send_file(
-            filepath,
-            as_attachment=True,
-            download_name="staircase.ifc",
-            mimetype="application/x-step",
-        )
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 400
+import math
 
 
 def generate_preview_geometry(params):
@@ -2257,5 +2199,430 @@ def _preview_double_winder(p):
     return meshes
 
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+# ────────────────────────────────────────────────────────────
+# SHARED FUNCTIONS (from ifc_generator.py, no IfcOpenShell needed)
+# ────────────────────────────────────────────────────────────
+
+def compute_winder_geometry(newel_size, stair_width):
+    """Compute winder construction geometry following the 4-step sequence.
+
+    Step 1: Abstract layout — two flights at 90°, inner strings cross at junction.
+    Step 2: Newel post centred on junction point (fixed, never moves).
+    Step 3: Calculate offset and shift flights away from corner.
+    Step 4: Determine winder division lines from post face marks.
+
+    Returns a dict with:
+        offset: how far each flight shifts along its axis
+        effective_width: stair_width minus offset (warn if < 600mm)
+        winder_centre_offset: offset from post centreline to winder centre point
+        face_marks: [25mm, 75mm] from corner on each post face
+        kite_going: 50mm (25+25 wrapped around corner)
+        flank_going: 50mm (75-25 on each face)
+        min_post_warning: True if newel_size < 75mm
+    """
+    half_post = newel_size / 2.0
+    corner_allowance = 25.0  # mm from corner of post face
+    min_going = 50.0  # mm minimum winder going
+
+    # Step 3: offset = N/2 - 25mm
+    offset = half_post - corner_allowance
+
+    # Effective width at the turn after shifting
+    effective_width = stair_width - offset
+
+    # Winder centre point offset from post centreline
+    winder_centre_offset = offset  # same as flight offset from centreline
+
+    # Face marks from corner: 25mm (kite edge) and 75mm (flank edge)
+    mark_kite = corner_allowance  # 25mm from corner
+    mark_flank = corner_allowance + min_going  # 75mm from corner
+
+    # Verify goings
+    kite_going = corner_allowance + corner_allowance  # 25mm wraps around corner = 50mm
+    flank_going = mark_flank - mark_kite  # 75 - 25 = 50mm
+
+    return {
+        "offset": offset,
+        "effective_width": effective_width,
+        "winder_centre_offset": winder_centre_offset,
+        "mark_kite": mark_kite,
+        "mark_flank": mark_flank,
+        "kite_going": kite_going,
+        "flank_going": flank_going,
+        "min_post_warning": newel_size < 75.0,
+        "width_warning": effective_width < 600.0,
+    }
+
+
+def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
+                                         turn_direction, winder_index, num_winders=3,
+                                         rotation=0, riser_extension=0,
+                                         flight_extension=0, winder_x=25.0):
+    """Generate winder tread profile using angular division lines.
+
+    Division lines radiate from the winder centre point at equal angles
+    (90° / num_winders). The winder centre is the intersection of the 25mm
+    marks on the two post faces at the turn corner.
+
+    The kite winder preserves the 25×25mm contact with the newel post corner.
+
+    rotation: degrees to rotate the entire profile around (post_cx, post_cy).
+              0 = flight approaches along +Y (turn 1 standard).
+              -90 = flight approaches along -X (turn 2 after left turn 1).
+
+    riser_extension: mm to extend the upper boundary of non-last winders
+                     past the division line, so the riser above can sit on the tread.
+
+    Angles measured from 0° (flight-1 outer string direction, along X)
+    to 90° (flight-2 outer string direction, along Y).
+
+    Args:
+        post_cx, post_cy: post centreline position (fixed, Step 2)
+        newel_size: post dimension (square)
+        stair_width: nominal stair width
+        turn_direction: 'left' or 'right'
+        winder_index: 0-based index of this winder
+        num_winders: total winders in this turn (2-4)
+    Returns:
+        list of (x, y) tuples defining the tread profile polygon
+    """
+    import math
+
+    hp = newel_size / 2.0
+    x_sign = 1.0 if turn_direction == "left" else -1.0
+
+    # Post corner nearest turn interior (Face A and Face B meet here)
+    pc_x = post_cx + x_sign * hp
+    pc_y = post_cy + hp
+
+    # Winder centre: intersection of winder_x marks on both post faces
+    wc_x = pc_x - x_sign * winder_x
+    wc_y = pc_y - winder_x
+
+    # Outer string positions
+    outer_f1_x = post_cx + x_sign * stair_width
+    outer_f2_y = post_cy + stair_width
+
+    # Post face edges
+    post_bottom_y = post_cy - hp
+    post_opp_x = post_cx - x_sign * hp
+
+    # Angular division: 90° split into num_winders equal segments.
+    # Inner contact points are FIXED at 25mm marks on the post faces.
+    # Only the OUTER points follow angular rays from the winder centre.
+    angle_step = (math.pi / 2.0) / num_winders
+
+    def ray_outer(angle):
+        """Where a ray from winder centre at angle hits the outer L-boundary."""
+        dx = x_sign * math.cos(angle)
+        dy = math.sin(angle)
+        t_f1 = (outer_f1_x - wc_x) / dx if abs(dx) > 1e-9 else float('inf')
+        t_f2 = (outer_f2_y - wc_y) / dy if abs(dy) > 1e-9 else float('inf')
+        if t_f1 < 0: t_f1 = float('inf')
+        if t_f2 < 0: t_f2 = float('inf')
+        t = min(t_f1, t_f2)
+        return (wc_x + dx * t, wc_y + dy * t)
+
+    a0 = winder_index * angle_step
+    a1 = (winder_index + 1) * angle_step
+
+    outer_s = ray_outer(a0)
+    outer_e = ray_outer(a1)
+
+    # Angle to outer L-corner
+    oc_dx = (outer_f1_x - wc_x) / x_sign
+    oc_dy = outer_f2_y - wc_y
+    a_outer_corner = math.atan2(oc_dy, oc_dx)
+    straddles_outer = a0 < a_outer_corner < a1
+
+    # Fixed 25mm inner marks on post faces
+    mark_a = (pc_x, wc_y)   # 25mm mark on Face A (vertical face)
+    mark_b = (wc_x, pc_y)   # 25mm mark on Face B (horizontal face)
+
+    # Pre-compute riser extension points for non-last winders.
+    # These extend the upper boundary (at a1) by riser_extension past
+    # the division line so the riser above can sit on the tread.
+    ext_inner = ext_outer = None
+    if riser_extension > 0 and winder_index < num_winders - 1:
+        a_ic = math.atan2(winder_x, winder_x)
+        if a1 < a_ic - 1e-6:
+            inner_a1 = mark_a
+        elif a1 > a_ic + 1e-6:
+            inner_a1 = mark_b
+        else:
+            inner_a1 = (pc_x, pc_y)
+        dlx = outer_e[0] - inner_a1[0]
+        dly = outer_e[1] - inner_a1[1]
+        dl = math.sqrt(dlx * dlx + dly * dly)
+        if dl > 1e-9:
+            pnx = x_sign * (-dly / dl) * riser_extension
+            pny = x_sign * (dlx / dl) * riser_extension
+            ext_inner = (inner_a1[0] + pnx, inner_a1[1] + pny)
+            # Clamp ext_inner to post face, preserving perpendicular
+            # distance from the division line by sliding along it.
+            ex, ey = ext_inner
+            if abs(inner_a1[0] - pc_x) < 1e-6:
+                # inner_a1 is on Face A — slide along division line to x = pc_x
+                if abs(ex - pc_x) > 1e-6 and abs(dlx) > 1e-9:
+                    t = (pc_x - ex) / dlx
+                    ex = pc_x
+                    ey = ey + t * dly
+                else:
+                    ex = pc_x
+                ey = min(ey, pc_y)
+            elif abs(inner_a1[1] - pc_y) < 1e-6:
+                # inner_a1 is on Face B — slide along division line to y = pc_y
+                if abs(ey - pc_y) > 1e-6 and abs(dly) > 1e-9:
+                    t = (pc_y - ey) / dly
+                    ex = ex + t * dlx
+                    ey = pc_y
+                else:
+                    ey = pc_y
+                if x_sign > 0:
+                    ex = max(ex, post_opp_x)
+                else:
+                    ex = min(ex, post_opp_x)
+            else:
+                # At post corner — no inner extension needed
+                ex = pc_x
+                ey = pc_y
+            ext_inner = (ex, ey)
+            # Trace from ext_inner along division line to hit the outer
+            # L-boundary so the tread extension is flush with the wall
+            t_f1 = (outer_f1_x - ext_inner[0]) / dlx if abs(dlx) > 1e-9 else float('inf')
+            t_f2 = (outer_f2_y - ext_inner[1]) / dly if abs(dly) > 1e-9 else float('inf')
+            if t_f1 < 0: t_f1 = float('inf')
+            if t_f2 < 0: t_f2 = float('inf')
+            t = min(t_f1, t_f2)
+            ext_outer = (ext_inner[0] + dlx * t, ext_inner[1] + dly * t)
+
+    # First winder (flight-1 side flank)
+    if winder_index == 0:
+        # Extend leading edge toward flight 1 by flight_extension
+        entry_y = post_bottom_y - flight_extension
+
+        if flight_extension > 0:
+            # Winder extends below post — full flight width with L-shaped
+            # inner edge that wraps around the post bottom face
+            profile = [
+                (post_cx, entry_y),          # inner bottom at flight width
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+        else:
+            # Winder doesn't extend below post — inner edge at post face
+            profile = [
+                (pc_x, entry_y),             # inner bottom at post face
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+
+        # outer_s is at a0=0 which is along flight-1 axis
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_e)          # angled outer point
+        if ext_outer:
+            profile.append(ext_outer)
+            profile.append(ext_inner)
+        profile.append(mark_a)           # fixed 25mm mark on Face A
+
+        if flight_extension > 0:
+            # Close the L-shape: down post face to post bottom, jog to flight edge
+            profile.append((pc_x, post_bottom_y))
+            profile.append((post_cx, post_bottom_y))
+
+    # Last winder (flight-2 side flank)
+    elif winder_index == num_winders - 1:
+        # Extend rear edge toward flight 2 so it runs under flight 2's
+        # first riser. Total extension = flight_extension + riser_extension.
+        total_exit_ext = flight_extension + riser_extension
+        exit_x = post_opp_x - x_sign * total_exit_ext
+
+        if total_exit_ext > 0:
+            # Exit extends past post — full flight width with L-shaped
+            # inner edge that wraps around the post opposite face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (post_opp_x, pc_y),              # along post face to post edge
+                (post_opp_x, post_cy),           # jog to flight inner edge
+                (exit_x, post_cy),               # continue at flight width
+                (exit_x, outer_f2_y),            # exit outer
+            ]
+        else:
+            # Exit doesn't extend past post — inner edge at post face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (exit_x, pc_y),                  # exit edge inner
+                (exit_x, outer_f2_y),            # exit edge outer
+            ]
+
+        # outer_e is at a1=90° which is along flight-2 axis
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)              # angled outer point
+
+    # Middle winders (kite or half-kite)
+    else:
+        # Determine which part of the inner L-shape this winder gets.
+        ic_dx = (pc_x - wc_x) / x_sign if x_sign != 0 else 1.0
+        ic_dy = pc_y - wc_y
+        a_inner_corner = math.atan2(ic_dy, ic_dx)
+        a_mid = (a0 + a1) / 2.0
+
+        if a_mid < a_inner_corner - 1e-6:
+            # Face A side only (before post corner)
+            profile = [mark_a, (pc_x, pc_y)]
+        elif a_mid > a_inner_corner + 1e-6:
+            # Face B side only (after post corner)
+            profile = [(pc_x, pc_y), mark_b]
+        else:
+            # Straddles corner — full L-shape (kite)
+            profile = [mark_a, (pc_x, pc_y), mark_b]
+
+        # Insert extension before outer_e so tread extends past division line
+        if ext_inner:
+            profile.append(ext_inner)
+            profile.append(ext_outer)
+        profile.append(outer_e)
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)
+
+    # Apply rotation around post centre if needed (for turn 2)
+    if rotation != 0:
+        rad = math.radians(rotation)
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+        rotated = []
+        for (px, py) in profile:
+            dx = px - post_cx
+            dy = py - post_cy
+            rx = cos_r * dx - sin_r * dy + post_cx
+            ry = sin_r * dx + cos_r * dy + post_cy
+            rotated.append((rx, ry))
+        profile = rotated
+
+    return profile
+
+
+def check_building_regs(params):
+    """
+    Check parameters against Approved Document K (England & Wales) for private dwellings.
+    Returns a list of check results.
+    """
+    p = _parse(params)
+    checks = []
+
+    rise = p["rise"]
+    going = p["going"]
+    width = p["stair_width"]
+    num_winders = 0
+    if p["staircase_type"] in ("single_winder", "double_winder"):
+        num_winders = p["turn1_winders"]
+    if p["staircase_type"] == "double_winder":
+        num_winders += p["turn2_winders"]
+
+    # Individual Rise: max 200mm warn, max 220mm block
+    rise_status = "pass"
+    rise_msg = f"Individual rise: {rise:.1f}mm"
+    if rise > 220:
+        rise_status = "fail"
+        rise_msg += " — Exceeds absolute maximum of 220mm"
+    elif rise > 200:
+        rise_status = "warn"
+        rise_msg += " — Exceeds recommended maximum of 200mm (Doc K)"
+    checks.append({"name": "Individual Rise", "status": rise_status, "message": rise_msg, "value": round(rise, 1)})
+
+    # Individual Going: min 220mm
+    going_status = "pass"
+    going_msg = f"Individual going: {going:.1f}mm"
+    if going < 220:
+        going_status = "warn"
+        going_msg += " — Below minimum 220mm (Doc K)"
+    checks.append({"name": "Individual Going", "status": going_status, "message": going_msg, "value": round(going, 1)})
+
+    # Pitch: max 42° for straight flights
+    pitch_rad = math.atan2(rise, going)
+    pitch_deg = math.degrees(pitch_rad)
+    pitch_status = "pass"
+    pitch_msg = f"Pitch: {pitch_deg:.1f}°"
+    if pitch_deg > 42:
+        pitch_status = "warn"
+        pitch_msg += " — Exceeds maximum 42° for private staircase (Doc K)"
+    checks.append({"name": "Pitch", "status": pitch_status, "message": pitch_msg, "value": round(pitch_deg, 1)})
+
+    # 2R + G formula: should be 550-700mm
+    two_r_g = 2 * rise + going
+    formula_status = "pass"
+    formula_msg = f"2R + G = {two_r_g:.0f}mm"
+    if two_r_g < 550 or two_r_g > 700:
+        formula_status = "warn"
+        formula_msg += f" — Outside comfortable range 550-700mm"
+    checks.append({"name": "2R + G", "status": formula_status, "message": formula_msg, "value": round(two_r_g, 0)})
+
+    # Stair Width: min 600mm
+    width_status = "pass"
+    width_msg = f"Stair width: {width:.0f}mm"
+    if width < 600:
+        width_status = "warn"
+        width_msg += " — Below minimum 600mm for private dwellings"
+    checks.append({"name": "Stair Width", "status": width_status, "message": width_msg, "value": round(width, 0)})
+
+    # Newel post size: min 75mm to meet 50mm + 25mm bearing requirement
+    has_winders = (p["staircase_type"] in ("single_winder", "double_winder")
+                   and (p.get("turn1_enabled", True) or p.get("turn2_enabled", True)))
+    if has_winders:
+        newel = p["newel_size"]
+        newel_status = "pass"
+        newel_msg = f"Newel post size: {newel:.0f}mm"
+        if newel < 75:
+            newel_status = "warn"
+            newel_msg += " — Below 75mm minimum (50mm bearing + 25mm corner wrap)"
+        checks.append({"name": "Newel Post Size", "status": newel_status, "message": newel_msg,
+                       "value": round(newel, 0)})
+
+    # Winder going at narrow end using 4-step construction geometry
+    if has_winders:
+        wg = compute_winder_geometry(p["newel_size"], width)
+
+        # Construction guarantees: kite going = 50mm, flank going = 50mm
+        narrow_going = min(wg["kite_going"], wg["flank_going"])
+        narrow_status = "pass"
+        narrow_msg = f"Winder narrow end going: {narrow_going:.0f}mm (kite: {wg['kite_going']:.0f}mm, flank: {wg['flank_going']:.0f}mm)"
+        if narrow_going < 50:
+            narrow_status = "warn"
+            narrow_msg += " — Below minimum 50mm at inner string"
+        checks.append({"name": "Winder Narrow Going", "status": narrow_status, "message": narrow_msg,
+                       "value": round(narrow_going, 0)})
+
+        # Effective width at turn (reduced by offset)
+        eff_status = "pass"
+        eff_msg = f"Effective width at turn: {wg['effective_width']:.0f}mm (offset: {wg['offset']:.0f}mm)"
+        if wg["width_warning"]:
+            eff_status = "warn"
+            eff_msg += " — Below minimum 600mm at turn"
+        checks.append({"name": "Effective Turn Width", "status": eff_status, "message": eff_msg,
+                       "value": round(wg["effective_width"], 0)})
+
+        # Walking line going: min 220mm measured 270mm from inner edge
+        winders_per_turn = p["turn1_winders"]
+        angle_per_winder = (math.pi / 2) / winders_per_turn
+        walking_radius = 270
+        walking_going = walking_radius * angle_per_winder
+        wl_status = "pass"
+        wl_msg = f"Winder walking line going: {walking_going:.0f}mm"
+        if walking_going < 220:
+            wl_status = "warn"
+            wl_msg += " — Below minimum 220mm on walking line"
+        checks.append({"name": "Walking Line Going", "status": wl_status, "message": wl_msg,
+                       "value": round(walking_going, 0)})
+
+    # Headroom: min 2000mm (informational - we don't have stairwell dimensions)
+    checks.append({
+        "name": "Headroom",
+        "status": "info",
+        "message": "Headroom: requires stairwell dimensions to calculate (min 2000mm per Doc K)",
+        "value": None,
+    })
+
+    return checks
