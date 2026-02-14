@@ -902,8 +902,8 @@
 
             // Toggle detail visibility based on checkbox
             updateToggleState();
-            // Reset flight distribution for new type
-            redistributeFlights();
+            // Validate flight distribution (will only redistribute if invalid)
+            ensureFlightDistValid();
         }
 
         function updateToggleState() {
