@@ -1021,17 +1021,17 @@ def _preview_single_winder(p):
             meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext))
 
         # Landing flat stringers — outer endpoints linked to flight stringer extensions
-        t = STRINGER_THICKNESS
+        st2 = STRINGER_THICKNESS / 2
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
             if not render_outer:
-                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width, landing_z_base))
-                meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - t, landing_z_base))
+                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
+                meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
             if not render_outer:
-                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width, landing_z_base))
-                meshes.append(_stringer_landing_x(corner_y + width, outer_x + t, f2_x0_ext, landing_z_base))
+                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
+                meshes.append(_stringer_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base))
 
         # Flight 2 stringers (notched for threshold, flush with riser back)
         z_fl = riser_t * rise / (2 * going)
@@ -1219,7 +1219,7 @@ def _preview_single_winder(p):
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
             # Extend stringer past corner by STRINGER_THICKNESS/2 so it meets the Y-piece
             dx_w = f2_x0 - outer_x
-            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             if turn_dir == "left":
@@ -1263,7 +1263,7 @@ def _preview_single_winder(p):
             z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             dx_w = f2_x0 - outer_x
-            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            x_ext = (outer_x - st2) if turn_dir == "left" else (outer_x + st2)
             z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
             meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
@@ -1713,17 +1713,17 @@ def _preview_double_winder(p):
                 meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext1))
 
             # === Turn 1 landing stringers — outer endpoints linked to extensions ===
-            t = STRINGER_THICKNESS
+            st2 = STRINGER_THICKNESS / 2
             if turn1_dir == "left":
                 meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
                 if not render_outer:
-                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width, landing1_z))
-                    meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - t, landing1_z))
+                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
+                    meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z))
             else:
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
                 if not render_outer:
-                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width, landing1_z))
-                    meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x + t, f2_x_first_ext, landing1_z))
+                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
+                    meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z))
 
             # === Flight 2 stringers ===
             f2_dx = f2_x_last - f2_x_first
@@ -1809,14 +1809,14 @@ def _preview_double_winder(p):
                 f3_z_first_ext = z_ext3
 
             # === Turn 2 landing stringers — outer endpoints linked to extensions ===
-            t = STRINGER_THICKNESS
+            st2 = STRINGER_THICKNESS / 2
             if not render_outer:
-                meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width, landing2_z))
+                meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z))
                 x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
                 if f3_outer_x < x_inner_end:
-                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x + t, landing2_z))
+                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z))
                 else:
-                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - t, landing2_z))
+                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z))
 
             # === Flight 3 stringers (notched for threshold, flush with riser back) ===
             z_fl = riser_t * rise / (2 * going)
@@ -1958,7 +1958,7 @@ def _preview_double_winder(p):
             # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
             # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
             dx_w = f2_x_first - f1_outer_x
-            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            x_ext = (f1_outer_x - st2) if turn1_dir == "left" else (f1_outer_x + st2)
             z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             if turn1_dir == "left":
@@ -2001,7 +2001,7 @@ def _preview_double_winder(p):
             z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             dx_w = f2_x_first - f1_outer_x
-            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            x_ext = (f1_outer_x - st2) if turn1_dir == "left" else (f1_outer_x + st2)
             z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
@@ -2099,7 +2099,7 @@ def _preview_double_winder(p):
             # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
             st2 = STRINGER_THICKNESS / 2
             dx_w2 = f3_outer_x - f2_x_end
-            x_ext2 = f3_outer_x + (st2 if dx_w2 > 0 else -st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
             z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
             if turn1_dir == "left":
@@ -2145,7 +2145,7 @@ def _preview_double_winder(p):
             # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
             st2 = STRINGER_THICKNESS / 2
             dx_w2 = f3_outer_x - f2_x_end
-            x_ext2 = f3_outer_x + (st2 if dx_w2 > 0 else -st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
             z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
             dy_w2 = f3_y_first - outer_corner_y2
