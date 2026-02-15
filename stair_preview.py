@@ -2634,8 +2634,8 @@ def _preview_double_winder(p):
         meshes.append(_box_mesh(outer_x, f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
 
         if actual_winders1 > 0:
-            # Outer corner 1 (where Y-run meets X-run)
-            oc1_hr = max(hr_pc1, flight2_riser_start * rise + nzs_w + hr_rise)
+            # Outer corner 1 (where Y-run meets X-run) - at winder level, not max
+            oc1_hr = turn1_winder_start * rise + nzs_w + hr_rise
             oc1_h = oc1_hr + NEWEL_CAP
             meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
             # Pitch-change at flight 2 start
@@ -2644,7 +2644,7 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
         else:
             # Flat landing at turn 1: outer corner and pitch-change at flight 2 start
-            oc1_hr = max(hr_pc1, flight2_riser_start * rise + nzs_w + hr_rise)
+            oc1_hr = turn1_winder_start * rise + nzs_w + hr_rise  # landing level height
             oc1_h = oc1_hr + NEWEL_CAP
             meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
             hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
@@ -2657,8 +2657,8 @@ def _preview_double_winder(p):
             pc_f2e_h = hr_pc_f2e + NEWEL_CAP
             outer_corner_y2_val = corner2_y + width
             meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_f2e_h / 2, ns, ns, pc_f2e_h, "#8B7355"))
-            # Outer corner 2 (where X-run meets Y-run)
-            oc2_hr = max(hr_pc_f2e, flight3_riser_start * rise + nzs_w + hr_rise)
+            # Outer corner 2 (where X-run meets Y-run) - at winder level, not max
+            oc2_hr = turn2_winder_start * rise + nzs_w + hr_rise
             oc2_h = oc2_hr + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
             # Pitch-change at flight 3 start
@@ -2671,8 +2671,8 @@ def _preview_double_winder(p):
             hr_pc_t2a = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
             pc_t2a_h = hr_pc_t2a + NEWEL_CAP
             meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
-            # Outer corner 2
-            oc2_hr = max(hr_pc_t2a, flight3_riser_start * rise + nzs_w + hr_rise)
+            # Outer corner 2 - at landing level height
+            oc2_hr = turn2_winder_start * rise + nzs_w + hr_rise
             oc2_h = oc2_hr + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
             # Pitch-change at flight 3 start
