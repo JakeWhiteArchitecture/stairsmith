@@ -2100,7 +2100,7 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             dx_w2 = f3_outer_x - f2_x_end
             x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
-            z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            z_x_ext2 = z_corner - st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
             if turn1_dir == "left":
                 pc_f2end_face_x = f2_x_end - hp  # -X face toward X-piece
@@ -2117,7 +2117,7 @@ def _preview_double_winder(p):
             # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
             dy_w2 = f3_y_first - outer_corner_y2
             y_ext2 = outer_corner_y2 + st2
-            z_y_ext2 = z_corner + st2 * (f3_z_first - z_corner) / dy_w2 if abs(dy_w2) > 1e-9 else z_corner
+            z_y_ext2 = z_x_ext2  # match X-piece end height so top surfaces align at corner
             meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
             oc2_face_y = outer_corner_y2 - hp  # -Y face of outer corner newel
             pc_f3_face_y = f3_y_first + hp  # +Y face of pitch-change newel
@@ -2146,11 +2146,11 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             dx_w2 = f3_outer_x - f2_x_end
             x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
-            z_x_ext2 = z_corner + st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            z_x_ext2 = z_corner - st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
             dy_w2 = f3_y_first - outer_corner_y2
             y_ext2 = outer_corner_y2 + st2
-            z_y_ext2 = z_corner + st2 * (f3_z_first - z_corner) / dy_w2 if abs(dy_w2) > 1e-9 else z_corner
+            z_y_ext2 = z_x_ext2  # match X-piece end height so top surfaces align at corner
             meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
             meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
                                                      f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
