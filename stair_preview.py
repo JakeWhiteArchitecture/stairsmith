@@ -570,7 +570,8 @@ def _spindles_landing_y(x_pos, y_start, y_end, z, name_prefix="Landing Spindle",
 
     # Baserail and handrail use z + STRINGER_DROP as reference
     z_ref = z + STRINGER_DROP
-    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h  # base rail top
+    # Spindle bottom overlaps baserail top by 1mm to ensure proper connection
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h - 1.0  # base rail top with 1mm overlap
     z_top = z_ref + hr_r - hr_h  # handrail bottom
 
     dy = y_end - y_start
@@ -626,7 +627,8 @@ def _spindles_landing_x(y_pos, x_start, x_end, z, name_prefix="Landing Spindle",
 
     # Baserail and handrail use z + STRINGER_DROP as reference
     z_ref = z + STRINGER_DROP
-    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h  # base rail top
+    # Spindle bottom overlaps baserail top by 1mm to ensure proper connection
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h - 1.0  # base rail top with 1mm overlap
     z_top = z_ref + hr_r - hr_h  # handrail bottom
 
     dx = x_end - x_start
@@ -1988,6 +1990,9 @@ def _preview_double_winder(p):
                 f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
             f2_z_first = flight2_riser_start * rise + nzs
             f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+            # Save unclipped positions for balustrade newel face calculations
+            f2_x_last_unclipped = f2_x_last
+            f2_z_last_unclipped = f2_z_last
             # Clip far end at corner2 post centre if turn 2 also has a landing
             if actual_winders2 == 0 and flight2_treads > 0:
                 dx = f2_x_last - f2_x_first
@@ -2117,19 +2122,32 @@ def _preview_double_winder(p):
                 # Outer flight 2: clipped at pitch-change newel faces
                 if turn1_dir == "left":
                     pc1_face_x = f2_x_first + hp  # +X face of pitch-change newel at f2 start
-                    pc2_face_x = f2_x_last - hp if actual_winders2 > 0 else f2_x_last + hp  # face toward f2
+                    # Use unclipped position for flat landing to extend to actual newel face
+                    pc2_face_x = f2_x_last - hp if actual_winders2 > 0 else f2_x_last_unclipped - hp  # face toward f2
                 else:
                     pc1_face_x = f2_x_first - hp
-                    pc2_face_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last - hp
+                    # Use unclipped position for flat landing to extend to actual newel face
+                    pc2_face_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last_unclipped + hp
                 f2_x0_oc, f2_z0_oc = f2_x_first, f2_z_first
-                f2_x1_oc, f2_z1_oc = f2_x_last, f2_z_last
+                # Use unclipped position for flat landing at turn 2
+                f2_x1_oc = f2_x_last_unclipped if actual_winders2 == 0 else f2_x_last
+                f2_z1_oc = f2_z_last_unclipped if actual_winders2 == 0 else f2_z_last
                 if abs(f2_dx) > 1e-9:
                     t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
                     f2_x0_oc = f2_x_first + t_c * f2_dx
                     f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
-                    t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
-                    f2_x1_oc = f2_x_first + t_c2 * f2_dx
-                    f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+                    # For flat landing at turn 2, calculate using unclipped positions
+                    if actual_winders2 == 0:
+                        dx_full = f2_x_last_unclipped - f2_x_first
+                        dz_full = f2_z_last_unclipped - f2_z_first
+                        if abs(dx_full) > 1e-9:
+                            t_c2 = (pc2_face_x - f2_x_first) / dx_full
+                            f2_x1_oc = f2_x_first + t_c2 * dx_full
+                            f2_z1_oc = f2_z_first + t_c2 * dz_full
+                    else:
+                        t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
+                        f2_x1_oc = f2_x_first + t_c2 * f2_dx
+                        f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
                 meshes.append(_stringer_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
                 meshes.append(_handrail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
                 meshes.append(_baserail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
