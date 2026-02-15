@@ -1306,9 +1306,9 @@ def _preview_single_winder(p):
         outer_corner_y = corner_y + width
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
-            # Outer landing stringers - extend to newel post faces at corner
-            meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, outer_corner_y - hp, landing_z_base))
-            meshes.append(_stringer_landing_x(outer_corner_y, f2_x0_ext, outer_x - hp, landing_z_base))
+            # Outer landing stringers - match handrail pattern (newel face to newel face)
+            meshes.append(_stringer_landing_y(outer_x, f1_y1 + hp, outer_corner_y - hp, landing_z_base))
+            meshes.append(_stringer_landing_x(outer_corner_y, f2_x0_ext, outer_x, landing_z_base))
             if render_outer:
                 # Add handrails and baserails for landing when balustrade is present
                 # Run from newel post face to newel post face to eliminate gaps
@@ -1321,9 +1321,9 @@ def _preview_single_winder(p):
                 meshes.extend(_spindles_landing_x(corner_y + width, f2_x0 + hp, outer_x - hp, landing_z_base, **sp_kw))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
-            # Outer landing stringers - extend to newel post faces at corner
-            meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, outer_corner_y - hp, landing_z_base))
-            meshes.append(_stringer_landing_x(outer_corner_y, outer_x + hp, f2_x0_ext, landing_z_base))
+            # Outer landing stringers - match handrail pattern (newel face to newel face)
+            meshes.append(_stringer_landing_y(outer_x, f1_y1 + hp, outer_corner_y - hp, landing_z_base))
+            meshes.append(_stringer_landing_x(outer_corner_y, outer_x, f2_x0_ext, landing_z_base))
             if render_outer:
                 # Add handrails and baserails for landing when balustrade is present
                 # Run from newel post face to newel post face to eliminate gaps
@@ -2071,9 +2071,9 @@ def _preview_double_winder(p):
             outer1_corner_y = corner1_y + width
             if turn1_dir == "left":
                 meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
-                # Outer landing stringers - extend to newel post faces at corner
-                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, outer1_corner_y - hp, landing1_z))
-                meshes.append(_stringer_landing_x(outer1_corner_y, f2_x_first_ext, f1_outer_x - hp, landing1_z))
+                # Outer landing stringers - match handrail pattern (newel face to newel face)
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1 + hp, outer1_corner_y - hp, landing1_z))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f2_x_first_ext, f1_outer_x, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
@@ -2086,9 +2086,9 @@ def _preview_double_winder(p):
                     meshes.extend(_spindles_landing_x(corner1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **sp_kw))
             else:
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
-                # Outer landing stringers - extend to newel post faces at corner
-                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, outer1_corner_y - hp, landing1_z))
-                meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x + hp, f2_x_first_ext, landing1_z))
+                # Outer landing stringers - match handrail pattern (newel face to newel face)
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1 + hp, outer1_corner_y - hp, landing1_z))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x, f2_x_first_ext, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
@@ -2204,18 +2204,18 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             # Outer corner newel position
             outer2_corner_y = corner2_y + width
-            # Outer landing stringers - extend to newel post faces at corner
-            meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, outer2_corner_y - hp, landing2_z))
+            # Outer landing stringers - match handrail pattern (newel face to newel face)
+            meshes.append(_stringer_landing_y(f3_outer_x, outer2_corner_y - hp, f3_y_first_unclipped - hp, landing2_z))
             x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
             if f3_outer_x < x_inner_end:
-                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x + hp, landing2_z))
+                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x, landing2_z))
                 if render_outer:
                     # Run from newel post face to newel post face to eliminate gaps
                     meshes.append(_handrail_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **hr_kw))
                     meshes.append(_baserail_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **br_kw))
                     meshes.extend(_spindles_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **sp_kw))
             else:
-                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x - hp, landing2_z))
+                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x, landing2_z))
                 if render_outer:
                     # Run from newel post face to newel post face to eliminate gaps
                     meshes.append(_handrail_landing_x(outer2_corner_y, f2_x_last + hp, f3_outer_x - hp, landing2_z, **hr_kw))
