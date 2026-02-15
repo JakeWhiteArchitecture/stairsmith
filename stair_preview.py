@@ -344,6 +344,114 @@ def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Baserail", *
     }
 
 
+def _handrail_landing_y(x_pos, y_start, y_end, z, name="Landing Handrail", **kw):
+    """Flat (horizontal) handrail across a landing, running in Y.
+
+    z is the landing tread plane height.
+    Handrail sits at landing_stringer_top + handrail_rise.
+    """
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    # Landing stringer top is at z + STRINGER_DROP
+    z_hr_bot = z + STRINGER_DROP + r - h
+    z_hr_top = z + STRINGER_DROP + r
+    profile = [
+        [y_start, z_hr_bot],
+        [y_end, z_hr_bot],
+        [y_end, z_hr_top],
+        [y_start, z_hr_top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _handrail_landing_x(y_pos, x_start, x_end, z, name="Landing Handrail", **kw):
+    """Flat (horizontal) handrail across a landing, running in X.
+
+    z is the landing tread plane height.
+    Handrail sits at landing_stringer_top + handrail_rise.
+    """
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    # Landing stringer top is at z + STRINGER_DROP
+    z_hr_bot = z + STRINGER_DROP + r - h
+    z_hr_top = z + STRINGER_DROP + r
+    profile = [
+        [x_start, z_hr_bot],
+        [x_end, z_hr_bot],
+        [x_end, z_hr_top],
+        [x_start, z_hr_top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _baserail_landing_y(x_pos, y_start, y_end, z, name="Landing Baserail", **kw):
+    """Flat (horizontal) baserail across a landing, running in Y."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    z_top = z + STRINGER_DROP
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [y_start, z_top + bot],
+        [y_end, z_top + bot],
+        [y_end, z_top + top],
+        [y_start, z_top + top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
+def _baserail_landing_x(y_pos, x_start, x_end, z, name="Landing Baserail", **kw):
+    """Flat (horizontal) baserail across a landing, running in X."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    z_top = z + STRINGER_DROP
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [x_start, z_top + bot],
+        [x_end, z_top + bot],
+        [x_end, z_top + top],
+        [x_start, z_top + top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
 def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end, name_prefix="Spindle", **kw):
     """Spindles along a Y-direction flight with pitched top/bottom surfaces.
 
@@ -790,8 +898,10 @@ def _preview_straight(p):
             bot_h = hr_bot + NEWEL_CAP
             meshes.append(_box_mesh(x_pos, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355",
                                     name=f"{side} Bottom Post", ifc_type="newel"))
-            hr_top = ftf + nzs + hr_rise_val
-            top_h = hr_top + NEWEL_CAP
+            # Top newel terminates 150mm below bottom surface of stringer where it abuts
+            # Stringer bottom = pitch_line - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+            # So newel top = pitch_line - 250mm - 150mm = pitch_line - 400mm
+            top_h = ftf + nzs - 400.0
             meshes.append(_box_mesh(x_pos, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355",
                                     name=f"{side} Top Post", ifc_type="newel"))
         else:
@@ -1074,14 +1184,26 @@ def _preview_single_winder(p):
         st2 = STRINGER_THICKNESS / 2
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
-            if not render_outer:
-                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
-                meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base))
+            # Outer landing stringers, handrails, and baserails
+            meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base))
+            if render_outer:
+                # Add handrails and baserails for landing when balustrade is present
+                meshes.append(_handrail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **hr_kw))
+                meshes.append(_handrail_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base, **hr_kw))
+                meshes.append(_baserail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **br_kw))
+                meshes.append(_baserail_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base, **br_kw))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
-            if not render_outer:
-                meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
-                meshes.append(_stringer_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base))
+            # Outer landing stringers, handrails, and baserails
+            meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base))
+            if render_outer:
+                # Add handrails and baserails for landing when balustrade is present
+                meshes.append(_handrail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **hr_kw))
+                meshes.append(_handrail_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base, **hr_kw))
+                meshes.append(_baserail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **br_kw))
+                meshes.append(_baserail_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base, **br_kw))
 
         # Flight 2 stringers (notched for threshold, flush with riser back)
         if flight2_treads > 0:
@@ -1357,9 +1479,37 @@ def _preview_single_winder(p):
         c_h = max(hr_c_f1, hr_c_f2) + NEWEL_CAP
         meshes.append(_box_mesh(inner_x, corner_y, c_h / 2, c_ns, c_ns, c_h, "#8B7355"))
         if flight2_treads > 0:
-            hr_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr + hr_rise
-            top_h = hr_top + NEWEL_CAP
+            # Top newel terminates 150mm below bottom surface of stringer
+            pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr
+            top_h = pitch_line_top - 400.0
             meshes.append(_box_mesh(top_post_x, corner_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+    else:
+        # Wall condition on inner side: add stub newel and stringers at corner
+        # Stub newel terminates 75mm above and below highest stringer abutment point
+        pitch_f1 = (flight1_treads + 1) * rise + nzs_hr
+        pitch_f2 = flight2_start_riser * rise + nzs_hr
+        highest_abutment = max(pitch_f1, pitch_f2)
+        stub_h = 2 * 75.0  # 75mm above and below
+        stub_z_center = highest_abutment
+        meshes.append(_box_mesh(inner_x, corner_y, stub_z_center, ns, ns, stub_h, "#8B7355"))
+        # Add short stub stringers at internal corner
+        if actual_winders > 0:
+            # For winders: stub stringers from flight ends to corner
+            # Stub stringer along Y (from flight 1 toward corner)
+            if flight1_treads > 0:
+                f1_y1 = flight1_treads * going + flight1_shift_y
+                stub_y_start = f1_y1
+                stub_y_end = corner_y + hp
+                meshes.append(_stringer_landing_y(inner_x, stub_y_start, stub_y_end, winder_start_riser * rise))
+            # Stub stringer along X (from corner toward flight 2)
+            if turn_dir == "left":
+                stub_x_start = inner_x - hp
+                stub_x_end = f2_x0
+            else:
+                stub_x_start = f2_x0
+                stub_x_end = inner_x + hp
+            meshes.append(_stringer_landing_x(corner_y, stub_x_start, stub_x_end, winder_start_riser * rise))
+        # Note: For landings (actual_winders == 0), the inner landing stringer is already added above
 
     # Outer newel posts (bottom, pitch-change at f1_y1, outer corner, pitch-change at f2_x0, top)
     if render_outer:
@@ -1383,10 +1533,10 @@ def _preview_single_winder(p):
         hr_pc2 = flight2_start_riser * rise + nzs_w + hr_rise
         pc2_h = hr_pc2 + NEWEL_CAP
         meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc2_h / 2, ns, ns, pc2_h, "#8B7355"))
-        # Top newel
+        # Top newel - terminates 150mm below bottom surface of stringer
         if flight2_treads > 0:
-            hr_top = (flight2_start_riser + flight2_treads) * rise + nzs_w + hr_rise
-            top_h = hr_top + NEWEL_CAP
+            pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_w
+            top_h = pitch_line_top - 400.0
             meshes.append(_box_mesh(top_post_x, outer_y_pos, top_h / 2, ns, ns, top_h, "#8B7355"))
 
     return meshes
@@ -1792,14 +1942,26 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             if turn1_dir == "left":
                 meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
-                if not render_outer:
-                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
-                    meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z))
+                # Outer landing stringers, handrails, and baserails
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
+                meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z))
+                if render_outer:
+                    # Add handrails and baserails for landing when balustrade is present
+                    meshes.append(_handrail_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z, **hr_kw))
+                    meshes.append(_handrail_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z, **hr_kw))
+                    meshes.append(_baserail_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z, **br_kw))
+                    meshes.append(_baserail_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z, **br_kw))
             else:
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
-                if not render_outer:
-                    meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
-                    meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z))
+                # Outer landing stringers, handrails, and baserails
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
+                meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z))
+                if render_outer:
+                    # Add handrails and baserails for landing when balustrade is present
+                    meshes.append(_handrail_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z, **hr_kw))
+                    meshes.append(_handrail_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z, **hr_kw))
+                    meshes.append(_baserail_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z, **br_kw))
+                    meshes.append(_baserail_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z, **br_kw))
 
             # === Flight 2 stringers ===
             f2_dx = f2_x_last - f2_x_first
@@ -1886,13 +2048,23 @@ def _preview_double_winder(p):
 
             # === Turn 2 landing stringers — outer endpoints linked to extensions ===
             st2 = STRINGER_THICKNESS / 2
-            if not render_outer:
-                meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z))
-                x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
-                if f3_outer_x < x_inner_end:
-                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z))
-                else:
-                    meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z))
+            # Outer landing stringers, handrails, and baserails
+            meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z))
+            x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
+            if f3_outer_x < x_inner_end:
+                meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z))
+                if render_outer:
+                    meshes.append(_handrail_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z, **hr_kw))
+                    meshes.append(_baserail_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z, **br_kw))
+            else:
+                meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z))
+                if render_outer:
+                    meshes.append(_handrail_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z, **hr_kw))
+                    meshes.append(_baserail_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z, **br_kw))
+            if render_outer:
+                # Add Y-direction landing handrail and baserail
+                meshes.append(_handrail_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z, **hr_kw))
+                meshes.append(_baserail_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z, **br_kw))
 
             # === Flight 3 stringers (notched for threshold, flush with riser back) ===
             z_fl = riser_t * rise / (2 * going)
@@ -2274,9 +2446,36 @@ def _preview_double_winder(p):
         c2_h = max(hr_c2_f2, hr_c2_f3) + NEWEL_CAP
         meshes.append(_box_mesh(corner2_x, corner2_y, c2_h / 2, c2_ns, c2_ns, c2_h, "#8B7355"))
         if flight3_treads > 0:
-            hr_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr + hr_rise
-            top_h = hr_top + NEWEL_CAP
+            # Top newel terminates 150mm below bottom surface of stringer
+            pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr
+            top_h = pitch_line_top - 400.0
             meshes.append(_box_mesh(corner2_x, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+    else:
+        # Wall condition on inner side: add stub newels and stringers at corners
+        # Corner 1 stub newel
+        pitch_c1_f1 = (flight1_treads + 1) * rise + nzs_hr
+        pitch_c1_f2 = flight2_riser_start * rise + nzs_hr
+        highest_abutment_c1 = max(pitch_c1_f1, pitch_c1_f2)
+        stub_h = 2 * 75.0  # 75mm above and below
+        meshes.append(_box_mesh(corner1_x, corner1_y, highest_abutment_c1, ns, ns, stub_h, "#8B7355"))
+        # Corner 2 stub newel
+        pitch_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr
+        pitch_c2_f3 = flight3_riser_start * rise + nzs_hr
+        highest_abutment_c2 = max(pitch_c2_f2, pitch_c2_f3)
+        meshes.append(_box_mesh(corner2_x, corner2_y, highest_abutment_c2, ns, ns, stub_h, "#8B7355"))
+        # Stub stringers for winders (simplified - just at corners)
+        if actual_winders1 > 0:
+            # Corner 1 stub stringers
+            f1_y1 = flight1_treads * going + flight1_shift_y
+            meshes.append(_stringer_landing_y(corner1_x, f1_y1, corner1_y + hp, turn1_winder_start * rise))
+            if turn1_dir == "left":
+                meshes.append(_stringer_landing_x(corner1_y, corner1_x - hp, f2_x_first, turn1_winder_start * rise))
+            else:
+                meshes.append(_stringer_landing_x(corner1_y, f2_x_first, corner1_x + hp, turn1_winder_start * rise))
+        if actual_winders2 > 0:
+            # Corner 2 stub stringers
+            meshes.append(_stringer_landing_x(corner2_y, f2_x_last, corner2_x + hp, turn2_winder_start * rise))
+            meshes.append(_stringer_landing_y(corner2_x, corner2_y - hp, flight3_start_y, turn2_winder_start * rise))
 
     # Outer newel posts
     if render_outer:
@@ -2340,10 +2539,10 @@ def _preview_double_winder(p):
             pc_t2b_h = hr_pc_t2b + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_t2b_h / 2, ns, ns, pc_t2b_h, "#8B7355"))
 
-        # Top newel
+        # Top newel - terminates 150mm below bottom surface of stringer
         if flight3_treads > 0:
-            hr_top = (flight3_riser_start + flight3_treads) * rise + nzs_w + hr_rise
-            top_h = hr_top + NEWEL_CAP
+            pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_w
+            top_h = pitch_line_top - 400.0
             meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
 
     return meshes
