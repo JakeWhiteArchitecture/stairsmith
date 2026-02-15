@@ -1360,32 +1360,14 @@ def _preview_single_winder(p):
         st2 = STRINGER_THICKNESS / 2
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
-            # Outer landing stringers, handrails, and baserails
+            # Outer landing stringers only (no balustrades crossing the opening)
             meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
             meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base))
-            if render_outer:
-                # Add handrails and baserails for landing when balustrade is present
-                meshes.append(_handrail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **hr_kw))
-                meshes.append(_handrail_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base, **hr_kw))
-                meshes.append(_baserail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **br_kw))
-                meshes.append(_baserail_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base, **br_kw))
-                # Add spindles for landing
-                meshes.extend(_spindles_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **sp_kw))
-                meshes.extend(_spindles_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base, **sp_kw))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
-            # Outer landing stringers, handrails, and baserails
+            # Outer landing stringers only (no balustrades crossing the opening)
             meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
             meshes.append(_stringer_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base))
-            if render_outer:
-                # Add handrails and baserails for landing when balustrade is present
-                meshes.append(_handrail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **hr_kw))
-                meshes.append(_handrail_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base, **hr_kw))
-                meshes.append(_baserail_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **br_kw))
-                meshes.append(_baserail_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base, **br_kw))
-                # Add spindles for landing
-                meshes.extend(_spindles_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base, **sp_kw))
-                meshes.extend(_spindles_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base, **sp_kw))
 
         # Flight 2 stringers (notched for threshold, flush with riser back)
         if flight2_treads > 0:
