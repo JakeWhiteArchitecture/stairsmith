@@ -626,10 +626,10 @@ def _spindles_landing_y(x_pos, y_start, y_end, z, name_prefix="Landing Spindle",
     hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
     hr_r = kw.get("hr_rise", HANDRAIL_RISE)
 
-    # Landing stringer top is now at z + STRINGER_DROP + STRINGER_PITCH_OFFSET
-    z_stringer_top = z + STRINGER_DROP + STRINGER_PITCH_OFFSET
-    z_bot = z_stringer_top + STRINGER_PITCH_OFFSET + br_h  # base rail top
-    z_top = z_stringer_top + hr_r - hr_h  # handrail bottom
+    # Baserail and handrail use z + STRINGER_DROP as reference
+    z_ref = z + STRINGER_DROP
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h  # base rail top
+    z_top = z_ref + hr_r - hr_h  # handrail bottom
 
     dy = y_end - y_start
     length = abs(dy)
@@ -682,10 +682,10 @@ def _spindles_landing_x(y_pos, x_start, x_end, z, name_prefix="Landing Spindle",
     hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
     hr_r = kw.get("hr_rise", HANDRAIL_RISE)
 
-    # Landing stringer top is now at z + STRINGER_DROP + STRINGER_PITCH_OFFSET
-    z_stringer_top = z + STRINGER_DROP + STRINGER_PITCH_OFFSET
-    z_bot = z_stringer_top + STRINGER_PITCH_OFFSET + br_h  # base rail top
-    z_top = z_stringer_top + hr_r - hr_h  # handrail bottom
+    # Baserail and handrail use z + STRINGER_DROP as reference
+    z_ref = z + STRINGER_DROP
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h  # base rail top
+    z_top = z_ref + hr_r - hr_h  # handrail bottom
 
     dx = x_end - x_start
     length = abs(dx)
@@ -2701,7 +2701,10 @@ def _preview_double_winder(p):
             pc_f2s_h = hr_pc_f2s + NEWEL_CAP
             meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
         else:
-            # Flat landing at turn 1: pitch-change at flight 2 start
+            # Flat landing at turn 1: outer corner and pitch-change at flight 2 start
+            oc1_hr = max(hr_pc1, flight2_riser_start * rise + nzs_w + hr_rise)
+            oc1_h = oc1_hr + NEWEL_CAP
+            meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
             hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
             pc_f2s_h = hr_pc_f2s + NEWEL_CAP
             meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
@@ -2721,11 +2724,16 @@ def _preview_double_winder(p):
             pc_f3s_h = hr_pc_f3s + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_f3s_h / 2, ns, ns, pc_f3s_h, "#8B7355"))
         else:
-            # Flat landing at turn 2: pitch-change at f2 end and f3 start
+            # Flat landing at turn 2: pitch-change at f2 end, outer corner, and f3 start
             outer_corner_y2_val = corner2_y + width
             hr_pc_t2a = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
             pc_t2a_h = hr_pc_t2a + NEWEL_CAP
             meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
+            # Outer corner 2
+            oc2_hr = max(hr_pc_t2a, flight3_riser_start * rise + nzs_w + hr_rise)
+            oc2_h = oc2_hr + NEWEL_CAP
+            meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
+            # Pitch-change at flight 3 start
             hr_pc_t2b = flight3_riser_start * rise + nzs_w + hr_rise
             pc_t2b_h = hr_pc_t2b + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_t2b_h / 2, ns, ns, pc_t2b_h, "#8B7355"))
