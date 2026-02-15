@@ -1994,14 +1994,14 @@ def _preview_double_winder(p):
                 meshes.extend(_spindles_flight_x(f2_outer_y, pc2_start_x, f2_z0_oc, pc2_end_x, f2_z1_oc, **sp_kw))
         else:
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
-            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            # Extend winder corner stringers: upper flight masters lower
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y1 - f1_y1
-            y_ext = outer_corner_y1 + st2
-            z_y_ext = z_corner + st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            y_ext = outer_corner_y1 - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
             dx_w = f2_x_first - f1_outer_x
-            x_ext = (f1_outer_x - st2) if turn1_dir == "left" else (f1_outer_x + st2)
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
             z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
             meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
             meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
