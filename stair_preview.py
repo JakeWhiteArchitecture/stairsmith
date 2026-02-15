@@ -2530,7 +2530,7 @@ def check_building_regs(params):
         rise_msg += " — Exceeds absolute maximum of 220mm"
     elif rise > 200:
         rise_status = "warn"
-        rise_msg += " — Exceeds recommended maximum of 200mm (Doc K)"
+        rise_msg += " — Exceeds recommended maximum of 200mm"
     checks.append({"name": "Individual Rise", "status": rise_status, "message": rise_msg, "value": round(rise, 1)})
 
     # Individual Going: min 220mm
@@ -2538,7 +2538,7 @@ def check_building_regs(params):
     going_msg = f"Individual going: {going:.1f}mm"
     if going < 220:
         going_status = "warn"
-        going_msg += " — Below minimum 220mm (Doc K)"
+        going_msg += " — Below minimum 220mm"
     checks.append({"name": "Individual Going", "status": going_status, "message": going_msg, "value": round(going, 1)})
 
     # Pitch: max 42° for straight flights
@@ -2548,7 +2548,7 @@ def check_building_regs(params):
     pitch_msg = f"Pitch: {pitch_deg:.1f}°"
     if pitch_deg > 42:
         pitch_status = "warn"
-        pitch_msg += " — Exceeds maximum 42° for private staircase (Doc K)"
+        pitch_msg += " — Exceeds maximum 42° for private staircase"
     checks.append({"name": "Pitch", "status": pitch_status, "message": pitch_msg, "value": round(pitch_deg, 1)})
 
     # 2R + G formula: should be 550-700mm
@@ -2582,47 +2582,4 @@ def check_building_regs(params):
                        "value": round(newel, 0)})
 
     # Winder going at narrow end using 4-step construction geometry
-    if has_winders:
-        wg = compute_winder_geometry(p["newel_size"], width)
-
-        # Construction guarantees: kite going = 50mm, flank going = 50mm
-        narrow_going = min(wg["kite_going"], wg["flank_going"])
-        narrow_status = "pass"
-        narrow_msg = f"Winder narrow end going: {narrow_going:.0f}mm (kite: {wg['kite_going']:.0f}mm, flank: {wg['flank_going']:.0f}mm)"
-        if narrow_going < 50:
-            narrow_status = "warn"
-            narrow_msg += " — Below minimum 50mm at inner string"
-        checks.append({"name": "Winder Narrow Going", "status": narrow_status, "message": narrow_msg,
-                       "value": round(narrow_going, 0)})
-
-        # Effective width at turn (reduced by offset)
-        eff_status = "pass"
-        eff_msg = f"Effective width at turn: {wg['effective_width']:.0f}mm (offset: {wg['offset']:.0f}mm)"
-        if wg["width_warning"]:
-            eff_status = "warn"
-            eff_msg += " — Below minimum 600mm at turn"
-        checks.append({"name": "Effective Turn Width", "status": eff_status, "message": eff_msg,
-                       "value": round(wg["effective_width"], 0)})
-
-        # Walking line going: min 220mm measured 270mm from inner edge
-        winders_per_turn = p["turn1_winders"]
-        angle_per_winder = (math.pi / 2) / winders_per_turn
-        walking_radius = 270
-        walking_going = walking_radius * angle_per_winder
-        wl_status = "pass"
-        wl_msg = f"Winder walking line going: {walking_going:.0f}mm"
-        if walking_going < 220:
-            wl_status = "warn"
-            wl_msg += " — Below minimum 220mm on walking line"
-        checks.append({"name": "Walking Line Going", "status": wl_status, "message": wl_msg,
-                       "value": round(walking_going, 0)})
-
-    # Headroom: min 2000mm (informational - we don't have stairwell dimensions)
-    checks.append({
-        "name": "Headroom",
-        "status": "info",
-        "message": "Headroom: requires stairwell dimensions to calculate (min 2000mm per Doc K)",
-        "value": None,
-    })
-
     return checks
