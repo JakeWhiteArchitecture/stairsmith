@@ -1563,6 +1563,7 @@ STRINGER_THICKNESS = 32.0
 STRINGER_HEIGHT = 275.0
 STRINGER_PITCH_OFFSET = 25.0
 STRINGER_DROP = 75.0
+STRINGER_WALL_EXTENSION = 70.0  # Extension past nosing for wall condition (no newel post)
 HANDRAIL_WIDTH = 70.0
 HANDRAIL_HEIGHT = 40.0
 HANDRAIL_RISE = 900.0
@@ -1616,12 +1617,29 @@ def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz,
 
 
 def _ifc_stringer_flight_y(ifc, context, name, x_pos, y_start, z_start, y_end, z_end):
-    """Create a pitched stringer along Y as an IFC element."""
+    """Create a pitched stringer along Y as an IFC element.
+    Bottom edge is clipped at z=0 (ground level)."""
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
+
+    # Calculate bottom edge positions, clipped at ground level (z=0)
+    z_start_bottom = max(0.0, z_start - drop)
+    z_end_bottom = max(0.0, z_end - drop)
+
+    # If bottom is clipped, adjust the profile to maintain pitch
+    if z_start_bottom == 0.0 and z_start - drop < 0.0:
+        # Calculate where the pitched bottom edge intersects z=0
+        dz = (z_end - drop) - (z_start - drop)
+        dy = y_end - y_start
+        if abs(dz) > 1e-9:
+            # Interpolate Y position where bottom edge reaches z=0
+            t = (0.0 - (z_start - drop)) / dz
+            y_start = y_start + t * dy
+            z_start = z_start + t * (z_end - z_start)
+
     profile = [
-        (y_start, z_start - drop),
-        (y_end,   z_end - drop),
+        (y_start, z_start_bottom),
+        (y_end,   z_end_bottom),
         (y_end,   z_end + off),
         (y_start, z_start + off),
     ]
@@ -1631,12 +1649,29 @@ def _ifc_stringer_flight_y(ifc, context, name, x_pos, y_start, z_start, y_end, z
 
 
 def _ifc_stringer_flight_x(ifc, context, name, y_pos, x_start, z_start, x_end, z_end):
-    """Create a pitched stringer along X as an IFC element."""
+    """Create a pitched stringer along X as an IFC element.
+    Bottom edge is clipped at z=0 (ground level)."""
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
+
+    # Calculate bottom edge positions, clipped at ground level (z=0)
+    z_start_bottom = max(0.0, z_start - drop)
+    z_end_bottom = max(0.0, z_end - drop)
+
+    # If bottom is clipped, adjust the profile to maintain pitch
+    if z_start_bottom == 0.0 and z_start - drop < 0.0:
+        # Calculate where the pitched bottom edge intersects z=0
+        dz = (z_end - drop) - (z_start - drop)
+        dx = x_end - x_start
+        if abs(dz) > 1e-9:
+            # Interpolate X position where bottom edge reaches z=0
+            t = (0.0 - (z_start - drop)) / dz
+            x_start = x_start + t * dx
+            z_start = z_start + t * (z_end - z_start)
+
     profile = [
-        (x_start, z_start - drop),
-        (x_end,   z_end - drop),
+        (x_start, z_start_bottom),
+        (x_end,   z_end_bottom),
         (x_end,   z_end + off),
         (x_start, z_start + off),
     ]
@@ -1976,7 +2011,10 @@ def _generate_ifc_balustrade_single_winder(ifc, context, p, elements, flight1_tr
             f1_sp_z1 = f1_z1
         elements.extend(_ifc_spindles_flight_y(ifc, context, "Inner F1 Spindle", inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
     elif not render_inner and flight1_treads > 0:
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Wall condition: extend stringer by 70mm past nosing
+        f1_y0_wall = f1_y0 - STRINGER_WALL_EXTENSION
+        f1_z0_wall = f1_z0 - STRINGER_WALL_EXTENSION * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z0
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", inner_x, f1_y0_wall, f1_z0_wall, f1_y1, f1_z1))
 
     # Flight 1 outer stringer + balustrade
     if render_outer and flight1_treads > 0:
@@ -1985,7 +2023,10 @@ def _generate_ifc_balustrade_single_winder(ifc, context, p, elements, flight1_tr
             t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
             f1_y0_oc = f1_y0 + t_c * dy1
             f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
+        # Extend Flight 1 stringer to outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap
+        f1_y1_extended = outer_y - STRINGER_THICKNESS / 2
+        f1_z1_extended = f1_z1 + (f1_y1_extended - f1_y1) * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z1
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", outer_x, f1_y0_oc, f1_z0_oc, f1_y1_extended, f1_z1_extended))
         elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F1 Handrail", outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
         elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F1 Baserail", outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
         pc_face_y = f1_y1 - hp
@@ -1996,7 +2037,13 @@ def _generate_ifc_balustrade_single_winder(ifc, context, p, elements, flight1_tr
             f1_sp_z1 = f1_z1
         elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F1 Spindle", outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
     elif not render_outer and flight1_treads > 0:
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Wall condition: extend stringer by 70mm past nosing at base
+        f1_y0_wall = f1_y0 - STRINGER_WALL_EXTENSION
+        f1_z0_wall = f1_z0 - STRINGER_WALL_EXTENSION * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z0
+        # Extend Flight 1 stringer to outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap
+        f1_y1_extended = outer_y - STRINGER_THICKNESS / 2
+        f1_z1_extended = f1_z1 + (f1_y1_extended - f1_y1) * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z1
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", outer_x, f1_y0_wall, f1_z0_wall, f1_y1_extended, f1_z1_extended))
 
     # Flight 2 coordinates
     inner_y = corner_y
@@ -2041,12 +2088,20 @@ def _generate_ifc_balustrade_single_winder(ifc, context, p, elements, flight1_tr
             ftf, thresh_back, tread_t))
 
     if render_outer and flight2_treads > 0:
-        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl))
+        # Extend Flight 2 stringer to outer_x + STRINGER_THICKNESS/2 (left) or outer_x - STRINGER_THICKNESS/2 (right)
+        f2_x0_extended = outer_x + STRINGER_THICKNESS / 2 if turn_dir == "left" else outer_x - STRINGER_THICKNESS / 2
+        dx_total = f2_x1_fl - f2_x0
+        f2_z0_extended = f2_z0 - (f2_x0 - f2_x0_extended) * (f2_z1_fl - f2_z0) / dx_total if abs(dx_total) > 1e-9 else f2_z0
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", outer_y, f2_x0_extended, f2_z0_extended, f2_x1_fl, f2_z1_fl))
         elements.append(_ifc_handrail_flight_x(ifc, context, "Outer F2 Handrail", outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, **hr_kw))
         elements.append(_ifc_baserail_flight_x(ifc, context, "Outer F2 Baserail", outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, **br_kw))
     elif not render_outer and flight2_treads > 0:
+        # Extend Flight 2 stringer to outer_x + STRINGER_THICKNESS/2 (left) or outer_x - STRINGER_THICKNESS/2 (right)
+        f2_x0_extended = outer_x + STRINGER_THICKNESS / 2 if turn_dir == "left" else outer_x - STRINGER_THICKNESS / 2
+        dx_total = f2_x1_fl - f2_x0
+        f2_z0_extended = f2_z0 - (f2_x0 - f2_x0_extended) * (f2_z1_fl - f2_z0) / dx_total if abs(dx_total) > 1e-9 else f2_z0
         elements.append(_ifc_stringer_flight_x_notched(
-            ifc, context, "Outer F2 Stringer", outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl,
+            ifc, context, "Outer F2 Stringer", outer_y, f2_x0_extended, f2_z0_extended, f2_x1_fl, f2_z1_fl,
             ftf, thresh_back, tread_t))
 
     # Inner newel posts
@@ -2198,7 +2253,10 @@ def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
             f1_sp_z1 = f1_z1
         elements.extend(_ifc_spindles_flight_y(ifc, context, "Inner F1 Spindle", f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
     elif not render_inner and flight1_treads > 0:
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Wall condition: extend stringer by 70mm past nosing
+        f1_y0_wall = f1_y0 - STRINGER_WALL_EXTENSION
+        f1_z0_wall = f1_z0 - STRINGER_WALL_EXTENSION * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z0
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Inner F1 Stringer", f1_inner_x, f1_y0_wall, f1_z0_wall, f1_y1, f1_z1))
 
     # ─── Flight 1 outer stringer + balustrade ───
     if render_outer and flight1_treads > 0:
@@ -2207,7 +2265,10 @@ def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
             t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
             f1_y0_oc = f1_y0 + t_c * dy1
             f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
+        # Extend Flight 1 stringer to f2_outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap
+        f1_y1_extended = f2_outer_y - STRINGER_THICKNESS / 2
+        f1_z1_extended = f1_z1 + (f1_y1_extended - f1_y1) * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z1
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_extended, f1_z1_extended))
         elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F1 Handrail", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
         elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F1 Baserail", f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
         pc_face_y = f1_y1 - hp
@@ -2218,7 +2279,13 @@ def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
             f1_sp_z1 = f1_z1
         elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F1 Spindle", f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
     elif not render_outer and flight1_treads > 0:
-        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+        # Wall condition: extend stringer by 70mm past nosing at base
+        f1_y0_wall = f1_y0 - STRINGER_WALL_EXTENSION
+        f1_z0_wall = f1_z0 - STRINGER_WALL_EXTENSION * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z0
+        # Extend Flight 1 stringer to f2_outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap
+        f1_y1_extended = f2_outer_y - STRINGER_THICKNESS / 2
+        f1_z1_extended = f1_z1 + (f1_y1_extended - f1_y1) * (f1_z1 - f1_z0) / dy1 if abs(dy1) > 1e-9 else f1_z1
+        elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F1 Stringer", f1_outer_x, f1_y0_wall, f1_z0_wall, f1_y1_extended, f1_z1_extended))
 
     # ─── Flight 2 inner stringer + balustrade ───
     f2_dx = f2_x_last - f2_x_first
@@ -2249,22 +2316,36 @@ def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
         else:
             pc1_face_x = f2_x_first - hp
             pc2_face_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last - hp
+        # Extend Flight 2 stringer at both ends to meet Flight 1 and Flight 3
+        f2_x_start_extended = f1_outer_x + STRINGER_THICKNESS / 2 if turn1_dir == "left" else f1_outer_x - STRINGER_THICKNESS / 2
+        f2_x_end_extended = f3_outer_x + STRINGER_THICKNESS / 2 if turn1_dir == turn2_dir else f3_outer_x - STRINGER_THICKNESS / 2
         f2_x0_oc, f2_z0_oc = f2_x_first, f2_z_first
         f2_x1_oc, f2_z1_oc = f2_x_last, f2_z_last
         if abs(f2_dx) > 1e-9:
-            t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
-            f2_x0_oc = f2_x_first + t_c * f2_dx
-            f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
+            # Extend at start (corner 1)
+            f2_x0_oc = f2_x_start_extended
+            f2_z0_oc = f2_z_first - (f2_x_first - f2_x_start_extended) * (f2_z_last - f2_z_first) / f2_dx
+            # Trim at end for balustrade post (corner 2)
             t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
-            f2_x1_oc = f2_x_first + t_c2 * f2_dx
-            f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+            f2_x1_bal = f2_x_first + t_c2 * f2_dx
+            f2_z1_bal = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+            # Extend at end (corner 2) for stringer only
+            f2_x1_oc = f2_x_end_extended
+            f2_z1_oc = f2_z_first + (f2_x_end_extended - f2_x_first) * (f2_z_last - f2_z_first) / f2_dx
         elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
-        elements.append(_ifc_handrail_flight_x(ifc, context, "Outer F2 Handrail", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
-        elements.append(_ifc_baserail_flight_x(ifc, context, "Outer F2 Baserail", f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+        # Handrail and baserail use trimmed coordinates (not extended)
+        f2_x0_hr = f2_x_first + (pc1_face_x - f2_x_first) * (f2_z_first - f2_z0_oc) / (f2_z_first - f2_z0_oc) if abs(f2_z0_oc - f2_z_first) > 1e-9 else f2_x_first
+        elements.append(_ifc_handrail_flight_x(ifc, context, "Outer F2 Handrail", f2_outer_y, pc1_face_x, f2_z_first, f2_x1_bal, f2_z1_bal, **hr_kw))
+        elements.append(_ifc_baserail_flight_x(ifc, context, "Outer F2 Baserail", f2_outer_y, pc1_face_x, f2_z_first, f2_x1_bal, f2_z1_bal, **br_kw))
         if abs(f2_dx) > 1e-9:
-            elements.extend(_ifc_spindles_flight_x(ifc, context, "Outer F2 Spindle", f2_outer_y, pc1_face_x, f2_z0_oc, pc2_face_x, f2_z1_oc, **sp_kw))
+            elements.extend(_ifc_spindles_flight_x(ifc, context, "Outer F2 Spindle", f2_outer_y, pc1_face_x, f2_z_first, pc2_face_x, f2_z1_bal, **sp_kw))
     elif not render_outer and flight2_treads > 0:
-        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+        # Extend Flight 2 stringer at both ends to meet Flight 1 and Flight 3
+        f2_x_start_extended = f1_outer_x + STRINGER_THICKNESS / 2 if turn1_dir == "left" else f1_outer_x - STRINGER_THICKNESS / 2
+        f2_x_end_extended = f3_outer_x + STRINGER_THICKNESS / 2 if turn1_dir == turn2_dir else f3_outer_x - STRINGER_THICKNESS / 2
+        f2_z_start_extended = f2_z_first - (f2_x_first - f2_x_start_extended) * (f2_z_last - f2_z_first) / f2_dx if abs(f2_dx) > 1e-9 else f2_z_first
+        f2_z_end_extended = f2_z_first + (f2_x_end_extended - f2_x_first) * (f2_z_last - f2_z_first) / f2_dx if abs(f2_dx) > 1e-9 else f2_z_last
+        elements.append(_ifc_stringer_flight_x(ifc, context, "Outer F2 Stringer", f2_outer_y, f2_x_start_extended, f2_z_start_extended, f2_x_end_extended, f2_z_end_extended))
 
     # ─── Flight 3 inner stringer + balustrade ───
     if render_inner and flight3_treads > 0:
@@ -2300,24 +2381,38 @@ def _generate_ifc_balustrade_double_winder(ifc, context, p, elements,
     if render_outer and flight3_treads > 0:
         pc_face_f3 = f3_y_first - hp
         top_face_y_out = top_post_y + hp
+        # Extend Flight 3 stringer to f2_outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap        f3_y_first_extended = f2_outer_y - STRINGER_THICKNESS / 2
         f3_y0_oc, f3_z0_oc = f3_y_first, f3_z_first
         f3_y1_oc, f3_z1_oc = f3_y_last, f3_z_last
         if abs(dy3h) > 1e-9:
-            t_c0 = max(0.0, min(1.0, (pc_face_f3 - f3_y_first) / dy3h))
-            f3_y0_oc = f3_y_first + t_c0 * dy3h
-            f3_z0_oc = f3_z_first + t_c0 * (f3_z_last - f3_z_first)
+            # Extend at start (corner 2)
+            f3_z_first_extended = f3_z_first - (f3_y_first - f3_y_first_extended) * (f3_z_last - f3_z_first) / dy3h
+            f3_y0_oc = f3_y_first_extended
+            f3_z0_oc = f3_z_first_extended
+            # Trim for balustrade at end
             t_c1 = max(0.0, min(1.0, (top_face_y_out - f3_y_first) / dy3h))
             f3_y1_oc = f3_y_first + t_c1 * dy3h
             f3_z1_oc = f3_z_first + t_c1 * (f3_z_last - f3_z_first)
         elements.append(_ifc_stringer_flight_y(ifc, context, "Outer F3 Stringer", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc))
-        elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F3 Handrail", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **hr_kw))
-        elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F3 Baserail", f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **br_kw))
+        # Handrail and baserail use trimmed coordinates
         if abs(dy3h) > 1e-9:
-            elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F3 Spindle", f3_outer_x, pc_face_f3, f3_z0_oc, top_face_y_out, f3_z1_oc, **sp_kw))
+            t_c0 = max(0.0, min(1.0, (pc_face_f3 - f3_y_first) / dy3h))
+            f3_y0_hr = f3_y_first + t_c0 * dy3h
+            f3_z0_hr = f3_z_first + t_c0 * (f3_z_last - f3_z_first)
+        else:
+            f3_y0_hr = f3_y_first
+            f3_z0_hr = f3_z_first
+        elements.append(_ifc_handrail_flight_y(ifc, context, "Outer F3 Handrail", f3_outer_x, f3_y0_hr, f3_z0_hr, f3_y1_oc, f3_z1_oc, **hr_kw))
+        elements.append(_ifc_baserail_flight_y(ifc, context, "Outer F3 Baserail", f3_outer_x, f3_y0_hr, f3_z0_hr, f3_y1_oc, f3_z1_oc, **br_kw))
+        if abs(dy3h) > 1e-9:
+            elements.extend(_ifc_spindles_flight_y(ifc, context, "Outer F3 Spindle", f3_outer_x, pc_face_f3, f3_z0_hr, top_face_y_out, f3_z1_oc, **sp_kw))
     elif not render_outer and flight3_treads > 0:
+        # Extend Flight 3 stringer to f2_outer_y - STRINGER_THICKNESS/2 so Flight 2 can overlap
+        f3_y_first_extended = f2_outer_y - STRINGER_THICKNESS / 2
+        f3_z_first_extended = f3_z_first - (f3_y_first - f3_y_first_extended) * (f3_z_last_fl - f3_z_first) / (f3_y_last_fl - f3_y_first) if abs(f3_y_last_fl - f3_y_first) > 1e-9 else f3_z_first
         thresh_back_y = top_post_y - threshold_d
         elements.append(_ifc_stringer_flight_y_notched(
-            ifc, context, "Outer F3 Stringer", f3_outer_x, f3_y_first, f3_z_first,
+            ifc, context, "Outer F3 Stringer", f3_outer_x, f3_y_first_extended, f3_z_first_extended,
             f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
 
     # ─── Inner newel posts ───
@@ -2676,7 +2771,7 @@ def check_building_regs(params):
         rise_msg += " — Exceeds absolute maximum of 220mm"
     elif rise > 200:
         rise_status = "warn"
-        rise_msg += " — Exceeds recommended maximum of 200mm (Doc K)"
+        rise_msg += " — Exceeds recommended maximum of 200mm"
     checks.append({"name": "Individual Rise", "status": rise_status, "message": rise_msg, "value": round(rise, 1)})
 
     # Individual Going: min 220mm
@@ -2684,7 +2779,7 @@ def check_building_regs(params):
     going_msg = f"Individual going: {going:.1f}mm"
     if going < 220:
         going_status = "warn"
-        going_msg += " — Below minimum 220mm (Doc K)"
+        going_msg += " — Below minimum 220mm"
     checks.append({"name": "Individual Going", "status": going_status, "message": going_msg, "value": round(going, 1)})
 
     # Pitch: max 42° for straight flights
@@ -2694,7 +2789,7 @@ def check_building_regs(params):
     pitch_msg = f"Pitch: {pitch_deg:.1f}°"
     if pitch_deg > 42:
         pitch_status = "warn"
-        pitch_msg += " — Exceeds maximum 42° for private staircase (Doc K)"
+        pitch_msg += " — Exceeds maximum 42° for private staircase"
     checks.append({"name": "Pitch", "status": pitch_status, "message": pitch_msg, "value": round(pitch_deg, 1)})
 
     # 2R + G formula: should be 550-700mm
@@ -2726,49 +2821,5 @@ def check_building_regs(params):
             newel_msg += " — Below 75mm minimum (50mm bearing + 25mm corner wrap)"
         checks.append({"name": "Newel Post Size", "status": newel_status, "message": newel_msg,
                        "value": round(newel, 0)})
-
-    # Winder going at narrow end using 4-step construction geometry
-    if has_winders:
-        wg = compute_winder_geometry(p["newel_size"], width)
-
-        # Construction guarantees: kite going = 50mm, flank going = 50mm
-        narrow_going = min(wg["kite_going"], wg["flank_going"])
-        narrow_status = "pass"
-        narrow_msg = f"Winder narrow end going: {narrow_going:.0f}mm (kite: {wg['kite_going']:.0f}mm, flank: {wg['flank_going']:.0f}mm)"
-        if narrow_going < 50:
-            narrow_status = "warn"
-            narrow_msg += " — Below minimum 50mm at inner string"
-        checks.append({"name": "Winder Narrow Going", "status": narrow_status, "message": narrow_msg,
-                       "value": round(narrow_going, 0)})
-
-        # Effective width at turn (reduced by offset)
-        eff_status = "pass"
-        eff_msg = f"Effective width at turn: {wg['effective_width']:.0f}mm (offset: {wg['offset']:.0f}mm)"
-        if wg["width_warning"]:
-            eff_status = "warn"
-            eff_msg += " — Below minimum 600mm at turn"
-        checks.append({"name": "Effective Turn Width", "status": eff_status, "message": eff_msg,
-                       "value": round(wg["effective_width"], 0)})
-
-        # Walking line going: min 220mm measured 270mm from inner edge
-        winders_per_turn = p["turn1_winders"]
-        angle_per_winder = (math.pi / 2) / winders_per_turn
-        walking_radius = 270
-        walking_going = walking_radius * angle_per_winder
-        wl_status = "pass"
-        wl_msg = f"Winder walking line going: {walking_going:.0f}mm"
-        if walking_going < 220:
-            wl_status = "warn"
-            wl_msg += " — Below minimum 220mm on walking line"
-        checks.append({"name": "Walking Line Going", "status": wl_status, "message": wl_msg,
-                       "value": round(walking_going, 0)})
-
-    # Headroom: min 2000mm (informational - we don't have stairwell dimensions)
-    checks.append({
-        "name": "Headroom",
-        "status": "info",
-        "message": "Headroom: requires stairwell dimensions to calculate (min 2000mm per Doc K)",
-        "value": None,
-    })
 
     return checks
