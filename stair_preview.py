@@ -898,11 +898,16 @@ def _preview_straight(p):
             bot_h = hr_bot + NEWEL_CAP
             meshes.append(_box_mesh(x_pos, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355",
                                     name=f"{side} Bottom Post", ifc_type="newel"))
-            # Top newel terminates 150mm below bottom surface of stringer where it abuts
-            # Stringer bottom = pitch_line - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
-            # So newel top = pitch_line - 250mm - 150mm = pitch_line - 400mm
-            top_h = ftf + nzs - 400.0
-            meshes.append(_box_mesh(x_pos, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355",
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
+            # Stringer bottom = pitch_line - 250mm
+            # Newel bottom = pitch_line - 400mm (150mm below stringer bottom)
+            # Newel top = pitch_line + handrail_rise + NEWEL_CAP
+            pitch_line = ftf + nzs
+            newel_bottom = pitch_line - 400.0
+            newel_top = pitch_line + hr_rise_val + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(x_pos, top_post_y, top_z_center, ns, ns, top_h, "#8B7355",
                                     name=f"{side} Top Post", ifc_type="newel"))
         else:
             # Wall condition: notched stringer with base extension (no newel to terminate to)
@@ -1479,37 +1484,26 @@ def _preview_single_winder(p):
         c_h = max(hr_c_f1, hr_c_f2) + NEWEL_CAP
         meshes.append(_box_mesh(inner_x, corner_y, c_h / 2, c_ns, c_ns, c_h, "#8B7355"))
         if flight2_treads > 0:
-            # Top newel terminates 150mm below bottom surface of stringer
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
             pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr
-            top_h = pitch_line_top - 400.0
-            meshes.append(_box_mesh(top_post_x, corner_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(top_post_x, corner_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
-        # Wall condition on inner side: add stub newel and stringers at corner
-        # Stub newel terminates 75mm above and below highest stringer abutment point
+        # Wall condition on inner side: add stub newel at corner (no stringers)
+        # Stub newel terminates 150mm below stringer bottom surface
         pitch_f1 = (flight1_treads + 1) * rise + nzs_hr
         pitch_f2 = flight2_start_riser * rise + nzs_hr
         highest_abutment = max(pitch_f1, pitch_f2)
-        stub_h = 2 * 75.0  # 75mm above and below
-        stub_z_center = highest_abutment
+        # Stub top at: pitch - 250mm - 150mm = pitch - 400mm
+        stub_top = highest_abutment - 400.0
+        # Stub extends downward 400mm from there
+        stub_h = 400.0
+        stub_z_center = stub_top - stub_h / 2
         meshes.append(_box_mesh(inner_x, corner_y, stub_z_center, ns, ns, stub_h, "#8B7355"))
-        # Add short stub stringers at internal corner
-        if actual_winders > 0:
-            # For winders: stub stringers from flight ends to corner
-            # Stub stringer along Y (from flight 1 toward corner)
-            if flight1_treads > 0:
-                f1_y1 = flight1_treads * going + flight1_shift_y
-                stub_y_start = f1_y1
-                stub_y_end = corner_y + hp
-                meshes.append(_stringer_landing_y(inner_x, stub_y_start, stub_y_end, winder_start_riser * rise))
-            # Stub stringer along X (from corner toward flight 2)
-            if turn_dir == "left":
-                stub_x_start = inner_x - hp
-                stub_x_end = f2_x0
-            else:
-                stub_x_start = f2_x0
-                stub_x_end = inner_x + hp
-            meshes.append(_stringer_landing_x(corner_y, stub_x_start, stub_x_end, winder_start_riser * rise))
-        # Note: For landings (actual_winders == 0), the inner landing stringer is already added above
+        # Note: Stub stringers removed - they were causing green artifacts
 
     # Outer newel posts (bottom, pitch-change at f1_y1, outer corner, pitch-change at f2_x0, top)
     if render_outer:
@@ -1533,11 +1527,14 @@ def _preview_single_winder(p):
         hr_pc2 = flight2_start_riser * rise + nzs_w + hr_rise
         pc2_h = hr_pc2 + NEWEL_CAP
         meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc2_h / 2, ns, ns, pc2_h, "#8B7355"))
-        # Top newel - terminates 150mm below bottom surface of stringer
+        # Top newel - extends FROM cutting plane (150mm below stringer bottom) UPWARD
         if flight2_treads > 0:
             pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_w
-            top_h = pitch_line_top - 400.0
-            meshes.append(_box_mesh(top_post_x, outer_y_pos, top_h / 2, ns, ns, top_h, "#8B7355"))
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(top_post_x, outer_y_pos, top_z_center, ns, ns, top_h, "#8B7355"))
 
     return meshes
 
@@ -2446,36 +2443,31 @@ def _preview_double_winder(p):
         c2_h = max(hr_c2_f2, hr_c2_f3) + NEWEL_CAP
         meshes.append(_box_mesh(corner2_x, corner2_y, c2_h / 2, c2_ns, c2_ns, c2_h, "#8B7355"))
         if flight3_treads > 0:
-            # Top newel terminates 150mm below bottom surface of stringer
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
             pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr
-            top_h = pitch_line_top - 400.0
-            meshes.append(_box_mesh(corner2_x, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(corner2_x, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
-        # Wall condition on inner side: add stub newels and stringers at corners
-        # Corner 1 stub newel
+        # Wall condition on inner side: add stub newels at corners (no stringers)
+        # Corner 1 stub newel - terminates 150mm below stringer bottom
         pitch_c1_f1 = (flight1_treads + 1) * rise + nzs_hr
         pitch_c1_f2 = flight2_riser_start * rise + nzs_hr
         highest_abutment_c1 = max(pitch_c1_f1, pitch_c1_f2)
-        stub_h = 2 * 75.0  # 75mm above and below
-        meshes.append(_box_mesh(corner1_x, corner1_y, highest_abutment_c1, ns, ns, stub_h, "#8B7355"))
-        # Corner 2 stub newel
+        stub_top_c1 = highest_abutment_c1 - 400.0
+        stub_h = 400.0
+        stub_z_center_c1 = stub_top_c1 - stub_h / 2
+        meshes.append(_box_mesh(corner1_x, corner1_y, stub_z_center_c1, ns, ns, stub_h, "#8B7355"))
+        # Corner 2 stub newel - terminates 150mm below stringer bottom
         pitch_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr
         pitch_c2_f3 = flight3_riser_start * rise + nzs_hr
         highest_abutment_c2 = max(pitch_c2_f2, pitch_c2_f3)
-        meshes.append(_box_mesh(corner2_x, corner2_y, highest_abutment_c2, ns, ns, stub_h, "#8B7355"))
-        # Stub stringers for winders (simplified - just at corners)
-        if actual_winders1 > 0:
-            # Corner 1 stub stringers
-            f1_y1 = flight1_treads * going + flight1_shift_y
-            meshes.append(_stringer_landing_y(corner1_x, f1_y1, corner1_y + hp, turn1_winder_start * rise))
-            if turn1_dir == "left":
-                meshes.append(_stringer_landing_x(corner1_y, corner1_x - hp, f2_x_first, turn1_winder_start * rise))
-            else:
-                meshes.append(_stringer_landing_x(corner1_y, f2_x_first, corner1_x + hp, turn1_winder_start * rise))
-        if actual_winders2 > 0:
-            # Corner 2 stub stringers
-            meshes.append(_stringer_landing_x(corner2_y, f2_x_last, corner2_x + hp, turn2_winder_start * rise))
-            meshes.append(_stringer_landing_y(corner2_x, corner2_y - hp, flight3_start_y, turn2_winder_start * rise))
+        stub_top_c2 = highest_abutment_c2 - 400.0
+        stub_z_center_c2 = stub_top_c2 - stub_h / 2
+        meshes.append(_box_mesh(corner2_x, corner2_y, stub_z_center_c2, ns, ns, stub_h, "#8B7355"))
+        # Note: Stub stringers removed - they were causing green artifacts
 
     # Outer newel posts
     if render_outer:
@@ -2539,11 +2531,14 @@ def _preview_double_winder(p):
             pc_t2b_h = hr_pc_t2b + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_t2b_h / 2, ns, ns, pc_t2b_h, "#8B7355"))
 
-        # Top newel - terminates 150mm below bottom surface of stringer
+        # Top newel - extends FROM cutting plane (150mm below stringer bottom) UPWARD
         if flight3_treads > 0:
             pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_w
-            top_h = pitch_line_top - 400.0
-            meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_h / 2, ns, ns, top_h, "#8B7355"))
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
 
     return meshes
 
