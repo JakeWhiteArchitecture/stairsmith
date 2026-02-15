@@ -175,6 +175,7 @@ STRINGER_THICKNESS = 32.0        # mm
 STRINGER_HEIGHT = 275.0          # mm
 STRINGER_PITCH_OFFSET = 25.0     # mm – stringer top sits this far above the pitch line
 STRINGER_DROP = 75.0                    # landing stringer top above tread plane
+WALL_STRINGER_EXTENSION = 70.0          # mm – stringer extends past nosing when wall (no newel)
 STRINGER_COLOR = "#b5a48a"
 
 HANDRAIL_WIDTH = 70.0            # mm
@@ -183,20 +184,42 @@ HANDRAIL_RISE = 900.0            # mm – vertical from nosing pitch line to top
 HANDRAIL_COLOR = "#8B7355"
 
 
-def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Stringer", ifc_type="stringer"):
+def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Stringer", ifc_type="stringer", clip_z_min=None):
     """Stringer along a flight that runs in the Y direction.
 
     Returns a stringer mesh dict.  The profile is a parallelogram in the
     Y-Z plane, extruded by STRINGER_THICKNESS in X centred on *x_pos*.
+
+    If *clip_z_min* is set the profile is clipped so nothing extends below
+    that Z value (e.g. ground-floor level = 0).
     """
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
-    profile = [
+    pts = [
         [y_start, z_start - drop],
         [y_end,   z_end - drop],
         [y_end,   z_end + off],
         [y_start, z_start + off],
     ]
+    if clip_z_min is not None:
+        clipped = []
+        n = len(pts)
+        for i in range(n):
+            curr = pts[i]
+            nxt = pts[(i + 1) % n]
+            c_in = curr[1] >= clip_z_min
+            n_in = nxt[1] >= clip_z_min
+            if c_in:
+                clipped.append(curr)
+            if c_in != n_in:
+                dy = nxt[0] - curr[0]
+                dz = nxt[1] - curr[1]
+                if abs(dz) > 1e-9:
+                    t = (clip_z_min - curr[1]) / dz
+                    clipped.append([curr[0] + t * dy, clip_z_min])
+        if clipped:
+            pts = clipped
+    profile = pts
     return {
         "type": "stringer",
         "profile": profile,
@@ -1056,7 +1079,10 @@ def _preview_single_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
         if render_outer:
             # Outer flight 1: clipped at outer bottom/pitch-change newel faces
             f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
@@ -1076,7 +1102,10 @@ def _preview_single_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(outer_x, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext, clip_z_min=0))
 
         # Landing flat stringers — outer endpoints linked to flight stringer extensions
         st2 = STRINGER_THICKNESS / 2
@@ -1185,7 +1214,10 @@ def _preview_single_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
 
         # Flight 2 coordinates
         inner_y = corner_y
@@ -1313,7 +1345,10 @@ def _preview_single_winder(p):
             if abs(dx_h) > 1e-9:
                 meshes.extend(_spindles_flight_x(outer_y, pc2_start_x, f2_z0_oc, out_top_face_x, f2_z1_oc, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(outer_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
             # Extend winder corner stringers: upper flight masters lower
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y - f1_y1
@@ -1750,7 +1785,10 @@ def _preview_double_winder(p):
                     f1_sp_z1 = f1_z1
                 meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
             else:
-                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
             if render_outer:
                 f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
                 if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
@@ -1768,7 +1806,10 @@ def _preview_double_winder(p):
                     f1_sp_z1 = f1_z1
                 meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
             else:
-                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1_ext, z_ext1))
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext1, clip_z_min=0))
 
             # === Turn 1 landing stringers — outer endpoints linked to extensions ===
             st2 = STRINGER_THICKNESS / 2
@@ -1964,7 +2005,10 @@ def _preview_double_winder(p):
                 f1_sp_z1 = f1_z1
             meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
 
         # Turn 1 winder outer stringer geometry
         outer_corner_y1 = corner1_y + width
@@ -2051,7 +2095,10 @@ def _preview_double_winder(p):
             if abs(f2_dx) > 1e-9:
                 meshes.extend(_spindles_flight_x(f2_outer_y, pc2_start_x, f2_z0_oc, pc2_end_x, f2_z1_oc, **sp_kw))
         else:
-            meshes.append(_stringer_flight_y(f1_outer_x, f1_y0, f1_z0, f1_y1, f1_z1))
+            _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
             # Extend winder corner stringers: upper flight masters lower
             st2 = STRINGER_THICKNESS / 2
             dy_w = outer_corner_y1 - f1_y1
