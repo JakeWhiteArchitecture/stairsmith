@@ -1304,9 +1304,9 @@ def _preview_single_winder(p):
         st2 = STRINGER_THICKNESS / 2
         if turn_dir == "left":
             meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
-            # Outer landing stringers, handrails, and baserails
+            # Outer landing stringers - overlap at corner to avoid gaps
             meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
-            meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x - st2, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, f2_x0_ext, outer_x + st2, landing_z_base))
             if render_outer:
                 # Add handrails and baserails for landing when balustrade is present
                 # Run from newel post face to newel post face to eliminate gaps
@@ -1319,9 +1319,9 @@ def _preview_single_winder(p):
                 meshes.extend(_spindles_landing_x(corner_y + width, f2_x0 + hp, outer_x - hp, landing_z_base, **sp_kw))
         else:
             meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
-            # Outer landing stringers, handrails, and baserails
+            # Outer landing stringers - overlap at corner to avoid gaps
             meshes.append(_stringer_landing_y(outer_x, f1_y1_ext, corner_y + width + st2, landing_z_base))
-            meshes.append(_stringer_landing_x(corner_y + width, outer_x + st2, f2_x0_ext, landing_z_base))
+            meshes.append(_stringer_landing_x(corner_y + width, outer_x - st2, f2_x0_ext, landing_z_base))
             if render_outer:
                 # Add handrails and baserails for landing when balustrade is present
                 # Run from newel post face to newel post face to eliminate gaps
@@ -2067,9 +2067,9 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             if turn1_dir == "left":
                 meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
-                # Outer landing stringers, handrails, and baserails
+                # Outer landing stringers - overlap at corner to avoid gaps
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
-                meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x - st2, landing1_z))
+                meshes.append(_stringer_landing_x(corner1_y + width, f2_x_first_ext, f1_outer_x + st2, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
@@ -2082,9 +2082,9 @@ def _preview_double_winder(p):
                     meshes.extend(_spindles_landing_x(corner1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **sp_kw))
             else:
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
-                # Outer landing stringers, handrails, and baserails
+                # Outer landing stringers - overlap at corner to avoid gaps
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_y1_ext, corner1_y + width + st2, landing1_z))
-                meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x + st2, f2_x_first_ext, landing1_z))
+                meshes.append(_stringer_landing_x(corner1_y + width, f1_outer_x - st2, f2_x_first_ext, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
@@ -2133,18 +2133,21 @@ def _preview_double_winder(p):
                 f2_x1_oc = f2_x_last_unclipped if actual_winders2 == 0 else f2_x_last
                 f2_z1_oc = f2_z_last_unclipped if actual_winders2 == 0 else f2_z_last
                 if abs(f2_dx) > 1e-9:
-                    t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
-                    f2_x0_oc = f2_x_first + t_c * f2_dx
-                    f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
-                    # For flat landing at turn 2, calculate using unclipped positions
+                    # For flat landing at turn 2, calculate using unclipped positions for both ends
                     if actual_winders2 == 0:
                         dx_full = f2_x_last_unclipped - f2_x_first
                         dz_full = f2_z_last_unclipped - f2_z_first
                         if abs(dx_full) > 1e-9:
+                            t_c0 = (pc1_face_x - f2_x_first) / dx_full
+                            f2_x0_oc = f2_x_first + t_c0 * dx_full
+                            f2_z0_oc = f2_z_first + t_c0 * dz_full
                             t_c2 = (pc2_face_x - f2_x_first) / dx_full
                             f2_x1_oc = f2_x_first + t_c2 * dx_full
                             f2_z1_oc = f2_z_first + t_c2 * dz_full
                     else:
+                        t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
+                        f2_x0_oc = f2_x_first + t_c * f2_dx
+                        f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
                         t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
                         f2_x1_oc = f2_x_first + t_c2 * f2_dx
                         f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
@@ -2195,7 +2198,7 @@ def _preview_double_winder(p):
 
             # === Turn 2 landing stringers — outer endpoints linked to extensions ===
             st2 = STRINGER_THICKNESS / 2
-            # Outer landing stringers, handrails, and baserails
+            # Outer landing stringers - overlap at corner to avoid gaps
             meshes.append(_stringer_landing_y(f3_outer_x, f3_y_first_ext, corner2_y + width + st2, landing2_z))
             x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
             if f3_outer_x < x_inner_end:
@@ -2206,7 +2209,7 @@ def _preview_double_winder(p):
                     meshes.append(_baserail_landing_x(corner2_y + width, f2_x_last - hp, f3_outer_x + hp, landing2_z, **br_kw))
                     meshes.extend(_spindles_landing_x(corner2_y + width, f2_x_last - hp, f3_outer_x + hp, landing2_z, **sp_kw))
             else:
-                meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x - st2, landing2_z))
+                meshes.append(_stringer_landing_x(corner2_y + width, x_inner_end, f3_outer_x + st2, landing2_z))
                 if render_outer:
                     # Run from newel post face to newel post face to eliminate gaps
                     meshes.append(_handrail_landing_x(corner2_y + width, f2_x_last + hp, f3_outer_x - hp, landing2_z, **hr_kw))
