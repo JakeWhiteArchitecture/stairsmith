@@ -1259,16 +1259,17 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+                # Clip end position to corner newel post face
                 c_face_y = corner_y - c_hp
-                if abs(dy1) > 1e-9:
-                    t_sp = (c_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_c, f1_z1_c = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and c_face_y < f1_y1:
+                    t_c = max(0.0, (c_face_y - f1_y0) / dy1)
+                    f1_y1_c = f1_y0 + t_c * dy1
+                    f1_z1_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c))
+                meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **hr_kw))
+                meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **br_kw))
+                meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, c_face_y, f1_z1_c, **sp_kw))
             else:
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
                 f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
@@ -1281,17 +1282,18 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
-                # Spindles: from bottom post face to pitch-change newel face (at f1_y1)
+                # Clip end position to landing/post corner face
                 pc_face_y = f1_y1 - hp  # pitch-change newel -Y face
-                if abs(dy1) > 1e-9:
-                    t_sp = (pc_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_oc, f1_z1_oc = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and pc_face_y < f1_y1:
+                    t_c = max(0.0, (pc_face_y - f1_y0) / dy1)
+                    f1_y1_oc = f1_y0 + t_c * dy1
+                    f1_z1_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc))
+                meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **br_kw))
+                # Spindles: from bottom post face to pitch-change newel face (at f1_y1)
+                meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_z1_oc, **sp_kw))
             else:
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
                 f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
@@ -2019,16 +2021,17 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+                # Clip end position to corner1 newel post face
                 c1_face_y = corner1_y - c1_hp
-                if abs(dy1) > 1e-9:
-                    t_sp = (c1_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_c, f1_z1_c = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and c1_face_y < f1_y1:
+                    t_c = max(0.0, (c1_face_y - f1_y0) / dy1)
+                    f1_y1_c = f1_y0 + t_c * dy1
+                    f1_z1_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c))
+                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_z1_c, **sp_kw))
             else:
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
                 f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
@@ -2040,16 +2043,17 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
+                # Clip end position to landing/post corner face
                 pc_face_y = f1_y1 - hp
-                if abs(dy1) > 1e-9:
-                    t_sp = (pc_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_oc, f1_z1_oc = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and pc_face_y < f1_y1:
+                    t_c = max(0.0, (pc_face_y - f1_y0) / dy1)
+                    f1_y1_oc = f1_y0 + t_c * dy1
+                    f1_z1_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc))
+                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_z1_oc, **sp_kw))
             else:
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
                 f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
@@ -2271,16 +2275,17 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
+                # Clip end position to corner1 newel post face
                 c1_face_y = corner1_y - c1_hp
-                if abs(dy1) > 1e-9:
-                    t_sp = (c1_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_c, f1_z1_c = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and c1_face_y < f1_y1:
+                    t_c = max(0.0, (c1_face_y - f1_y0) / dy1)
+                    f1_y1_c = f1_y0 + t_c * dy1
+                    f1_z1_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c))
+                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_c, f1_z1_c, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, c1_face_y, f1_z1_c, **sp_kw))
             else:
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
                 f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
@@ -2313,16 +2318,17 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1))
-                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
-                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
+                # Clip end position to landing/post corner face
                 pc_face_y = f1_y1 - hp
-                if abs(dy1) > 1e-9:
-                    t_sp = (pc_face_y - f1_y0) / dy1
-                    f1_sp_z1 = f1_z0 + t_sp * (f1_z1 - f1_z0)
-                else:
-                    f1_sp_z1 = f1_z1
-                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_sp_z1, **sp_kw))
+                f1_y1_oc, f1_z1_oc = f1_y1, f1_z1
+                if abs(dy1) > 1e-9 and pc_face_y < f1_y1:
+                    t_c = max(0.0, (pc_face_y - f1_y0) / dy1)
+                    f1_y1_oc = f1_y0 + t_c * dy1
+                    f1_z1_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc))
+                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_oc, f1_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, pc_face_y, f1_z1_oc, **sp_kw))
             # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
             # Terminate Y-piece flush with front face of X-piece stringer (X-piece masters)
             st2 = STRINGER_THICKNESS / 2
