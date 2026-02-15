@@ -2702,10 +2702,8 @@ def _preview_double_winder(p):
             pc_f2s_h = hr_pc_f2s + NEWEL_CAP
             meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
         else:
-            # Flat landing at turn 1 - match stub newel pattern
-            oc1_pitch = max((flight1_treads + 1) * rise + nzs_w,
-                           flight2_riser_start * rise + nzs_w)
-            oc1_h = oc1_pitch + STRINGER_PITCH_OFFSET + hr_rise + NEWEL_CAP - 350.0
+            # Flat landing at turn 1 - match height of pitch-change newel (pc1)
+            oc1_h = pc1_h  # Same height as pitch-change newel at flight 1 end
             meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
             hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
             pc_f2s_h = hr_pc_f2s + NEWEL_CAP
@@ -2727,15 +2725,13 @@ def _preview_double_winder(p):
             pc_f3s_h = hr_pc_f3s + NEWEL_CAP
             meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_f3s_h / 2, ns, ns, pc_f3s_h, "#8B7355"))
         else:
-            # Flat landing at turn 2 - match stub newel pattern
+            # Flat landing at turn 2 - match height of pitch-change newel (pc_t2a)
             outer_corner_y2_val = corner2_y + width
             hr_pc_t2a = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
             pc_t2a_h = hr_pc_t2a + NEWEL_CAP
             meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
-            # Outer corner 2 - match stub newel pattern
-            oc2_pitch = max((flight2_riser_start + flight2_treads) * rise + nzs_w,
-                           flight3_riser_start * rise + nzs_w)
-            oc2_h = oc2_pitch + STRINGER_PITCH_OFFSET + hr_rise + NEWEL_CAP - 350.0
+            # Outer corner 2 - same height as pitch-change newel at flight 2 end
+            oc2_h = pc_t2a_h  # Match height of pc_t2a
             meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
             # Pitch-change at flight 3 start
             hr_pc_t2b = flight3_riser_start * rise + nzs_w + hr_rise
