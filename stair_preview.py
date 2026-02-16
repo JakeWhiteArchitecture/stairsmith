@@ -1626,18 +1626,18 @@ def _preview_single_winder(p):
             meshes.append(_box_mesh(top_post_x, corner_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
         # Wall condition on inner side: add stub newel at corner (no stringers)
-        # Stub newel extends from just below lower stringer to just above upper stringer
+        # Stub newel spans from top of arriving stringer to bottom of departing stringer
         pitch_f1 = (flight1_treads + 1) * rise + nzs_hr
         pitch_f2 = flight2_start_riser * rise + nzs_hr
-        # Upper stringer (flight 1 coming down) bottom edge at landing
-        upper_stringer_bottom = pitch_f1 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
-        # Lower stringer (flight 2 going up) top edge at landing
-        lower_stringer_top = pitch_f2 + STRINGER_PITCH_OFFSET
-        # Stub extends from just below lower stringer to just above upper stringer
+        # Flight 1 stringer (arriving at landing) top edge
+        f1_stringer_top = pitch_f1 + STRINGER_PITCH_OFFSET
+        # Flight 2 stringer (departing from landing) bottom edge
+        f2_stringer_bottom = pitch_f2 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        # Stub extends from just below flight 1 top to just above flight 2 bottom
         gap_offset = 5.0  # mm clearance to avoid overlap
-        stub_bottom = lower_stringer_top - gap_offset
-        stub_top = upper_stringer_bottom + gap_offset
-        stub_h = stub_top - stub_bottom
+        stub_bottom = f1_stringer_top - gap_offset
+        stub_top = f2_stringer_bottom + gap_offset
+        stub_h = max(stub_top - stub_bottom, ns)  # Ensure minimum height of newel_size
         stub_z_center = (stub_top + stub_bottom) / 2
         meshes.append(_box_mesh(inner_x, corner_y, stub_z_center, ns, ns, stub_h, "#8B7355"))
         # Note: Stub stringers removed - they were causing green artifacts
@@ -2658,31 +2658,31 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(corner2_x, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
         # Wall condition on inner side: add stub newels at corners (no stringers)
-        # Corner 1 stub newel - extends from just below lower stringer to just above upper stringer
+        # Corner 1 stub newel - spans from top of arriving stringer to bottom of departing stringer
         pitch_c1_f1 = (flight1_treads + 1) * rise + nzs_hr
         pitch_c1_f2 = flight2_riser_start * rise + nzs_hr
-        # Upper stringer (flight 1 coming down) bottom edge at landing
-        upper_stringer_bottom_c1 = pitch_c1_f1 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
-        # Lower stringer (flight 2 going up) top edge at landing
-        lower_stringer_top_c1 = pitch_c1_f2 + STRINGER_PITCH_OFFSET
-        # Stub extends from just below lower stringer to just above upper stringer
+        # Flight 1 stringer (arriving at landing) top edge
+        f1_stringer_top_c1 = pitch_c1_f1 + STRINGER_PITCH_OFFSET
+        # Flight 2 stringer (departing from landing) bottom edge
+        f2_stringer_bottom_c1 = pitch_c1_f2 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        # Stub extends from just below flight 1 top to just above flight 2 bottom
         gap_offset = 5.0  # mm clearance to avoid overlap
-        stub_bottom_c1 = lower_stringer_top_c1 - gap_offset
-        stub_top_c1 = upper_stringer_bottom_c1 + gap_offset
-        stub_h_c1 = stub_top_c1 - stub_bottom_c1
+        stub_bottom_c1 = f1_stringer_top_c1 - gap_offset
+        stub_top_c1 = f2_stringer_bottom_c1 + gap_offset
+        stub_h_c1 = max(stub_top_c1 - stub_bottom_c1, ns)  # Ensure minimum height of newel_size
         stub_z_center_c1 = (stub_top_c1 + stub_bottom_c1) / 2
         meshes.append(_box_mesh(corner1_x, corner1_y, stub_z_center_c1, ns, ns, stub_h_c1, "#8B7355"))
-        # Corner 2 stub newel - extends from just below lower stringer to just above upper stringer
+        # Corner 2 stub newel - spans from top of arriving stringer to bottom of departing stringer
         pitch_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr
         pitch_c2_f3 = flight3_riser_start * rise + nzs_hr
-        # Upper stringer (flight 2 coming down) bottom edge at landing
-        upper_stringer_bottom_c2 = pitch_c2_f2 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
-        # Lower stringer (flight 3 going up) top edge at landing
-        lower_stringer_top_c2 = pitch_c2_f3 + STRINGER_PITCH_OFFSET
-        # Stub extends from just below lower stringer to just above upper stringer
-        stub_bottom_c2 = lower_stringer_top_c2 - gap_offset
-        stub_top_c2 = upper_stringer_bottom_c2 + gap_offset
-        stub_h_c2 = stub_top_c2 - stub_bottom_c2
+        # Flight 2 stringer (arriving at landing) top edge
+        f2_stringer_top_c2 = pitch_c2_f2 + STRINGER_PITCH_OFFSET
+        # Flight 3 stringer (departing from landing) bottom edge
+        f3_stringer_bottom_c2 = pitch_c2_f3 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        # Stub extends from just below flight 2 top to just above flight 3 bottom
+        stub_bottom_c2 = f2_stringer_top_c2 - gap_offset
+        stub_top_c2 = f3_stringer_bottom_c2 + gap_offset
+        stub_h_c2 = max(stub_top_c2 - stub_bottom_c2, ns)  # Ensure minimum height of newel_size
         stub_z_center_c2 = (stub_top_c2 + stub_bottom_c2) / 2
         meshes.append(_box_mesh(corner2_x, corner2_y, stub_z_center_c2, ns, ns, stub_h_c2, "#8B7355"))
         # Note: Stub stringers removed - they were causing green artifacts
