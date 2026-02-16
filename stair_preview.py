@@ -2060,11 +2060,16 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             # Outer corner newel position
             outer1_corner_y = corner1_y + width
+            # Landing stringer endpoints: use newel face when balustrade present, extended position otherwise
+            if turn1_dir == "left":
+                f2_landing_x_end = f2_x_first + hp if render_outer else f2_x_first_ext
+            else:
+                f2_landing_x_start = f2_x_first - hp if render_outer else f2_x_first_ext
             if turn1_dir == "left":
                 meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
                 # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_y1 - hp, outer1_corner_y - hp, landing1_z))
-                meshes.append(_stringer_landing_x(outer1_corner_y, f2_x_first_ext, f1_outer_x - st2, landing1_z))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f2_landing_x_end, f1_outer_x - st2, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
@@ -2079,7 +2084,7 @@ def _preview_double_winder(p):
                 meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
                 # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_y1 - hp, outer1_corner_y - hp, landing1_z))
-                meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x + st2, f2_x_first_ext, landing1_z))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x + st2, f2_landing_x_start, landing1_z))
                 if render_outer:
                     # Add handrails and baserails for landing when balustrade is present
                     # Run from newel post face to newel post face to eliminate gaps
