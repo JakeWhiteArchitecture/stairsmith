@@ -966,16 +966,14 @@ def _preview_straight(p):
             bot_face_y = bottom_post_y + hp
             top_face_y = top_post_y - hp
             dy = y1 - y0
-            # Stringer extends past bottom post toward floor (base extension)
+            # For balustrade, stringer terminates at rear face of bottom post (no extension)
             _slope = (z1 - z0) / (y1 - y0) if abs(y1 - y0) > 1e-9 else 0
-            y0_ext = y0 - WALL_STRINGER_EXTENSION
-            z0_ext = z0 - WALL_STRINGER_EXTENSION * _slope
-            drop = STRINGER_HEIGHT - STRINGER_PITCH_OFFSET
-            if z0_ext - drop < 0 and _slope > 1e-9:
-                max_ext = (z0 - drop) / _slope
-                max_ext = max(0.0, max_ext)
-                y0_ext = y0 - max_ext
-                z0_ext = z0 - max_ext * _slope
+            y0_stringer = bot_face_y
+            if abs(y1 - y0) > 1e-9:
+                t_stringer = (bot_face_y - y0) / (y1 - y0)
+                z0_stringer = z0 + t_stringer * (z1 - z0)
+            else:
+                z0_stringer = z0
             # Clip handrail/baserail/spindle start at bottom post face
             y0_c, z0_c = y0, z0
             if abs(dy) > 1e-9 and bot_face_y > y0:
@@ -988,7 +986,7 @@ def _preview_straight(p):
                 t_c = max(0.0, (top_face_y - y0) / dy)
                 y1_c = y0 + t_c * dy
                 z1_c = z0 + t_c * (z1 - z0)
-            meshes.append(_stringer_flight_y(x_pos, y0_ext, z0_ext, y1_c, z1_c,
+            meshes.append(_stringer_flight_y(x_pos, y0_stringer, z0_stringer, y1_c, z1_c,
                                              name=f"{side} Stringer F1", clip_z_min=0))
             # Handrail clip (using non-flushed endpoint)
             dy_nf = y1_nf - y0
@@ -1271,11 +1269,15 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post (like straight flight)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(inner_x, f1_y0_ext, f1_z0_ext, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
                 meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
                 meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
                 meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
@@ -1291,11 +1293,15 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(outer_x, f1_y0_ext, f1_z0_ext, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
                 meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **hr_kw))
                 meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **br_kw))
                 # Spindles: from bottom post face to pitch-change newel face
@@ -1422,11 +1428,15 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(inner_x, f1_y0_ext, f1_z0_ext, f1_y1, f1_z1, clip_z_min=0))
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1, f1_z1, clip_z_min=0))
                 meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
                 meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
                 meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **sp_kw))
@@ -1495,11 +1505,15 @@ def _preview_single_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(outer_x, f1_y0_ext, f1_z0_ext, f1_y1, f1_z1, clip_z_min=0))
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1, f1_z1, clip_z_min=0))
                 meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
                 meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
                 meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **sp_kw))
@@ -2027,11 +2041,15 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_ext, f1_z0_ext, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
                 meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
                 meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
                 meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
@@ -2046,11 +2064,15 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_ext, f1_z0_ext, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
                 meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **hr_kw))
                 meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **br_kw))
                 # Spindles: from bottom post face to pitch-change newel face
@@ -2307,11 +2329,15 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_c = f1_y0 + t_c * dy1
                     f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_ext, f1_z0_ext, f1_y1, f1_z1, clip_z_min=0))
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1, f1_z1, clip_z_min=0))
                 meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **hr_kw))
                 meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **br_kw))
                 meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1, f1_z1, **sp_kw))
@@ -2347,11 +2373,15 @@ def _preview_double_winder(p):
                     t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
                     f1_y0_oc = f1_y0 + t_c * dy1
                     f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
-                # Stringer extends backward past bottom post
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
                 _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
-                f1_y0_ext = f1_y0 - WALL_STRINGER_EXTENSION
-                f1_z0_ext = f1_z0 - WALL_STRINGER_EXTENSION * _slope
-                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_ext, f1_z0_ext, f1_y1, f1_z1, clip_z_min=0))
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1, f1_z1, clip_z_min=0))
                 meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
                 meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
                 meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **sp_kw))
