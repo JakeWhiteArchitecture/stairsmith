@@ -1626,10 +1626,12 @@ def _preview_single_winder(p):
             meshes.append(_box_mesh(top_post_x, corner_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
         # Wall condition on inner side: add stub newel at corner (no stringers)
-        # Stub newel: from 50mm below landing tread to tread surface level
+        # Stub newel: from 50mm below landing tread up to arriving stringer top
         landing_tread_surface = winder_start_riser * rise
-        stub_top = landing_tread_surface
+        pitch_f1 = (flight1_treads + 1) * rise + nzs_hr
+        f1_stringer_top = pitch_f1 + STRINGER_PITCH_OFFSET
         stub_bottom = landing_tread_surface - 50.0
+        stub_top = f1_stringer_top
         stub_h = stub_top - stub_bottom
         stub_z_center = (stub_top + stub_bottom) / 2
         meshes.append(_box_mesh(inner_x, corner_y, stub_z_center, ns, ns, stub_h, "#8B7355"))
@@ -2651,17 +2653,21 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(corner2_x, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
     else:
         # Wall condition on inner side: add stub newels at corners (no stringers)
-        # Corner 1 stub newel: from 50mm below landing tread to tread surface level
+        # Corner 1 stub newel: from 50mm below landing tread up to arriving stringer top
         landing1_tread_surface = turn1_winder_start * rise
-        stub_top_c1 = landing1_tread_surface
+        pitch_c1_f1 = (flight1_treads + 1) * rise + nzs_hr
+        f1_stringer_top_c1 = pitch_c1_f1 + STRINGER_PITCH_OFFSET
         stub_bottom_c1 = landing1_tread_surface - 50.0
+        stub_top_c1 = f1_stringer_top_c1
         stub_h_c1 = stub_top_c1 - stub_bottom_c1
         stub_z_center_c1 = (stub_top_c1 + stub_bottom_c1) / 2
         meshes.append(_box_mesh(corner1_x, corner1_y, stub_z_center_c1, ns, ns, stub_h_c1, "#8B7355"))
-        # Corner 2 stub newel: from 50mm below landing tread to tread surface level
+        # Corner 2 stub newel: from 50mm below landing tread up to arriving stringer top
         landing2_tread_surface = turn2_winder_start * rise
-        stub_top_c2 = landing2_tread_surface
+        pitch_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr
+        f2_stringer_top_c2 = pitch_c2_f2 + STRINGER_PITCH_OFFSET
         stub_bottom_c2 = landing2_tread_surface - 50.0
+        stub_top_c2 = f2_stringer_top_c2
         stub_h_c2 = stub_top_c2 - stub_bottom_c2
         stub_z_center_c2 = (stub_top_c2 + stub_bottom_c2) / 2
         meshes.append(_box_mesh(corner2_x, corner2_y, stub_z_center_c2, ns, ns, stub_h_c2, "#8B7355"))
