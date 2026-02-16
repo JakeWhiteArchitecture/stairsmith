@@ -2240,7 +2240,7 @@ def _preview_double_winder(p):
             # Outer corner newel position
             outer2_corner_y = corner2_y + width
             # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
-            meshes.append(_stringer_landing_y(f3_outer_x, outer2_corner_y - hp, f3_y_first_unclipped - hp, landing2_z))
+            meshes.append(_stringer_landing_y(f3_outer_x, outer2_corner_y - hp, f3_y_first_unclipped + hp, landing2_z))
             x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
             if f3_outer_x < x_inner_end:
                 # X stringer approaching from right, stop at right face of Y stringer
@@ -2261,9 +2261,9 @@ def _preview_double_winder(p):
             if render_outer:
                 # Add Y-direction landing handrail, baserail, and spindles
                 # Run from newel post face to newel post face to eliminate gaps
-                meshes.append(_handrail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped - hp, landing2_z, **hr_kw))
-                meshes.append(_baserail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped - hp, landing2_z, **br_kw))
-                meshes.extend(_spindles_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped - hp, landing2_z, **sp_kw))
+                meshes.append(_handrail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **hr_kw))
+                meshes.append(_baserail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **br_kw))
+                meshes.extend(_spindles_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **sp_kw))
 
             # === Flight 3 stringers (notched for threshold, flush with riser back) ===
             z_fl = riser_t * rise / (2 * going)
