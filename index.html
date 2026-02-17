@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IFC Staircase Generator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ─── LEFT PANEL ─── */
+        .panel {
+            width: 380px;
+            min-width: 380px;
+            background: #16213e;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #0f3460;
+        }
+
+        .panel-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .panel-actions {
+            padding: 12px 20px 16px;
+            border-top: 1px solid #0f3460;
+            background: #16213e;
+            flex-shrink: 0;
+        }
+
+        .panel h1 {
+            font-size: 18px;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+
+        .panel .subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .section h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #e94560;
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 3px;
+        }
+
+        .field input, .field select {
+            width: 100%;
+            padding: 6px 10px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .field input:focus, .field select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .field .unit {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .field-row .field {
+            flex: 1;
+        }
+
+        .derived {
+            background: #1a1a2e;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .derived span {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        /* ─── COMPLIANCE PANEL ─── */
+        .checks {
+            margin-top: 10px;
+        }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 12px;
+            border-bottom: 1px solid #0f346033;
+        }
+
+        .check-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .check-dot.pass { background: #4caf50; }
+        .check-dot.warn { background: #ff9800; }
+        .check-dot.fail { background: #f44336; }
+        .check-dot.info { background: #2196f3; }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #d63851;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #1a4a80;
+        }
+
+        /* ─── 3D VIEWPORT ─── */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: #0a0a1a;
+        }
+
+        .viewport canvas {
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        .viewport-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 11px;
+            color: #555;
+            z-index: 5;
+        }
+
+        .winder-options {
+            display: none;
+        }
+
+        .winder-options.visible {
+            display: block;
+        }
+
+        .turn2-options {
+            display: none;
+        }
+
+        .turn2-options.visible {
+            display: block;
+        }
+
+        .toggle-field {
+            margin-bottom: 8px;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .toggle-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+
+        .turn-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        /* ─── DIMENSION ANNOTATIONS ─── */
+        .dim-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 5;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.8;
+            border: 1px solid #0f3460;
+        }
+
+        .dim-overlay .dim-label {
+            color: #888;
+        }
+
+        .dim-overlay .dim-value {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        /* ─── IFC COUNTER ─── */
+        #ifc-counter {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            border: 1px solid #0f3460;
+            color: #aaa;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #ifc-counter strong {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        /* ─── MEASURE TOOL ─── */
+        .btn-measure {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-measure.active {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-measure.active:hover {
+            background: #d63851;
+        }
+
+        .measure-overlay {
+            display: none;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 5;
+            background: rgba(22, 33, 62, 0.95);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            border: 1px solid #e94560;
+            min-width: 180px;
+        }
+
+        .measure-overlay.visible {
+            display: block;
+        }
+
+        .measure-overlay .measure-title {
+            color: #e94560;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .measure-overlay .measure-result {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .measure-overlay .measure-hint {
+            color: #666;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .measure-overlay .measure-components {
+            color: #aaa;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .viewport.measuring {
+            cursor: crosshair;
+        }
+
+        /* ─── FLIGHT DISTRIBUTION ─── */
+        .dist-row {
+            display: flex;
+            align-items: center;
+            padding: 3px 0;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .dist-row strong {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        .dist-arrows {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 3px 0;
+        }
+
+        .dist-btn {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4a80;
+            border-radius: 4px;
+            width: 32px;
+            height: 24px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            padding: 0;
+        }
+
+        .dist-btn:hover:not(:disabled) {
+            background: #1a4a80;
+        }
+
+        .dist-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+      <div class="panel-scroll">
+        <h1>IFC Staircase Generator</h1>
+        <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
+
+        <!-- Staircase Type -->
+        <div class="section">
+            <h2>Staircase Type</h2>
+            <div class="field">
+                <select id="staircase_type" onchange="onTypeChange(); updatePreview();">
+                    <option value="straight">Straight Flight</option>
+                    <option value="single_winder">Single Winder (L-shape)</option>
+                    <option value="double_winder" selected>Double Winder (U-shape)</option>
+                </select>
+            </div>
+            <div class="field toggle-field" id="mirror-toggle-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="mirrored" onchange="updatePreview();">
+                    <span>Mirror staircase</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Flight Distribution -->
+        <div class="section" id="flight-dist-section" style="display:none;">
+            <h2>Flight Distribution</h2>
+            <div class="dist-row">
+                <span>Flight 1: <strong id="dist-f1">0</strong> steps</span>
+            </div>
+            <div class="dist-arrows">
+                <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
+                <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
+            </div>
+            <div class="dist-row">
+                <span>Flight 2: <strong id="dist-f2">0</strong> steps</span>
+            </div>
+            <div id="dist-f3-group" style="display:none;">
+                <div class="dist-arrows">
+                    <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
+                    <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
+                </div>
+                <div class="dist-row">
+                    <span>Flight 3: <strong id="dist-f3">0</strong> steps</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Parameters -->
+        <div class="section">
+            <h2>Dimensions</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Floor to Floor Height <span class="unit">mm</span></label>
+                    <input type="number" id="floor_to_floor" value="2700" min="2200" max="3200" step="10" oninput="updateDerived(); updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Number of Risers</label>
+                    <input type="number" id="num_risers" value="14" min="10" max="18" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Stair Width (outside to outside) <span class="unit">mm</span></label>
+                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Individual Going <span class="unit">mm</span></label>
+                    <input type="number" id="going" value="227" min="220" max="300" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Tread Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="tread_thickness" value="22" min="18" max="40" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Riser Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Nosing Overhang <span class="unit">mm</span></label>
+                    <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Landing Threshold <span class="unit">mm</span></label>
+                    <input type="number" id="threshold_depth" value="100" min="50" max="150" step="5" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>X <span class="unit">mm</span></label>
+                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
+                </div>
+                <div class="field">
+                    <label>Y <span class="unit">mm</span></label>
+                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
+                </div>
+            </div>
+            <div class="field">
+                <label>Newel Post Size <span class="unit">mm</span></label>
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
+            </div>
+
+        </div>
+
+        <!-- Balustrade -->
+        <div class="section">
+            <h2>Balustrade</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Left Side</label>
+                    <select id="left_condition" onchange="updatePreview();">
+                        <option value="balustrade">Balustrade</option>
+                        <option value="wall">Wall</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Right Side</label>
+                    <select id="right_condition" onchange="updatePreview();">
+                        <option value="wall" selected>Wall</option>
+                        <option value="balustrade">Balustrade</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Handrail Width <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_width" value="70" min="40" max="100" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Handrail Height <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_height" value="40" min="20" max="80" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Handrail Rise <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_rise" value="900" min="800" max="1100" step="10" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Spindle Width <span class="unit">mm</span></label>
+                    <input type="number" id="spindle_width" value="32" min="20" max="50" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Baserail Width <span class="unit">mm</span></label>
+                    <input type="number" id="baserail_width" value="50" min="30" max="100" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Baserail Height <span class="unit">mm</span></label>
+                    <input type="number" id="baserail_height" value="30" min="15" max="60" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+
+            <!-- Derived values -->
+            <div class="derived" id="derived-values">
+                <div><span class="dim-label">Individual Rise:</span> <span id="d-rise">200.0</span> mm</div>
+                <div><span class="dim-label">Pitch:</span> <span id="d-pitch">41.4</span>&deg;</div>
+                <div><span class="dim-label">Total Going:</span> <span id="d-total-going">2724</span> mm</div>
+            </div>
+        </div>
+
+        <!-- Winder Options -->
+        <div class="section winder-options" id="winder-options">
+            <h2>Turn 1</h2>
+            <div class="field toggle-field">
+                <label class="toggle-label">
+                    <input type="checkbox" id="turn1_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <span id="turn1-label">Winder treads</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="section turn2-options" id="turn2-options">
+            <h2>Turn 2</h2>
+            <div class="field toggle-field">
+                <label class="toggle-label">
+                    <input type="checkbox" id="turn2_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <span id="turn2-label">Winder treads</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Building Regs -->
+        <div class="section">
+            <h2>Building Regs (Doc K)</h2>
+            <div class="checks" id="checks-container">
+                <div class="check-item"><div class="check-dot info"></div> Enter parameters to check compliance</div>
+            </div>
+        </div>
+
+      </div>
+        <!-- Actions (pinned to bottom) -->
+        <div class="panel-actions">
+            <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
+        </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+        <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</div>
+        <div class="measure-overlay" id="measure-overlay">
+            <div class="measure-title">Measure</div>
+            <div class="measure-result" id="measure-result">--</div>
+            <div class="measure-components" id="measure-components"></div>
+            <div class="measure-hint" id="measure-hint">Click a point on the staircase</div>
+        </div>
+        <div class="dim-overlay" id="dim-overlay">
+            <div><span class="dim-label">Rise:</span> <span class="dim-value" id="dim-rise">200.0 mm</span></div>
+            <div><span class="dim-label">Going:</span> <span class="dim-value" id="dim-going">227 mm</span></div>
+            <div><span class="dim-label">Total Height:</span> <span class="dim-value" id="dim-height">2600 mm</span></div>
+            <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // ─── THREE.JS SETUP ───
+        let scene, camera, renderer, controls;
+        let staircaseGroup = null;
+        let updateTimeout = null;
+
+        function initThree() {
+            const container = document.getElementById('viewport');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+
+            camera = new THREE.PerspectiveCamera(45, w / h, 1, 50000);
+            camera.position.set(2000, 2000, 2000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(400, 1000, -500);
+            controls.update();
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambient);
+
+            const dir1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir1.position.set(2000, 3000, 1000);
+            scene.add(dir1);
+
+            const dir2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+            dir2.position.set(-1000, 1000, -2000);
+            scene.add(dir2);
+
+            // Ground grid
+            const grid = new THREE.GridHelper(5000, 50, 0x222244, 0x111133);
+            scene.add(grid);
+
+            // Axes helper
+            const axes = new THREE.AxesHelper(500);
+            scene.add(axes);
+
+            window.addEventListener('resize', () => {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function resetCamera() {
+            camera.position.set(2000, 2000, 2000);
+            controls.target.set(400, 1000, -500);
+            controls.update();
+        }
+
+        // ─── FLIGHT DISTRIBUTION ───
+        let flightDist = { f1: 0, f2: 0, f3: 0 };
+
+        function getStraightTreads() {
+            const type = document.getElementById('staircase_type').value;
+            const numTreads = parseInt(document.getElementById('num_risers').value) - 1;
+            if (type === 'single_winder') {
+                const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
+                return Math.max(0, numTreads - t1);
+            } else if (type === 'double_winder') {
+                const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
+                const t2 = document.getElementById('turn2_enabled').checked ? 3 : 0;
+                return Math.max(0, numTreads - t1 - t2);
+            }
+            return numTreads;
+        }
+
+        function redistributeFlights() {
+            const type = document.getElementById('staircase_type').value;
+            const st = getStraightTreads();
+            if (type === 'single_winder') {
+                flightDist.f1 = Math.floor(st / 2);
+                flightDist.f2 = st - flightDist.f1;
+                flightDist.f3 = 0;
+            } else if (type === 'double_winder') {
+                flightDist.f1 = Math.floor(st / 3);
+                flightDist.f2 = Math.floor(st / 3);
+                flightDist.f3 = st - flightDist.f1 - flightDist.f2;
+                if (flightDist.f2 < 1 && st > 0) {
+                    flightDist.f2 = 1;
+                    const rem = st - 1;
+                    flightDist.f1 = Math.floor(rem / 2);
+                    flightDist.f3 = rem - flightDist.f1;
+                }
+            } else {
+                flightDist.f1 = st;
+                flightDist.f2 = 0;
+                flightDist.f3 = 0;
+            }
+            updateFlightDistUI();
+        }
+
+        function ensureFlightDistValid() {
+            const st = getStraightTreads();
+            const type = document.getElementById('staircase_type').value;
+            let total;
+            if (type === 'double_winder') {
+                total = flightDist.f1 + flightDist.f2 + flightDist.f3;
+            } else {
+                total = flightDist.f1 + flightDist.f2;
+            }
+            if (total !== st) {
+                redistributeFlights();
+            } else {
+                updateFlightDistUI();
+            }
+        }
+
+        function transferStep(fromFlight, toFlight) {
+            const type = document.getElementById('staircase_type').value;
+            const minF2 = (type === 'double_winder') ? 1 : 0;
+            const mins = { f1: 0, f2: minF2, f3: 0 };
+            const fromKey = 'f' + fromFlight;
+            const toKey = 'f' + toFlight;
+            if (flightDist[fromKey] > mins[fromKey]) {
+                flightDist[fromKey]--;
+                flightDist[toKey]++;
+                updateFlightDistUI();
+                updatePreview();
+            }
+        }
+
+        function updateFlightDistUI() {
+            const type = document.getElementById('staircase_type').value;
+            const section = document.getElementById('flight-dist-section');
+            if (type === 'straight') {
+                section.style.display = 'none';
+                return;
+            }
+            section.style.display = 'block';
+            document.getElementById('dist-f3-group').style.display =
+                (type === 'double_winder') ? 'block' : 'none';
+
+            document.getElementById('dist-f1').textContent = flightDist.f1;
+            document.getElementById('dist-f2').textContent = flightDist.f2;
+            document.getElementById('dist-f3').textContent = flightDist.f3;
+
+            const minF2 = (type === 'double_winder') ? 1 : 0;
+            // F1 ↔ F2 buttons
+            document.getElementById('btn-f1-to-f2').disabled = (flightDist.f1 <= 0);
+            document.getElementById('btn-f2-to-f1').disabled = (flightDist.f2 <= minF2);
+            if (type === 'double_winder') {
+                // F2 ↔ F3 buttons
+                document.getElementById('btn-f2-to-f3').disabled = (flightDist.f2 <= minF2);
+                document.getElementById('btn-f3-to-f2').disabled = (flightDist.f3 <= 0);
+            }
+        }
+
+        // ─── PARAMETER GATHERING ───
+        function getParams() {
+            return {
+                floor_to_floor: parseFloat(document.getElementById('floor_to_floor').value),
+                stair_width: parseFloat(document.getElementById('stair_width').value),
+                num_risers: parseInt(document.getElementById('num_risers').value),
+                going: parseFloat(document.getElementById('going').value),
+                tread_thickness: parseFloat(document.getElementById('tread_thickness').value),
+                riser_thickness: parseFloat(document.getElementById('riser_thickness').value),
+                nosing: parseFloat(document.getElementById('nosing').value),
+                threshold_depth: parseFloat(document.getElementById('threshold_depth').value),
+                staircase_type: document.getElementById('staircase_type').value,
+                turn1_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
+                turn1_enabled: document.getElementById('turn1_enabled').checked,
+                turn2_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
+                turn2_enabled: document.getElementById('turn2_enabled').checked,
+                newel_size: parseFloat(document.getElementById('newel_size').value),
+                winder_x: parseFloat(document.getElementById('winder_x').value),
+                winder_y: parseFloat(document.getElementById('winder_y').value),
+                flight1_steps: flightDist.f1,
+                flight2_steps: flightDist.f2,
+                flight3_steps: flightDist.f3,
+                handrail_width: parseFloat(document.getElementById('handrail_width').value),
+                handrail_height: parseFloat(document.getElementById('handrail_height').value),
+                handrail_rise: parseFloat(document.getElementById('handrail_rise').value),
+                baserail_width: parseFloat(document.getElementById('baserail_width').value),
+                baserail_height: parseFloat(document.getElementById('baserail_height').value),
+                spindle_width: parseFloat(document.getElementById('spindle_width').value),
+                left_condition: document.getElementById('left_condition').value,
+                right_condition: document.getElementById('right_condition').value,
+            };
+        }
+
+        function updateDerived() {
+            const ftf = parseFloat(document.getElementById('floor_to_floor').value);
+            const risers = parseInt(document.getElementById('num_risers').value);
+            const going = parseFloat(document.getElementById('going').value);
+            const rise = ftf / risers;
+            const pitch = Math.atan2(rise, going) * 180 / Math.PI;
+            const treads = risers - 1;
+            const totalGoing = treads * going;
+
+            document.getElementById('d-rise').textContent = rise.toFixed(1);
+            document.getElementById('d-pitch').textContent = pitch.toFixed(1);
+            document.getElementById('d-total-going').textContent = totalGoing.toFixed(0);
+
+            // Dimension overlay
+            document.getElementById('dim-rise').textContent = rise.toFixed(1) + ' mm';
+            document.getElementById('dim-going').textContent = going + ' mm';
+            document.getElementById('dim-height').textContent = ftf + ' mm';
+            document.getElementById('dim-width').textContent = document.getElementById('stair_width').value + ' mm';
+
+            // Revalidate flight distribution when risers change
+            ensureFlightDistValid();
+        }
+
+        function onTypeChange() {
+            const type = document.getElementById('staircase_type').value;
+            const winderOpts = document.getElementById('winder-options');
+            const turn2Opts = document.getElementById('turn2-options');
+            const mirrorRow = document.getElementById('mirror-toggle-row');
+
+            winderOpts.classList.toggle('visible', type !== 'straight');
+            turn2Opts.classList.toggle('visible', type === 'double_winder');
+            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
+
+            // Update turn labels and reset flight distribution
+            updateToggleState();
+            redistributeFlights();
+        }
+
+        function updateToggleState() {
+            const t1 = document.getElementById('turn1_enabled').checked;
+            const t2 = document.getElementById('turn2_enabled').checked;
+            document.getElementById('turn1-label').textContent = t1 ? 'Winder treads' : 'Level landings';
+            document.getElementById('turn2-label').textContent = t2 ? 'Winder treads' : 'Level landings';
+            ensureFlightDistValid();
+        }
+
+        // ─── 3D PREVIEW UPDATE ───
+        let winderDebounceTimer = null;
+        function winderInputChanged() {
+            // 1-second debounce for Winder X/Y to let user finish input
+            if (winderDebounceTimer) clearTimeout(winderDebounceTimer);
+            winderDebounceTimer = setTimeout(updatePreview, 1000);
+        }
+
+        function updatePreview() {
+            // Debounce
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(_doUpdate, 150);
+        }
+
+        function _doUpdate() {
+            const params = getParams();
+
+            // Update building regs
+            fetch('/api/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) renderChecks(data.checks);
+            })
+            .catch(() => {});
+
+            // Update 3D preview
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) renderGeometry(data.geometry);
+            })
+            .catch(() => {});
+
+            updateDerived();
+        }
+
+        function renderChecks(checks) {
+            const container = document.getElementById('checks-container');
+            container.innerHTML = '';
+            checks.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'check-item';
+                div.innerHTML = `<div class="check-dot ${c.status}"></div><span>${c.message}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function renderGeometry(meshes) {
+            // Remove old geometry
+            if (staircaseGroup) {
+                scene.remove(staircaseGroup);
+                staircaseGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+
+            staircaseGroup = new THREE.Group();
+
+            meshes.forEach(m => {
+                if (m.type === 'box') {
+                    const geo = new THREE.BoxGeometry(m.size[0], m.size[1], m.size[2]);
+                    const mat = new THREE.MeshPhongMaterial({
+                        color: new THREE.Color(m.color),
+                        flatShading: true,
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(m.position[0], m.position[1], m.position[2]);
+                    staircaseGroup.add(mesh);
+
+                    // Wireframe edge
+                    const edges = new THREE.EdgesGeometry(geo);
+                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+                    line.position.copy(mesh.position);
+                    staircaseGroup.add(line);
+
+                } else if (m.type === 'winder_polygon') {
+                    const polyMesh = createWinderPolygonMesh(m);
+                    if (polyMesh) staircaseGroup.add(polyMesh);
+
+                } else if (m.type === 'stringer') {
+                    const strMesh = createStringerMesh(m);
+                    if (strMesh) staircaseGroup.add(strMesh);
+
+                } else if (m.type === 'winder' || m.type === 'winder_turn2') {
+                    const winderMesh = createWinderMesh(m);
+                    if (winderMesh) staircaseGroup.add(winderMesh);
+                }
+            });
+
+            scene.add(staircaseGroup);
+        }
+
+        function createWinderPolygonMesh(m) {
+            // Render a winder tread from an explicit 2D profile polygon.
+            // Profile points are in IFC coordinates (X, Y). Z is the base height.
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.lineTo(pts[0][0], pts[0][1]);
+
+            const extrudeSettings = {
+                depth: m.thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal (Y-up in Three.js).
+            mesh.rotation.x = -Math.PI / 2;
+            // Position: IFC Z maps to Three.js Y
+            mesh.position.set(0, m.z, 0);
+
+            // Add wireframe edges
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.x = -Math.PI / 2;
+            line.position.set(0, m.z, 0);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
+        }
+
+        function createStringerMesh(m) {
+            // Stringer: side profile in IFC Y-Z plane, extruded by thickness in X.
+            // m.profile = [[y,z], ...] in IFC coords
+            // m.x = IFC X position of the stringer centre
+            // m.thickness = extrusion depth (25mm)
+            // m.axis = 'y' (extrude along IFC Y) or 'x' (extrude along IFC X, default)
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.closePath();
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: m.thickness,
+                bevelEnabled: false,
+            });
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            if (m.axis === 'y') {
+                // Profile in IFC X-Z plane, extrude along IFC +Y (Three.js -Z).
+                // No rotation: local X→X, local Y→Y (IFC Z→Three Y), extrude→+Z.
+                // Position so extrusion spans from Three.js Z = -m.y to -(m.y+thickness).
+                mesh.position.set(0, 0, -(m.y + m.thickness));
+            } else {
+                // Profile in IFC Y-Z plane, extrude along IFC +X (Three.js +X).
+                // Rotate Y 90°: local X (IFC Y)→-Z, local Y (IFC Z)→+Y, extrude→+X.
+                mesh.rotation.y = Math.PI / 2;
+                mesh.position.set(m.x, 0, 0);
+            }
+
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.copy(mesh.rotation);
+            line.position.copy(mesh.position);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
+        }
+
+        function createWinderMesh(m) {
+            const width = m.width;
+            const thickness = m.thickness;
+            const aStart = m.angleStart;
+            const aEnd = m.angleEnd;
+            const color = m.color;
+            const hp = m.halfPost || 0;
+            const quarter = Math.PI / 4;
+            const eps = 1e-9;
+
+            const shape = new THREE.Shape();
+
+            // Shape coords (local_x, local_y) map to IFC (X, Y) offsets from pivot.
+            // If halfPost > 0, inner tip wraps around the newel post.
+
+            if (m.type === 'winder') {
+                const turnDir = m.turnDirection || 'left';
+                const xSign = turnDir === 'left' ? 1 : -1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
+
+                function outer1(angle) {
+                    if (angle < eps) return [xSign * width, 0];
+                    if (angle > Math.PI / 2 - eps) return [0, width];
+                    if (angle < quarter)
+                        return [xSign * width, width * Math.tan(angle)];
+                    return [xSign * width / Math.tan(angle), width];
+                }
+
+                if (hp <= 0) {
+                    const s = outer1(aStart), e = outer1(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner1(angle) {
+                        if (angle < eps) return [xSign * hp, 0];
+                        if (angle > Math.PI / 2 - eps) return [0, hp];
+                        if (angle < quarter)
+                            return [xSign * hp, hp * Math.tan(angle)];
+                        return [xSign * hp / Math.tan(angle), hp];
+                    }
+                    const iS = inner1(aStart), oS = outer1(aStart);
+                    const oE = outer1(aEnd), iE = inner1(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
+                }
+            } else {
+                // Turn 2 winder
+                const t1d = m.turn1Direction || 'left';
+                const t2d = m.turn2Direction || 'left';
+                const xSign = ((t1d === 'left' && t2d === 'left') ||
+                               (t1d === 'right' && t2d === 'left')) ? -1 : 1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
+
+                function outer2(angle) {
+                    if (angle < eps) return [0, width];
+                    if (angle > Math.PI / 2 - eps) return [xSign * width, 0];
+                    if (angle < quarter)
+                        return [xSign * width * Math.tan(angle), width];
+                    return [xSign * width, width / Math.tan(angle)];
+                }
+
+                if (hp <= 0) {
+                    const s = outer2(aStart), e = outer2(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner2(angle) {
+                        if (angle < eps) return [0, hp];
+                        if (angle > Math.PI / 2 - eps) return [xSign * hp, 0];
+                        if (angle < quarter)
+                            return [xSign * hp * Math.tan(angle), hp];
+                        return [xSign * hp, hp / Math.tan(angle)];
+                    }
+                    const iS = inner2(aStart), oS = outer2(aStart);
+                    const oE = outer2(aEnd), iE = inner2(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
+                }
+            }
+
+            const extrudeSettings = {
+                depth: thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal.
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(m.position[0], m.position[1], m.position[2]);
+
+            return mesh;
+        }
+
+        // ─── MEASURE TOOL ───
+        let measureActive = false;
+        let measurePoints = [];      // array of THREE.Vector3 (0, 1, or 2 points)
+        let measureGroup = null;     // THREE.Group for markers + line
+        let snapMarker = null;       // visual snap indicator
+        const SNAP_RADIUS = 30;      // pixel radius for vertex snapping
+
+        function toggleMeasure() {
+            measureActive = !measureActive;
+            const overlay = document.getElementById('measure-overlay');
+            const viewport = document.getElementById('viewport');
+
+            overlay.classList.toggle('visible', measureActive);
+            viewport.classList.toggle('measuring', measureActive);
+
+            if (measureActive) {
+                clearMeasurement();
+                document.getElementById('measure-hint').textContent = 'Click a corner or edge — snaps to vertices';
+                document.getElementById('measure-result').textContent = '--';
+                document.getElementById('measure-components').textContent = '';
+                document.getElementById('viewport').addEventListener('mousemove', onMeasureHover);
+            } else {
+                clearMeasurement();
+                removeSnapMarker();
+                document.getElementById('viewport').removeEventListener('mousemove', onMeasureHover);
+            }
+        }
+
+        function clearMeasurement() {
+            measurePoints = [];
+            if (measureGroup) {
+                scene.remove(measureGroup);
+                measureGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                measureGroup = null;
+            }
+        }
+
+        function removeSnapMarker() {
+            if (snapMarker) {
+                scene.remove(snapMarker);
+                if (snapMarker.geometry) snapMarker.geometry.dispose();
+                if (snapMarker.material) snapMarker.material.dispose();
+                snapMarker = null;
+            }
+        }
+
+        function showSnapMarker(point) {
+            removeSnapMarker();
+            const geo = new THREE.SphereGeometry(6, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.9 });
+            snapMarker = new THREE.Mesh(geo, mat);
+            snapMarker.position.copy(point);
+            scene.add(snapMarker);
+        }
+
+        function getWorldVertices(mesh) {
+            // Extract unique world-space vertices from a mesh's geometry
+            const geo = mesh.geometry;
+            const verts = [];
+            const seen = new Set();
+            if (geo.index) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < geo.index.count; i++) {
+                    const idx = geo.index.getX(i);
+                    const key = idx;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, idx);
+                    mesh.localToWorld(v);
+                    verts.push(v);
+                }
+            } else if (geo.attributes.position) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                    mesh.localToWorld(v);
+                    // Deduplicate by rounding to 0.1mm
+                    const k = Math.round(v.x*10) + ',' + Math.round(v.y*10) + ',' + Math.round(v.z*10);
+                    if (!seen.has(k)) {
+                        seen.add(k);
+                        verts.push(v);
+                    }
+                }
+            }
+            return verts;
+        }
+
+        function findSnapPoint(mouse, raycaster) {
+            // Cast ray to find hit surface, then snap to nearest vertex
+            const intersects = raycaster.intersectObjects(staircaseGroup.children, true);
+            if (intersects.length === 0) return null;
+
+            const hit = intersects[0];
+            const hitPoint = hit.point.clone();
+
+            // Collect vertices from the hit mesh and nearby meshes
+            let candidates = [];
+
+            // Get vertices from the hit object
+            if (hit.object && hit.object.geometry) {
+                candidates = candidates.concat(getWorldVertices(hit.object));
+            }
+
+            // Also check sibling meshes near the hit point for edge/corner snapping
+            if (hit.object.parent) {
+                hit.object.parent.traverse(child => {
+                    if (child === hit.object) return;
+                    if (!child.geometry || !child.geometry.attributes) return;
+                    // Only consider nearby geometry (within stair width distance)
+                    if (child.position.distanceTo(hit.object.position) < 2000) {
+                        candidates = candidates.concat(getWorldVertices(child));
+                    }
+                });
+            }
+
+            // Find closest vertex to the hit point in screen space
+            let bestDist = Infinity;
+            let bestVert = null;
+
+            // Project hit point to screen
+            const hitScreen = hitPoint.clone().project(camera);
+
+            for (const v of candidates) {
+                const vScreen = v.clone().project(camera);
+                const dx = (vScreen.x - hitScreen.x) * renderer.domElement.width / 2;
+                const dy = (vScreen.y - hitScreen.y) * renderer.domElement.height / 2;
+                const screenDist = Math.sqrt(dx * dx + dy * dy);
+
+                if (screenDist < SNAP_RADIUS && screenDist < bestDist) {
+                    bestDist = screenDist;
+                    bestVert = v;
+                }
+            }
+
+            return bestVert || hitPoint;
+        }
+
+        function onMeasureHover(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const snap = findSnapPoint(mouse, raycaster);
+            if (snap) {
+                showSnapMarker(snap);
+            } else {
+                removeSnapMarker();
+            }
+        }
+
+        function addMeasureMarker(point, color) {
+            if (!measureGroup) {
+                measureGroup = new THREE.Group();
+                scene.add(measureGroup);
+            }
+            const geo = new THREE.SphereGeometry(8, 12, 12);
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+            const sphere = new THREE.Mesh(geo, mat);
+            sphere.position.copy(point);
+            measureGroup.add(sphere);
+        }
+
+        function drawMeasureLine(a, b) {
+            if (!measureGroup) return;
+            const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const mat = new THREE.LineBasicMaterial({ color: 0xff4466, linewidth: 2 });
+            const line = new THREE.Line(geo, mat);
+            measureGroup.add(line);
+
+            // Dashed axis-aligned extension lines for clarity
+            const dashMat = new THREE.LineDashedMaterial({
+                color: 0xff446666, dashSize: 10, gapSize: 6
+            });
+
+            // Horizontal component line (along XZ at a.y)
+            if (Math.abs(a.x - b.x) > 1 || Math.abs(a.z - b.z) > 1) {
+                const hPts = [a, new THREE.Vector3(b.x, a.y, b.z)];
+                const hGeo = new THREE.BufferGeometry().setFromPoints(hPts);
+                const hLine = new THREE.Line(hGeo, dashMat);
+                hLine.computeLineDistances();
+                measureGroup.add(hLine);
+
+                // Vertical drop from b to the horizontal projection
+                const vPts = [new THREE.Vector3(b.x, a.y, b.z), b];
+                const vGeo = new THREE.BufferGeometry().setFromPoints(vPts);
+                const vLine = new THREE.Line(vGeo, dashMat);
+                vLine.computeLineDistances();
+                measureGroup.add(vLine);
+            }
+        }
+
+        function onMeasureClick(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const hitPoint = findSnapPoint(mouse, raycaster);
+            if (!hitPoint) return;
+            removeSnapMarker();
+
+            if (measurePoints.length < 2) {
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, measurePoints.length === 1 ? 0x44ff66 : 0xff4466);
+
+                if (measurePoints.length === 1) {
+                    document.getElementById('measure-hint').textContent = 'Click a second point';
+                    document.getElementById('measure-result').textContent = 'A set';
+                } else {
+                    // Two points — compute distance
+                    const a = measurePoints[0];
+                    const b = measurePoints[1];
+                    drawMeasureLine(a, b);
+
+                    const dist = a.distanceTo(b);
+                    const dx = Math.abs(a.x - b.x);
+                    const dy = Math.abs(a.y - b.y); // Three.js Y = height
+                    const dz = Math.abs(a.z - b.z);
+                    // Horizontal distance in Three.js XZ plane
+                    const horiz = Math.sqrt(dx * dx + dz * dz);
+
+                    document.getElementById('measure-result').textContent = dist.toFixed(0) + ' mm';
+                    document.getElementById('measure-components').textContent =
+                        'H: ' + horiz.toFixed(0) + ' mm  |  V: ' + dy.toFixed(0) + ' mm';
+                    document.getElementById('measure-hint').textContent = 'Click to start new measurement';
+                }
+            } else {
+                // Reset and start new measurement
+                clearMeasurement();
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, 0x44ff66);
+                document.getElementById('measure-hint').textContent = 'Click a second point';
+                document.getElementById('measure-result').textContent = 'A set';
+                document.getElementById('measure-components').textContent = '';
+            }
+        }
+
+        // Attach measure click handler to the viewport
+        document.getElementById('viewport').addEventListener('click', onMeasureClick);
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.key === 'm' || e.key === 'M') toggleMeasure();
+            if (e.key === 'Escape' && measureActive) toggleMeasure();
+        });
+
+        // ─── IFC DOWNLOAD ───
+        function fetchIFCCount() {
+            fetch('/api/ifc_count')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('ifc-count-val').textContent = data.count;
+            })
+            .catch(() => {});
+        }
+
+        function downloadIFC() {
+            const params = getParams();
+            const btn = document.querySelector('.btn-primary');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+
+            fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Generation failed');
+                return response.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'staircase.ifc';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                fetchIFCCount();
+            })
+            .catch(err => {
+                alert('Error generating IFC: ' + err.message);
+            })
+            .finally(() => {
+                btn.textContent = 'Download IFC File';
+                btn.disabled = false;
+            });
+        }
+
+        // ─── INIT ───
+        initThree();
+
+        // Inject counter AFTER canvas so it sits on top in DOM order
+        (function() {
+            const el = document.createElement('div');
+            el.id = 'ifc-counter';
+            el.innerHTML = 'IFC files generated: <strong id="ifc-count-val">--</strong>';
+            document.getElementById('viewport').appendChild(el);
+        })();
+
+        onTypeChange();
+        updateToggleState();
+        updateDerived();
+        updatePreview();
+        fetchIFCCount();
+    </script>
+</body>
+</html>
