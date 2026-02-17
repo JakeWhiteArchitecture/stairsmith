@@ -56,6 +56,26 @@ def index():
     return resp
 
 
+@app.route("/stair_preview.py")
+def serve_stair_preview():
+    """Serve stair_preview.py so the Pyodide frontend can fetch it."""
+    from flask import send_from_directory
+    resp = send_from_directory(os.path.dirname(__file__), "stair_preview.py",
+                               mimetype="text/plain")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
+@app.route("/ifc_generator.py")
+def serve_ifc_generator():
+    """Serve ifc_generator.py so the Pyodide frontend can fetch it for IFC export."""
+    from flask import send_from_directory
+    resp = send_from_directory(os.path.dirname(__file__), "ifc_generator.py",
+                               mimetype="text/plain")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/api/preview", methods=["POST"])
 def preview():
     """
