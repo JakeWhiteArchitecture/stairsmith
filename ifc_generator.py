@@ -2792,15 +2792,6 @@ def check_building_regs(params):
         pitch_msg += " — Exceeds maximum 42° for private staircase"
     checks.append({"name": "Pitch", "status": pitch_status, "message": pitch_msg, "value": round(pitch_deg, 1)})
 
-    # 2R + G formula: should be 550-700mm
-    two_r_g = 2 * rise + going
-    formula_status = "pass"
-    formula_msg = f"2R + G = {two_r_g:.0f}mm"
-    if two_r_g < 550 or two_r_g > 700:
-        formula_status = "warn"
-        formula_msg += f" — Outside comfortable range 550-700mm"
-    checks.append({"name": "2R + G", "status": formula_status, "message": formula_msg, "value": round(two_r_g, 0)})
-
     # Stair Width: min 600mm
     width_status = "pass"
     width_msg = f"Stair width: {width:.0f}mm"

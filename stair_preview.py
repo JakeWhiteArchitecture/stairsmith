@@ -41,7 +41,7 @@ def generate_preview_geometry(params):
 def _parse(params):
     p = {}
     p["floor_to_floor"] = float(params.get("floor_to_floor", 2700))
-    p["stair_width"] = float(params.get("stair_width", 865))
+    p["stair_width"] = float(params.get("stair_width", 900))
     p["num_risers"] = int(params.get("num_risers", 14))
     p["going"] = float(params.get("going", 227))
     p["tread_thickness"] = float(params.get("tread_thickness", 22))
@@ -897,7 +897,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
 def _preview_straight(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
@@ -1043,7 +1043,7 @@ def _preview_straight(p):
 def _preview_single_winder(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
@@ -1675,7 +1675,7 @@ def _preview_single_winder(p):
 def _preview_double_winder(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
@@ -3115,15 +3115,6 @@ def check_building_regs(params):
         pitch_status = "warn"
         pitch_msg += " — Exceeds maximum 42° for private staircase"
     checks.append({"name": "Pitch", "status": pitch_status, "message": pitch_msg, "value": round(pitch_deg, 1)})
-
-    # 2R + G formula: should be 550-700mm
-    two_r_g = 2 * rise + going
-    formula_status = "pass"
-    formula_msg = f"2R + G = {two_r_g:.0f}mm"
-    if two_r_g < 550 or two_r_g > 700:
-        formula_status = "warn"
-        formula_msg += f" — Outside comfortable range 550-700mm"
-    checks.append({"name": "2R + G", "status": formula_status, "message": formula_msg, "value": round(two_r_g, 0)})
 
     # Stair Width: min 600mm
     width_status = "pass"

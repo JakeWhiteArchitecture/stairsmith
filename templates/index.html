@@ -385,6 +385,12 @@
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
                 </select>
             </div>
+            <div class="field toggle-field" id="mirror-toggle-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="mirrored" onchange="updatePreview();">
+                    <span>Mirror staircase</span>
+                </label>
+            </div>
         </div>
 
         <!-- Flight Distribution -->
@@ -426,8 +432,8 @@
             </div>
             <div class="field-row">
                 <div class="field">
-                    <label>Stair Width <span class="unit">mm</span></label>
-                    <input type="number" id="stair_width" value="865" min="600" max="1000" step="10" oninput="updatePreview();">
+                    <label>Stair Width (outside to outside) <span class="unit">mm</span></label>
+                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" oninput="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Individual Going <span class="unit">mm</span></label>
@@ -456,18 +462,18 @@
             </div>
             <div class="field-row">
                 <div class="field">
-                    <label>Newel Post Size <span class="unit">mm</span></label>
-                    <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
-                </div>
-                <div class="field">
                     <label>Winder X <span class="unit">mm</span></label>
                     <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
+                </div>
+                <div class="field">
+                    <label>Winder Y <span class="unit">mm</span></label>
+                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
-                    <label>Winder Y <span class="unit">mm</span></label>
-                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
+                    <label>Newel Post Size <span class="unit">mm</span></label>
+                    <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
                 </div>
                 <div class="field"></div>
             </div>
@@ -528,7 +534,6 @@
             <div class="derived" id="derived-values">
                 <div><span class="dim-label">Individual Rise:</span> <span id="d-rise">200.0</span> mm</div>
                 <div><span class="dim-label">Pitch:</span> <span id="d-pitch">41.4</span>&deg;</div>
-                <div><span class="dim-label">2R + G:</span> <span id="d-2rg">627</span> mm</div>
                 <div><span class="dim-label">Total Going:</span> <span id="d-total-going">2724</span> mm</div>
             </div>
         </div>
@@ -539,19 +544,8 @@
             <div class="field toggle-field">
                 <label class="toggle-label">
                     <input type="checkbox" id="turn1_enabled" checked onchange="updateToggleState(); updatePreview();">
-                    <span>Enable winder treads</span>
+                    <span id="turn1-label">Winder treads</span>
                 </label>
-            </div>
-            <div id="turn1-details">
-                <div class="field-row">
-                    <div class="field">
-                        <label>Direction</label>
-                        <select id="turn1_direction" onchange="updatePreview();">
-                            <option value="left" selected>Left</option>
-                            <option value="right">Right</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -560,19 +554,8 @@
             <div class="field toggle-field">
                 <label class="toggle-label">
                     <input type="checkbox" id="turn2_enabled" checked onchange="updateToggleState(); updatePreview();">
-                    <span>Enable winder treads</span>
+                    <span id="turn2-label">Winder treads</span>
                 </label>
-            </div>
-            <div id="turn2-details">
-                <div class="field-row">
-                    <div class="field">
-                        <label>Direction</label>
-                        <select id="turn2_direction" onchange="updatePreview();">
-                            <option value="left" selected>Left</option>
-                            <option value="right">Right</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -590,6 +573,11 @@
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
             <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
         </div>
+    </div>
+
+    <!-- IFC counter -->
+    <div id="ifc-counter" style="position:fixed;bottom:16px;right:16px;background:rgba(10,10,26,0.85);color:#aaa;padding:8px 14px;border-radius:6px;font-size:12px;z-index:200;border:1px solid #1a1a3a;">
+        IFC files generated: <strong id="ifc-count-val">--</strong>
     </div>
 
     <div class="viewport" id="viewport">
@@ -793,9 +781,9 @@
                 nosing: parseFloat(document.getElementById('nosing').value),
                 threshold_depth: parseFloat(document.getElementById('threshold_depth').value),
                 staircase_type: document.getElementById('staircase_type').value,
-                turn1_direction: document.getElementById('turn1_direction').value,
+                turn1_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
                 turn1_enabled: document.getElementById('turn1_enabled').checked,
-                turn2_direction: document.getElementById('turn2_direction').value,
+                turn2_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
                 turn2_enabled: document.getElementById('turn2_enabled').checked,
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
@@ -820,13 +808,11 @@
             const going = parseFloat(document.getElementById('going').value);
             const rise = ftf / risers;
             const pitch = Math.atan2(rise, going) * 180 / Math.PI;
-            const twoRG = 2 * rise + going;
             const treads = risers - 1;
             const totalGoing = treads * going;
 
             document.getElementById('d-rise').textContent = rise.toFixed(1);
             document.getElementById('d-pitch').textContent = pitch.toFixed(1);
-            document.getElementById('d-2rg').textContent = twoRG.toFixed(0);
             document.getElementById('d-total-going').textContent = totalGoing.toFixed(0);
 
             // Dimension overlay
@@ -843,21 +829,22 @@
             const type = document.getElementById('staircase_type').value;
             const winderOpts = document.getElementById('winder-options');
             const turn2Opts = document.getElementById('turn2-options');
+            const mirrorRow = document.getElementById('mirror-toggle-row');
 
             winderOpts.classList.toggle('visible', type !== 'straight');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
+            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
 
-            // Toggle detail visibility based on checkbox
+            // Update turn labels and reset flight distribution
             updateToggleState();
-            // Reset flight distribution for new type
             redistributeFlights();
         }
 
         function updateToggleState() {
             const t1 = document.getElementById('turn1_enabled').checked;
             const t2 = document.getElementById('turn2_enabled').checked;
-            document.getElementById('turn1-details').classList.toggle('turn-disabled', !t1);
-            document.getElementById('turn2-details').classList.toggle('turn-disabled', !t2);
+            document.getElementById('turn1-label').textContent = t1 ? 'Winder treads' : 'Level landings';
+            document.getElementById('turn2-label').textContent = t2 ? 'Winder treads' : 'Level landings';
             ensureFlightDistValid();
         }
 
@@ -1432,6 +1419,15 @@
         });
 
         // ─── IFC DOWNLOAD ───
+        function fetchIFCCount() {
+            fetch('/api/ifc_count')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('ifc-count-val').textContent = data.count;
+            })
+            .catch(() => {});
+        }
+
         function downloadIFC() {
             const params = getParams();
             const btn = document.querySelector('.btn-primary');
@@ -1456,6 +1452,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                fetchIFCCount();
             })
             .catch(err => {
                 alert('Error generating IFC: ' + err.message);
@@ -1472,6 +1469,7 @@
         updateToggleState();
         updateDerived();
         updatePreview();
+        fetchIFCCount();
     </script>
 </body>
 </html>

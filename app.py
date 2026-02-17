@@ -7,12 +7,42 @@ for parametric staircases (straight, single-winder, double-winder).
 
 import os
 import json
+import threading
 from flask import Flask, render_template, request, jsonify, send_file
 from ifc_generator import (create_ifc_staircase, check_building_regs,
                            compute_winder_geometry, _winder_profiles_from_construction,
                            meshes_to_ifc)
 
 app = Flask(__name__)
+
+# ─── IFC DOWNLOAD COUNTER ───
+_ifc_counter_lock = threading.Lock()
+_ifc_counter = 0
+
+
+def _get_ifc_count():
+    global _ifc_counter
+    # Try to load persisted count from file
+    try:
+        count_file = os.path.join(os.path.dirname(__file__), '.ifc_count')
+        with open(count_file, 'r') as f:
+            return int(f.read().strip())
+    except Exception:
+        return _ifc_counter
+
+
+def _increment_ifc_count():
+    global _ifc_counter
+    with _ifc_counter_lock:
+        count = _get_ifc_count() + 1
+        _ifc_counter = count
+        try:
+            count_file = os.path.join(os.path.dirname(__file__), '.ifc_count')
+            with open(count_file, 'w') as f:
+                f.write(str(count))
+        except Exception:
+            pass
+        return count
 
 
 @app.route("/")
@@ -45,6 +75,12 @@ def check():
         return jsonify({"success": False, "error": str(e)}), 400
 
 
+@app.route("/api/ifc_count", methods=["GET"])
+def ifc_count():
+    """Return the total number of IFC files generated."""
+    return jsonify({"count": _get_ifc_count()})
+
+
 @app.route("/api/download", methods=["POST"])
 def download():
     """Generate and download an IFC file.
@@ -56,6 +92,7 @@ def download():
     try:
         meshes = generate_preview_geometry(params)
         filepath = meshes_to_ifc(meshes)
+        _increment_ifc_count()
         return send_file(
             filepath,
             as_attachment=True,
@@ -99,7 +136,7 @@ def generate_preview_geometry(params):
 def _parse(params):
     p = {}
     p["floor_to_floor"] = float(params.get("floor_to_floor", 2700))
-    p["stair_width"] = float(params.get("stair_width", 865))
+    p["stair_width"] = float(params.get("stair_width", 900))
     p["num_risers"] = int(params.get("num_risers", 14))
     p["going"] = float(params.get("going", 227))
     p["tread_thickness"] = float(params.get("tread_thickness", 22))
@@ -955,7 +992,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
 def _preview_straight(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
@@ -1103,7 +1140,7 @@ def _preview_straight(p):
 def _preview_single_winder(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
@@ -1716,7 +1753,7 @@ def _preview_single_winder(p):
 def _preview_double_winder(p):
     import math
     meshes = []
-    width = p["stair_width"]
+    width = p["stair_width"] - STRINGER_THICKNESS
     going = p["going"]
     rise = p["rise"]
     tread_t = p["tread_thickness"]
