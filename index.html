@@ -234,6 +234,31 @@
             cursor: pointer;
         }
 
+        #mirror-btn {
+            display: block;
+            width: 80%;
+            margin: 12px auto 4px;
+            padding: 12px 0;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            border: 2px solid #555;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #aaa;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        #mirror-btn.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+        #mirror-btn:hover:not(.active) {
+            border-color: #e94560;
+            color: #e94560;
+        }
+
         .turn-disabled {
             opacity: 0.4;
             pointer-events: none;
@@ -445,11 +470,10 @@
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
                 </select>
             </div>
-            <div class="field toggle-field" id="mirror-toggle-row">
-                <label class="toggle-label">
-                    <input type="checkbox" id="mirrored" onchange="updatePreview();">
-                    <span>Mirror staircase</span>
-                </label>
+            <div id="mirror-toggle-row">
+                <button id="mirror-btn" onclick="this.classList.toggle('active'); updatePreview();">
+                    &#8596; Mirror Staircase
+                </button>
             </div>
         </div>
 
@@ -835,9 +859,9 @@
                 nosing: parseFloat(document.getElementById('nosing').value),
                 threshold_depth: parseFloat(document.getElementById('threshold_depth').value),
                 staircase_type: document.getElementById('staircase_type').value,
-                turn1_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
+                turn1_direction: document.getElementById('mirror-btn').classList.contains('active') ? 'right' : 'left',
                 turn1_enabled: document.getElementById('turn1_enabled').checked,
-                turn2_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
+                turn2_direction: document.getElementById('mirror-btn').classList.contains('active') ? 'right' : 'left',
                 turn2_enabled: document.getElementById('turn2_enabled').checked,
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
