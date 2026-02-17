@@ -47,7 +47,13 @@ def _increment_ifc_count():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    response = render_template("index.html")
+    from flask import make_response
+    resp = make_response(response)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/api/preview", methods=["POST"])
