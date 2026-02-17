@@ -603,10 +603,6 @@
 
     <div class="viewport" id="viewport">
         <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</div>
-        <!-- IFC counter -->
-        <div id="ifc-counter">
-            IFC files generated: <strong id="ifc-count-val">--</strong>
-        </div>
         <div class="measure-overlay" id="measure-overlay">
             <div class="measure-title">Measure</div>
             <div class="measure-result" id="measure-result">--</div>
@@ -1490,6 +1486,15 @@
 
         // ─── INIT ───
         initThree();
+
+        // Inject counter AFTER canvas so it sits on top in DOM order
+        (function() {
+            const el = document.createElement('div');
+            el.id = 'ifc-counter';
+            el.innerHTML = 'IFC files generated: <strong id="ifc-count-val">--</strong>';
+            document.getElementById('viewport').appendChild(el);
+        })();
+
         onTypeChange();
         updateToggleState();
         updateDerived();
