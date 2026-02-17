@@ -105,6 +105,57 @@
             flex: 1;
         }
 
+        .side-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        .side-row .field {
+            flex: 0 0 auto;
+        }
+
+        .turn-toggle {
+            display: flex;
+            margin: 8px 0 4px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #555;
+        }
+
+        .turn-btn {
+            flex: 1;
+            padding: 10px 0;
+            font-size: 13px;
+            font-weight: 600;
+            background: #1a1a2e;
+            color: #aaa;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .turn-btn:first-child {
+            border-right: 1px solid #555;
+        }
+
+        .turn-btn.active {
+            background: #e94560;
+            color: #fff;
+        }
+
+        #left-side-toggle,
+        #right-side-toggle {
+            width: 130px;
+        }
+
+        #left-side-toggle .turn-btn,
+        #right-side-toggle .turn-btn {
+            font-size: 11px;
+            padding: 22px 0;
+            letter-spacing: 0;
+        }
+
         .derived {
             background: #1a1a2e;
             padding: 8px 12px;
@@ -507,20 +558,20 @@
         <!-- Balustrade -->
         <div class="section">
             <h2>Balustrade</h2>
-            <div class="field-row">
+            <div class="side-row">
                 <div class="field">
                     <label>Left Side</label>
-                    <select id="left_condition" onchange="updatePreview();">
-                        <option value="balustrade">Balustrade</option>
-                        <option value="wall">Wall</option>
-                    </select>
+                    <div id="left-side-toggle" class="turn-toggle">
+                        <button class="turn-btn active" data-value="balustrade" onclick="selectTurn('left-side-toggle'); updatePreview();">Balustrade</button>
+                        <button class="turn-btn" data-value="wall" onclick="selectTurn('left-side-toggle'); updatePreview();">Wall</button>
+                    </div>
                 </div>
                 <div class="field">
                     <label>Right Side</label>
-                    <select id="right_condition" onchange="updatePreview();">
-                        <option value="wall" selected>Wall</option>
-                        <option value="balustrade">Balustrade</option>
-                    </select>
+                    <div id="right-side-toggle" class="turn-toggle">
+                        <button class="turn-btn" data-value="balustrade" onclick="selectTurn('right-side-toggle'); updatePreview();">Balustrade</button>
+                        <button class="turn-btn active" data-value="wall" onclick="selectTurn('right-side-toggle'); updatePreview();">Wall</button>
+                    </div>
                 </div>
             </div>
             <div class="field-row">
@@ -816,9 +867,21 @@
                 baserail_width: parseFloat(document.getElementById('baserail_width').value),
                 baserail_height: parseFloat(document.getElementById('baserail_height').value),
                 spindle_width: parseFloat(document.getElementById('spindle_width').value),
-                left_condition: document.getElementById('left_condition').value,
-                right_condition: document.getElementById('right_condition').value,
+                left_condition: getSideCondition('left-side-toggle'),
+                right_condition: getSideCondition('right-side-toggle'),
             };
+        }
+
+        function selectTurn(toggleId) {
+            const toggle = document.getElementById(toggleId);
+            const clicked = event.currentTarget;
+            toggle.querySelectorAll('.turn-btn').forEach(b => b.classList.remove('active'));
+            clicked.classList.add('active');
+        }
+
+        function getSideCondition(toggleId) {
+            const active = document.querySelector('#' + toggleId + ' .turn-btn.active');
+            return active ? active.dataset.value : 'balustrade';
         }
 
         function updateDerived() {
