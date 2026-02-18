@@ -15,6 +15,8 @@ import tempfile
 import ezdxf
 from ezdxf.math import Vec2
 
+from stair_constants import _parse, STRINGER_THICKNESS
+
 
 # ── Layer definitions: (name, colour-index, linetype) ──────────────
 LAYERS = {
@@ -133,6 +135,34 @@ def _add_stringer_plan(msp, mesh):
     msp.add_lwpolyline(points, close=True, dxfattribs={"layer": layer})
 
 
+def _draw_straight_tread_nosings(msp, p):
+    """Draw tread nosing lines for a straight staircase.
+
+    Front nosing edge for every tread; back edge only for the top tread
+    (lower treads have their back edge hidden beneath the tread above).
+    All geometry at Z=0, using add_line().
+    """
+    width = p["stair_width"] - STRINGER_THICKNESS
+    going = p["going"]
+    nosing = p["nosing"]
+    riser_t = p["riser_thickness"]
+    num_treads = p["num_treads"]
+    tread_depth = going + nosing + riser_t
+
+    attribs = {"layer": "STAIR_TREADS"}
+
+    for i in range(num_treads):
+        front_y = i * going - nosing
+
+        # Front nosing edge
+        msp.add_line((0, front_y), (width, front_y), dxfattribs=attribs)
+
+        # Top tread only: also draw back edge
+        if i == num_treads - 1:
+            back_y = front_y + tread_depth
+            msp.add_line((0, back_y), (width, back_y), dxfattribs=attribs)
+
+
 def meshes_to_dxf(meshes, params):
     """Generate a DXF plan-view file from stair preview meshes.
 
@@ -155,9 +185,20 @@ def meshes_to_dxf(meshes, params):
 
     msp = doc.modelspace()
 
-    for mesh in meshes:
-        mtype = mesh.get("type", "")
+    p = _parse(params)
+    stair_type = p["staircase_type"]
 
+    # ── Tread nosing lines (drawn from params, not from mesh boxes) ──
+    if stair_type == "straight":
+        _draw_straight_tread_nosings(msp, p)
+
+    # ── Generic mesh loop (skip treads — drawn explicitly above) ──
+    for mesh in meshes:
+        ifc_type = mesh.get("ifc_type", "")
+        if ifc_type in ("tread", "threshold"):
+            continue
+
+        mtype = mesh.get("type", "")
         if mtype == "box":
             _add_box_plan(msp, mesh)
         elif mtype == "winder_polygon":
