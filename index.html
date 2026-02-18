@@ -1924,9 +1924,20 @@ _data
                 status.textContent = 'Loading micropip...';
                 await pyodide.loadPackage('micropip');
                 status.textContent = 'Loading stair engine...';
-                const resp = await fetch('stair_preview.py?v=' + Date.now());
-                const src = await resp.text();
-                pyodide.FS.writeFile('/home/pyodide/stair_preview.py', src);
+                const stairModules = [
+                    'stair_constants.py',
+                    'stair_balustrade.py',
+                    'stair_winder_geometry.py',
+                    'stair_flights.py',
+                    'stair_regs.py',
+                    'stair_preview.py',
+                ];
+                const v = Date.now();
+                for (const mod of stairModules) {
+                    const r = await fetch(mod + '?v=' + v);
+                    const s = await r.text();
+                    pyodide.FS.writeFile('/home/pyodide/' + mod, s);
+                }
                 await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, '/home/pyodide')
