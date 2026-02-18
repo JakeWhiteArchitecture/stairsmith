@@ -551,11 +551,10 @@
             </div>
         </div>
 
+        <h2 id="flight-dist-heading" style="display:none; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#e94560; margin-bottom:8px;">Flight Distribution</h2>
         </div><!-- /panel-top -->
         <div class="panel-mid">
-        <!-- Flight Distribution -->
-        <div class="section" id="flight-dist-section" style="display:none;">
-            <h2>Flight Distribution</h2>
+        <div id="flight-dist-section" style="display:none;">
             <div class="dist-track">
                 <div class="dist-flight">
                     <strong id="dist-f1">0</strong>
@@ -898,11 +897,14 @@
         function updateFlightDistUI() {
             const type = document.getElementById('staircase_type').value;
             const section = document.getElementById('flight-dist-section');
+            const heading = document.getElementById('flight-dist-heading');
             if (type === 'straight') {
                 section.style.display = 'none';
+                heading.style.display = 'none';
                 return;
             }
             section.style.display = 'block';
+            heading.style.display = 'block';
             document.getElementById('dist-f3-group').style.display =
                 (type === 'double_winder') ? 'flex' : 'none';
 
