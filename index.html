@@ -513,6 +513,143 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { color: #e0e0e0; font-size: 16px; font-weight: 600; }
         .loading-sub  { color: #888; font-size: 12px; margin-top: 8px; }
+
+        /* ─── SHARE MODAL ─── */
+        #share-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        #share-modal.open { display: flex; }
+
+        .share-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+        }
+
+        .share-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .share-header h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .share-close {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            transition: color 0.15s;
+        }
+        .share-close:hover { color: #e0e0e0; }
+
+        #share-preview {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            background: #0a0a1a;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+        #share-preview.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .share-field-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .share-textarea {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 13px;
+            padding: 9px 11px;
+            resize: vertical;
+            min-height: 68px;
+            font-family: inherit;
+            box-sizing: border-box;
+            line-height: 1.5;
+            transition: border-color 0.15s;
+        }
+        .share-input {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e94560;
+            font-size: 13px;
+            padding: 9px 11px;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.15s;
+        }
+        .share-textarea:focus,
+        .share-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .share-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .share-btn {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 8px;
+            border: none;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: opacity 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .share-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .share-btn:active { transform: translateY(0); }
+        .share-btn-save  { background: #0f3460; color: #e0e0e0; border: 1px solid #1a4a80; flex: 0 0 auto; padding: 10px 14px; }
+        .share-btn-x     { background: #000; color: #fff; }
+        .share-btn-fb    { background: #1877f2; color: #fff; }
+        .share-btn-li    { background: #0a66c2; color: #fff; }
     </style>
 </head>
 <body>
@@ -712,7 +849,7 @@
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
             <div style="display:flex; gap:8px; margin-top:8px;">
-                <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="shareURL();">Share</button>
+                <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="openShareModal()">Share</button>
                 <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
             </div>
         </div>
@@ -734,11 +871,50 @@
         </div>
     </div>
 
+    <!-- Share Modal -->
+    <div id="share-modal" role="dialog" aria-modal="true" aria-label="Share your staircase">
+        <div class="share-dialog">
+            <div class="share-header">
+                <h3>Share Your Staircase</h3>
+                <button class="share-close" onclick="closeShareModal()" aria-label="Close">&#10005;</button>
+            </div>
+            <img id="share-preview" alt="Staircase preview">
+            <div>
+                <div class="share-field-label">Message</div>
+                <textarea id="share-text" class="share-textarea">Check out this staircase I designed with StairSmith! 🪜 Generate your own at</textarea>
+            </div>
+            <div>
+                <div class="share-field-label">Hashtags</div>
+                <input id="share-tags" class="share-input" type="text" value="#Architecture #Stairs #BIM #BIM2.0 #StairSmith">
+            </div>
+            <div class="share-actions">
+                <button class="share-btn share-btn-save" onclick="downloadShareImage()" title="Save image">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Save
+                </button>
+                <button class="share-btn share-btn-x" onclick="shareToX()">
+                    <svg width="13" height="13" viewBox="0 0 1200 1227" fill="currentColor"><path d="M714.163 519.284L1160.89 0h-105.86L667.137 450.887 357.328 0H0l468.492 681.821L0 1226.37h105.866l409.625-476.152 327.181 476.152H1200L714.163 519.284zm-144.838 168.06-47.468-67.894-377.686-540.24h162.604l304.797 435.991 47.468 67.894 396.2 566.721H892.214L569.325 687.344z"/></svg>
+                    Post
+                </button>
+                <button class="share-btn share-btn-fb" onclick="shareToFacebook()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                    Facebook
+                </button>
+                <button class="share-btn share-btn-li" onclick="shareToLinkedIn()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Pyodide -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js"></script>
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
         // ─── THREE.JS SETUP ───
@@ -811,18 +987,105 @@
             controls.update();
         }
 
-        function shareURL() {
-            const url = window.location.href;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(() => {
-                    alert('Link copied to clipboard!');
-                }).catch(() => {
-                    prompt('Copy this link:', url);
+        // ─── SHARE WIDGET ───
+        let _shareImageDataUrl = null;
+
+        async function openShareModal() {
+            const btn = event.currentTarget;
+            const origText = btn.innerHTML;
+            btn.innerHTML = 'Capturing…';
+            btn.disabled = true;
+            try {
+                // 1. Force a fresh Three.js render and capture the WebGL frame
+                renderer.render(scene, camera);
+                const webglSnap = renderer.domElement.toDataURL('image/png');
+
+                // 2. Use html2canvas on the viewport div; inject the WebGL snap
+                //    via onclone so the otherwise-blank canvas is replaced
+                const viewport = document.getElementById('viewport');
+                const capturedCanvas = await html2canvas(viewport, {
+                    useCORS: true,
+                    backgroundColor: '#0d1117',
+                    scale: window.devicePixelRatio || 1,
+                    onclone(_doc, el) {
+                        const glCanvas = el.querySelector('canvas');
+                        if (!glCanvas) return;
+                        const img = _doc.createElement('img');
+                        img.src = webglSnap;
+                        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;';
+                        glCanvas.style.visibility = 'hidden';
+                        glCanvas.parentNode.insertBefore(img, glCanvas.nextSibling);
+                    }
                 });
-            } else {
-                prompt('Copy this link:', url);
+
+                _shareImageDataUrl = capturedCanvas.toDataURL('image/png');
+                document.getElementById('share-preview').src = _shareImageDataUrl;
+
+                // Pre-fill message with current page URL appended
+                const msgEl = document.getElementById('share-text');
+                const base = 'Check out this staircase I designed with StairSmith! 🪜 Generate your own at';
+                msgEl.value = base + ' ' + window.location.href;
+
+                document.getElementById('share-modal').classList.add('open');
+            } catch (err) {
+                console.error('Share capture failed:', err);
+                alert('Could not capture screenshot. Please try again.');
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
             }
         }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.remove('open');
+            _shareImageDataUrl = null;
+            document.getElementById('share-preview').src = '';
+        }
+
+        function downloadShareImage() {
+            if (!_shareImageDataUrl) return;
+            const a = document.createElement('a');
+            a.href = _shareImageDataUrl;
+            a.download = 'stairsmith-staircase.png';
+            a.click();
+        }
+
+        function _getShareParts() {
+            const text = document.getElementById('share-text').value.trim();
+            const tagsRaw = document.getElementById('share-tags').value;
+            // Strip # and spaces, join with comma for Twitter; space-separate for display
+            const tags = tagsRaw.replace(/#/g, '').trim().replace(/\s+/g, ',');
+            const url  = window.location.href;
+            return { text, tags, url };
+        }
+
+        function shareToX() {
+            const { text, tags, url } = _getShareParts();
+            const params = new URLSearchParams({ text: text, hashtags: tags, url });
+            window.open('https://twitter.com/intent/tweet?' + params, '_blank',
+                'width=600,height=420,noopener,noreferrer');
+        }
+
+        function shareToFacebook() {
+            const { text, url } = _getShareParts();
+            const params = new URLSearchParams({ u: url, quote: text });
+            window.open('https://www.facebook.com/sharer/sharer.php?' + params, '_blank',
+                'width=600,height=460,noopener,noreferrer');
+        }
+
+        function shareToLinkedIn() {
+            const { url } = _getShareParts();
+            const params = new URLSearchParams({ url });
+            window.open('https://www.linkedin.com/sharing/share-offsite/?' + params, '_blank',
+                'width=600,height=500,noopener,noreferrer');
+        }
+
+        // Close on backdrop click
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('share-modal').addEventListener('click', function(e) {
+                if (e.target === this) closeShareModal();
+            });
+        });
 
         // ─── FLIGHT DISTRIBUTION ───
         let flightDist = { f1: 0, f2: 0, f3: 0 };
