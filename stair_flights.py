@@ -457,9 +457,11 @@ def _preview_single_winder(p):
             f2_landing_x_end = f2_x0 + hp if render_outer else f2_x0_ext
         else:
             f2_landing_x_start = f2_x0 - hp if render_outer else f2_x0_ext
-        # Y-direction landing stringer endpoints: use newel faces for balustrade, extension points for wall
+        # Y-direction landing stringer masters the X stringer: extends through the full X
+        # stringer thickness to its rear edge (+st2 past the X stringer centre).
+        # Handrail/baserail/spindles still terminate at the newel post face (hp).
         f1_landing_y_start = (f1_y1 + hp) if render_outer else f1_y1_ext
-        f1_landing_y_end = outer_corner_y - hp if render_outer else outer_corner_y
+        f1_landing_y_end = outer_corner_y + st2
         # In wall condition, drop landing stringers to align top edge with flight stringers
         landing_z_stringer = landing_z_base if render_outer else (landing_z_base - STRINGER_PITCH_OFFSET)
         if turn_dir == "left":
