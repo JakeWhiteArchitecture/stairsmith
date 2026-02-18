@@ -74,6 +74,16 @@ def serve_ifc_generator():
     return resp
 
 
+@app.route("/dxf_generator.py")
+def serve_dxf_generator():
+    """Serve dxf_generator.py so the Pyodide frontend can fetch it for DXF export."""
+    from flask import send_from_directory
+    resp = send_from_directory(os.path.dirname(__file__), "dxf_generator.py",
+                               mimetype="text/plain")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/api/preview", methods=["POST"])
 def preview():
     """
