@@ -18,14 +18,10 @@ from ezdxf.math import Vec2
 
 # ── Layer definitions: (name, colour-index, linetype) ──────────────
 LAYERS = {
-    "STAIR_TREADS":    {"color": 7, "linetype": "Continuous"},
+    "STAIR_TREADS":    {"color": 0, "linetype": "Continuous"},
     "STAIR_RISERS":    {"color": 9, "linetype": "DASHED"},
-    "STAIR_STRINGERS": {"color": 3, "linetype": "Continuous"},
-    "STAIR_HANDRAIL":  {"color": 5, "linetype": "Continuous"},
-    "STAIR_NEWELS":    {"color": 1, "linetype": "Continuous"},
-    "STAIR_SPINDLES":  {"color": 8, "linetype": "Continuous"},
-    "STAIR_LANDINGS":  {"color": 7, "linetype": "Continuous"},
-    "STAIR_BASERAIL":  {"color": 8, "linetype": "Continuous"},
+    "STAIR_STRINGERS": {"color": 0, "linetype": "Continuous"},
+    "STAIR_HANDRAIL":  {"color": 0, "linetype": "Continuous"},
 }
 
 # Map ifc_type to layer name
@@ -33,14 +29,14 @@ IFC_TYPE_TO_LAYER = {
     "tread":        "STAIR_TREADS",
     "riser":        "STAIR_RISERS",
     "threshold":    "STAIR_TREADS",
-    "landing":      "STAIR_LANDINGS",
-    "newel":        "STAIR_NEWELS",
+    "landing":      "STAIR_TREADS",
+    "newel":        "STAIR_HANDRAIL",
     "winder_tread": "STAIR_TREADS",
     "winder_riser": "STAIR_RISERS",
     "stringer":     "STAIR_STRINGERS",
     "handrail":     "STAIR_HANDRAIL",
-    "baserail":     "STAIR_BASERAIL",
-    "spindle":      "STAIR_SPINDLES",
+    "baserail":     "STAIR_HANDRAIL",
+    "spindle":      "STAIR_HANDRAIL",
 }
 
 
