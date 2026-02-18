@@ -340,16 +340,20 @@
             padding: 10px 14px;
             border-radius: 6px;
             font-size: 12px;
-            line-height: 1.6;
+            line-height: 1.4;
             border: 1px solid #0f3460;
             color: #aaa;
             pointer-events: none;
             z-index: 10;
+            text-align: center;
         }
 
         #ifc-counter strong {
+            display: block;
             color: #e94560;
-            font-weight: 600;
+            font-weight: 700;
+            font-size: 22px;
+            line-height: 1.2;
         }
 
         /* ─── MEASURE TOOL ─── */
@@ -688,33 +692,29 @@
         <div class="section winder-options" id="winder-options">
             <h2>Corner 1</h2>
             <div id="turn1-toggle" class="turn-toggle">
-                <button class="turn-btn active" data-value="winder" onclick="selectTurn('turn1-toggle');">Winder Treads</button>
-                <button class="turn-btn" data-value="landing" onclick="selectTurn('turn1-toggle');">Flat Landing</button>
+                <button class="turn-btn active" data-value="winder" onclick="selectWinderTurn('turn1-toggle');">Winder Treads</button>
+                <button class="turn-btn" data-value="landing" onclick="selectWinderTurn('turn1-toggle');">Flat Landing</button>
             </div>
         </div>
 
         <div class="section turn2-options" id="turn2-options">
             <h2>Corner 2</h2>
             <div id="turn2-toggle" class="turn-toggle">
-                <button class="turn-btn active" data-value="winder" onclick="selectTurn('turn2-toggle');">Winder Treads</button>
-                <button class="turn-btn" data-value="landing" onclick="selectTurn('turn2-toggle');">Flat Landing</button>
+                <button class="turn-btn active" data-value="winder" onclick="selectWinderTurn('turn2-toggle');">Winder Treads</button>
+                <button class="turn-btn" data-value="landing" onclick="selectWinderTurn('turn2-toggle');">Flat Landing</button>
             </div>
         </div>
 
-        <!-- Stats -->
-        <div class="section">
-            <h2>STATS</h2>
-            <div class="checks" id="checks-container">
-                <div class="check-item"><div class="check-dot info"></div> Enter parameters to check compliance</div>
-            </div>
-        </div>
         </div><!-- /panel-bot -->
 
       </div>
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
-            <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="shareURL();">Share</button>
+                <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
+            </div>
         </div>
     </div>
 
@@ -809,6 +809,19 @@
             camera.position.set(2000, 2000, 2000);
             controls.target.set(400, 1000, -500);
             controls.update();
+        }
+
+        function shareURL() {
+            const url = window.location.href;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert('Link copied to clipboard!');
+                }).catch(() => {
+                    prompt('Copy this link:', url);
+                });
+            } else {
+                prompt('Copy this link:', url);
+            }
         }
 
         // ─── FLIGHT DISTRIBUTION ───
@@ -984,6 +997,14 @@
             const btn = event.target;
             group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
             updateToggleState();
+            updatePreview();
+        }
+
+        // For winder/landing corner toggles — does NOT redistribute flights
+        function selectWinderTurn(groupId) {
+            const group = document.getElementById(groupId);
+            const btn = event.target;
+            group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
             updatePreview();
         }
 
@@ -1685,7 +1706,7 @@ from stair_preview import generate_preview_geometry, check_building_regs
         (function() {
             const el = document.createElement('div');
             el.id = 'ifc-counter';
-            el.innerHTML = 'IFC files generated: <strong id="ifc-count-val">--</strong>';
+            el.innerHTML = 'IFC files generated<br><strong id="ifc-count-val">--</strong>';
             document.getElementById('viewport').appendChild(el);
         })();
 
