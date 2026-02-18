@@ -120,19 +120,7 @@
             flex: 0 0 auto;
         }
 
-        #left-side-toggle,
-        #right-side-toggle {
-            width: 130px;
-        }
-
-        #left-side-toggle .turn-btn,
-        #right-side-toggle .turn-btn {
-            font-size: 11px;
-            padding: 22px 0;
-            letter-spacing: 0;
-        }
-
-        .derived {
+.derived {
             background: #1a1a2e;
             padding: 8px 12px;
             border-radius: 4px;
@@ -433,12 +421,13 @@
         .dist-track {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 6px 0;
+            justify-content: space-evenly;
+            padding: 6px 20px;
+            gap: 0;
         }
 
         .dist-flight {
-            flex: 1;
+            flex: 0 0 auto;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -458,12 +447,12 @@
         #dist-f3-group {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 20px;
         }
 
         .dist-arrows {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             gap: 4px;
         }
 
@@ -555,8 +544,8 @@
         </div><!-- /panel-top -->
         <div class="panel-mid" style="padding-left:0;">
         <div id="flight-dist-section" style="display:none;">
-            <div class="dist-track" style="gap:20px;">
-                <div class="dist-flight" style="flex:0 0 auto;">
+            <div class="dist-track">
+                <div class="dist-flight">
                     <strong id="dist-f1">0</strong>
                     <span>Flight 1</span>
                 </div>
@@ -564,7 +553,7 @@
                     <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
                     <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
                 </div>
-                <div class="dist-flight" style="flex:0 0 auto;">
+                <div class="dist-flight">
                     <strong id="dist-f2">0</strong>
                     <span>Flight 2</span>
                 </div>
@@ -573,7 +562,7 @@
                         <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
                         <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
                     </div>
-                    <div class="dist-flight" style="flex:0 0 auto;">
+                    <div class="dist-flight">
                         <strong id="dist-f3">0</strong>
                         <span>Flight 3</span>
                     </div>
@@ -647,18 +636,18 @@
         <div class="section">
             <h2>Balustrade</h2>
             <div style="display:flex; gap:10px;">
-                <div style="flex:0 0 auto;">
+                <div style="flex:1;">
                     <label>Left Side</label>
-                    <div id="left-side-toggle" class="turn-toggle" style="width:130px;">
-                        <button class="turn-btn active" data-value="balustrade" onclick="selectTurn('left-side-toggle');" style="padding:22px 0; font-size:11px;">Balustrade</button>
-                        <button class="turn-btn" data-value="wall" onclick="selectTurn('left-side-toggle');" style="padding:22px 0; font-size:11px;">Wall</button>
+                    <div id="left-side-toggle" class="turn-toggle">
+                        <button class="turn-btn active" data-value="balustrade" onclick="selectTurn('left-side-toggle');">Balustrade</button>
+                        <button class="turn-btn" data-value="wall" onclick="selectTurn('left-side-toggle');">Wall</button>
                     </div>
                 </div>
-                <div style="flex:0 0 auto;">
+                <div style="flex:1;">
                     <label>Right Side</label>
-                    <div id="right-side-toggle" class="turn-toggle" style="width:130px;">
-                        <button class="turn-btn" data-value="balustrade" onclick="selectTurn('right-side-toggle');" style="padding:22px 0; font-size:11px;">Balustrade</button>
-                        <button class="turn-btn active" data-value="wall" onclick="selectTurn('right-side-toggle');" style="padding:22px 0; font-size:11px;">Wall</button>
+                    <div id="right-side-toggle" class="turn-toggle">
+                        <button class="turn-btn" data-value="balustrade" onclick="selectTurn('right-side-toggle');">Balustrade</button>
+                        <button class="turn-btn active" data-value="wall" onclick="selectTurn('right-side-toggle');">Wall</button>
                     </div>
                 </div>
             </div>
