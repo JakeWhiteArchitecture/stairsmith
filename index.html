@@ -996,35 +996,15 @@
             btn.innerHTML = 'Capturing…';
             btn.disabled = true;
             try {
-                // 1. Force a fresh Three.js render and capture the WebGL frame
+                // Force a fresh render then grab the WebGL frame directly.
+                // html2canvas cannot read WebGL buffers, so we use the renderer's
+                // own toDataURL which is always reliable.
                 renderer.render(scene, camera);
-                const webglSnap = renderer.domElement.toDataURL('image/png');
-
-                // 2. Use html2canvas on the viewport div; inject the WebGL snap
-                //    via onclone so the otherwise-blank canvas is replaced
-                const viewport = document.getElementById('viewport');
-                const capturedCanvas = await html2canvas(viewport, {
-                    useCORS: true,
-                    backgroundColor: '#0d1117',
-                    scale: window.devicePixelRatio || 1,
-                    onclone(_doc, el) {
-                        const glCanvas = el.querySelector('canvas');
-                        if (!glCanvas) return;
-                        const img = _doc.createElement('img');
-                        img.src = webglSnap;
-                        img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;';
-                        glCanvas.style.visibility = 'hidden';
-                        glCanvas.parentNode.insertBefore(img, glCanvas.nextSibling);
-                    }
-                });
-
-                _shareImageDataUrl = capturedCanvas.toDataURL('image/png');
+                _shareImageDataUrl = renderer.domElement.toDataURL('image/png');
                 document.getElementById('share-preview').src = _shareImageDataUrl;
 
-                // Pre-fill message with current page URL appended
-                const msgEl = document.getElementById('share-text');
                 const base = 'Check out this staircase I designed with StairSmith! 🪜 Generate your own at';
-                msgEl.value = base + ' ' + window.location.href;
+                document.getElementById('share-text').value = base + ' ' + window.location.href;
 
                 document.getElementById('share-modal').classList.add('open');
             } catch (err) {
