@@ -1877,27 +1877,18 @@ _data
         }
 
         async function downloadDXF() {
-            if (!window.pyodideReady) { alert('Pyodide is still loading.'); return; }
             const params = getParams();
             const btn = document.getElementById('dxf-btn');
             btn.textContent = 'Generating...';
             btn.disabled = true;
             try {
-                const paramsJSON = JSON.stringify(params);
-                const dxfProxy = await pyodide.runPythonAsync(`
-import json as _json
-from dxf_generator import meshes_to_dxf as _to_dxf
-_p = _json.loads('''${paramsJSON}''')
-_meshes = generate_preview_geometry(_p)
-_path = _to_dxf(_meshes, _p)
-with open(_path, 'rb') as _f:
-    _data = _f.read()
-import os; os.unlink(_path)
-_data
-`);
-                const dxfBytes = dxfProxy.toJs();
-                if (dxfProxy.destroy) dxfProxy.destroy();
-                const blob = new Blob([dxfBytes], { type: 'application/dxf' });
+                const response = await fetch('/api/download_dxf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params),
+                });
+                if (!response.ok) throw new Error('Generation failed');
+                const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
