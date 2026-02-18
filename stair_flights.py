@@ -1096,20 +1096,15 @@ def _preview_y_shaped(p):
     # path of the departure flights and are not required.
 
     # Landing handrails / baserails / spindles
+    # Y-direction side balustrades (x=0 and x=width) removed — not required at the landing sides.
     if render_left:
-        meshes.append(_handrail_landing_y(0, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **hr_kw))
         meshes.append(_handrail_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **hr_kw))
-        meshes.append(_baserail_landing_y(0, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **br_kw))
         meshes.append(_baserail_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **br_kw))
-        meshes.extend(_spindles_landing_y(0, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **sp_kw))
         meshes.extend(_spindles_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **sp_kw))
 
     if render_right:
-        meshes.append(_handrail_landing_y(width, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **hr_kw))
         meshes.append(_handrail_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **hr_kw))
-        meshes.append(_baserail_landing_y(width, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **br_kw))
         meshes.append(_baserail_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **br_kw))
-        meshes.extend(_spindles_landing_y(width, f1_y1 + hp, outer_corner_y - hp, landing_z_base, **sp_kw))
         meshes.extend(_spindles_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **sp_kw))
 
     # ── Departure flight stringers ────────────────────────────────────────
