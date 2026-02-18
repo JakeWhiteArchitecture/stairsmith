@@ -1271,9 +1271,10 @@ def _preview_double_winder(p):
                 f2_landing_x_end = f2_x_first + hp if render_outer else f2_x_first_ext
             else:
                 f2_landing_x_start = f2_x_first - hp if render_outer else f2_x_first_ext
-            # Y-direction landing stringer endpoints: use newel faces for balustrade, extension points for wall
+            # Y-direction landing stringer endpoints: stringer abuts rear face of X stringer (st2),
+            # while handrail/baserail/spindles terminate at the newel post face (hp)
             f1_landing_y_start = (f1_y1 + hp) if render_outer else f1_y1_ext
-            f1_landing_y_end = outer1_corner_y - hp if render_outer else outer1_corner_y
+            f1_landing_y_end = outer1_corner_y - st2
             # In wall condition, drop landing stringers to align top edge with flight stringers
             landing1_z_stringer = landing1_z if render_outer else (landing1_z - STRINGER_PITCH_OFFSET)
             if turn1_dir == "left":
@@ -1438,8 +1439,9 @@ def _preview_double_winder(p):
             st2 = STRINGER_THICKNESS / 2
             # Outer corner newel position
             outer2_corner_y = corner2_y + width
-            # Y-direction landing stringer endpoints: use newel faces for balustrade, extension points for wall
-            f3_landing_y_start = outer2_corner_y - hp if render_outer else outer2_corner_y
+            # Y-direction landing stringer endpoints: stringer abuts rear face of X stringer (st2),
+            # while handrail/baserail/spindles terminate at the newel post face (hp)
+            f3_landing_y_start = outer2_corner_y - st2
             f3_landing_y_end = f3_y_first_unclipped + hp if render_outer else f3_y_first_ext
             # In wall condition, drop landing stringers to align top edge with flight stringers
             landing2_z_stringer = landing2_z if render_outer else (landing2_z - STRINGER_PITCH_OFFSET)
