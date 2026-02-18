@@ -29,8 +29,11 @@
         .panel-scroll {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 0;
         }
+        .panel-top { padding: 20px 20px 0 20px; }
+        .panel-mid { padding: 8px 20px 8px 0; }
+        .panel-bot { padding: 0 20px 20px 20px; }
 
         .panel-actions {
             padding: 12px 20px 16px;
@@ -105,7 +108,46 @@
             flex: 1;
         }
 
-        .derived {
+        .side-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        .side-row .field {
+            flex: 0 0 auto;
+        }
+
+        .turn-toggle {
+            display: flex;
+            margin: 8px 0 4px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #555;
+        }
+
+        .turn-btn {
+            flex: 1;
+            padding: 10px 0;
+            font-size: 13px;
+            font-weight: 600;
+            background: #1a1a2e;
+            color: #aaa;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .turn-btn:first-child {
+            border-right: 1px solid #555;
+        }
+
+        .turn-btn.active {
+            background: #e94560;
+            color: #fff;
+        }
+
+.derived {
             background: #1a1a2e;
             padding: 8px 12px;
             border-radius: 4px;
@@ -185,6 +227,8 @@
 
         .viewport canvas {
             display: block;
+            position: relative;
+            z-index: 1;
         }
 
         .viewport-info {
@@ -193,6 +237,7 @@
             right: 10px;
             font-size: 11px;
             color: #555;
+            z-index: 5;
         }
 
         .winder-options {
@@ -241,6 +286,7 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
+            z-index: 5;
             background: rgba(22, 33, 62, 0.9);
             padding: 12px 16px;
             border-radius: 6px;
@@ -256,6 +302,31 @@
         .dim-overlay .dim-value {
             color: #e94560;
             font-weight: 600;
+        }
+
+        /* ─── IFC COUNTER ─── */
+        #ifc-counter {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            border: 1px solid #0f3460;
+            color: #aaa;
+            pointer-events: none;
+            z-index: 10;
+            text-align: center;
+        }
+
+        #ifc-counter strong {
+            display: block;
+            color: #e94560;
+            font-weight: 700;
+            font-size: 22px;
+            line-height: 1.2;
         }
 
         /* ─── MEASURE TOOL ─── */
@@ -278,6 +349,7 @@
             position: absolute;
             top: 10px;
             left: 10px;
+            z-index: 5;
             background: rgba(22, 33, 62, 0.95);
             padding: 10px 14px;
             border-radius: 6px;
@@ -323,24 +395,42 @@
         }
 
         /* ─── FLIGHT DISTRIBUTION ─── */
-        .dist-row {
+        .dist-track {
             display: flex;
             align-items: center;
-            padding: 3px 0;
-            font-size: 13px;
-            color: #ccc;
+            justify-content: space-evenly;
+            padding: 6px 20px;
+            gap: 0;
         }
 
-        .dist-row strong {
+        .dist-flight {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .dist-flight strong {
+            font-size: 22px;
             color: #e94560;
-            font-weight: 600;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        #dist-f3-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
 
         .dist-arrows {
             display: flex;
-            justify-content: center;
-            gap: 10px;
-            padding: 3px 0;
+            flex-direction: row;
+            gap: 4px;
         }
 
         .dist-btn {
@@ -348,8 +438,8 @@
             color: #e0e0e0;
             border: 1px solid #1a4a80;
             border-radius: 4px;
-            width: 32px;
-            height: 24px;
+            width: 20px;
+            height: 44px;
             font-size: 13px;
             cursor: pointer;
             display: flex;
@@ -367,11 +457,139 @@
             opacity: 0.3;
             cursor: not-allowed;
         }
+
+        /* ─── SHARE MODAL ─── */
+        #share-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        #share-modal.open { display: flex; }
+
+        .share-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+        }
+        .share-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .share-header h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .share-close {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            transition: color 0.15s;
+        }
+        .share-close:hover { color: #e0e0e0; }
+        #share-preview {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            background: #0a0a1a;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+        .share-field-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .share-textarea {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 13px;
+            padding: 9px 11px;
+            resize: vertical;
+            min-height: 68px;
+            font-family: inherit;
+            box-sizing: border-box;
+            line-height: 1.5;
+            transition: border-color 0.15s;
+        }
+        .share-input {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e94560;
+            font-size: 13px;
+            padding: 9px 11px;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.15s;
+        }
+        .share-textarea:focus,
+        .share-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .share-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .share-btn {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 8px;
+            border: none;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: opacity 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .share-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .share-btn:active { transform: translateY(0); }
+        .share-btn-save { background: #0f3460; color: #e0e0e0; border: 1px solid #1a4a80; flex: 0 0 auto; padding: 10px 14px; }
+        .share-btn-x    { background: #000; color: #fff; }
+        .share-btn-fb   { background: #1877f2; color: #fff; }
+        .share-btn-li   { background: #0a66c2; color: #fff; }
+
     </style>
 </head>
 <body>
     <div class="panel">
       <div class="panel-scroll">
+        <div class="panel-top">
         <h1>IFC Staircase Generator</h1>
         <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
 
@@ -385,32 +603,46 @@
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
                 </select>
             </div>
+            <div class="field toggle-field" id="mirror-toggle-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="mirrored" onchange="updatePreview();">
+                    <span>Mirror staircase</span>
+                </label>
+            </div>
         </div>
 
-        <!-- Flight Distribution -->
-        <div class="section" id="flight-dist-section" style="display:none;">
-            <h2>Flight Distribution</h2>
-            <div class="dist-row">
-                <span>Flight 1: <strong id="dist-f1">0</strong> steps</span>
-            </div>
-            <div class="dist-arrows">
-                <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
-                <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
-            </div>
-            <div class="dist-row">
-                <span>Flight 2: <strong id="dist-f2">0</strong> steps</span>
-            </div>
-            <div id="dist-f3-group" style="display:none;">
+        <h2 id="flight-dist-heading" style="display:none; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#e94560; padding-bottom:8px; border-bottom:1px solid #1a4a80; margin-bottom:12px;">Flight Distribution</h2>
+        </div><!-- /panel-top -->
+        <div class="panel-mid" style="padding-left:0;">
+        <div id="flight-dist-section" style="display:none;">
+            <div class="dist-track">
+                <div class="dist-flight">
+                    <strong id="dist-f1">0</strong>
+                    <span>Flight 1</span>
+                </div>
                 <div class="dist-arrows">
-                    <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
-                    <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
+                    <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
+                    <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
                 </div>
-                <div class="dist-row">
-                    <span>Flight 3: <strong id="dist-f3">0</strong> steps</span>
+                <div class="dist-flight">
+                    <strong id="dist-f2">0</strong>
+                    <span>Flight 2</span>
+                </div>
+                <div id="dist-f3-group" style="display:none;">
+                    <div class="dist-arrows">
+                        <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
+                        <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
+                    </div>
+                    <div class="dist-flight">
+                        <strong id="dist-f3">0</strong>
+                        <span>Flight 3</span>
+                    </div>
                 </div>
             </div>
         </div>
 
+        </div><!-- /panel-mid -->
+        <div class="panel-bot">
         <!-- Global Parameters -->
         <div class="section">
             <h2>Dimensions</h2>
@@ -426,8 +658,8 @@
             </div>
             <div class="field-row">
                 <div class="field">
-                    <label>Stair Width <span class="unit">mm</span></label>
-                    <input type="number" id="stair_width" value="865" min="600" max="1000" step="10" oninput="updatePreview();">
+                    <label>Stair Width (outside to outside) <span class="unit">mm</span></label>
+                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" oninput="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Individual Going <span class="unit">mm</span></label>
@@ -456,20 +688,17 @@
             </div>
             <div class="field-row">
                 <div class="field">
-                    <label>Newel Post Size <span class="unit">mm</span></label>
-                    <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
-                </div>
-                <div class="field">
                     <label>Winder X <span class="unit">mm</span></label>
                     <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
                 </div>
-            </div>
-            <div class="field-row">
                 <div class="field">
                     <label>Winder Y <span class="unit">mm</span></label>
                     <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
                 </div>
-                <div class="field"></div>
+            </div>
+            <div class="field">
+                <label>Newel Post Size <span class="unit">mm</span></label>
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
             </div>
 
         </div>
@@ -477,20 +706,20 @@
         <!-- Balustrade -->
         <div class="section">
             <h2>Balustrade</h2>
-            <div class="field-row">
-                <div class="field">
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1;">
                     <label>Left Side</label>
-                    <select id="left_condition" onchange="updatePreview();">
-                        <option value="balustrade">Balustrade</option>
-                        <option value="wall">Wall</option>
-                    </select>
+                    <div id="left-side-toggle" class="turn-toggle">
+                        <button class="turn-btn active" data-value="balustrade" onclick="selectTurn('left-side-toggle'); updatePreview();">Balustrade</button>
+                        <button class="turn-btn" data-value="wall" onclick="selectTurn('left-side-toggle'); updatePreview();">Wall</button>
+                    </div>
                 </div>
-                <div class="field">
+                <div style="flex:1;">
                     <label>Right Side</label>
-                    <select id="right_condition" onchange="updatePreview();">
-                        <option value="wall" selected>Wall</option>
-                        <option value="balustrade">Balustrade</option>
-                    </select>
+                    <div id="right-side-toggle" class="turn-toggle">
+                        <button class="turn-btn" data-value="balustrade" onclick="selectTurn('right-side-toggle'); updatePreview();">Balustrade</button>
+                        <button class="turn-btn active" data-value="wall" onclick="selectTurn('right-side-toggle'); updatePreview();">Wall</button>
+                    </div>
                 </div>
             </div>
             <div class="field-row">
@@ -528,7 +757,6 @@
             <div class="derived" id="derived-values">
                 <div><span class="dim-label">Individual Rise:</span> <span id="d-rise">200.0</span> mm</div>
                 <div><span class="dim-label">Pitch:</span> <span id="d-pitch">41.4</span>&deg;</div>
-                <div><span class="dim-label">2R + G:</span> <span id="d-2rg">627</span> mm</div>
                 <div><span class="dim-label">Total Going:</span> <span id="d-total-going">2724</span> mm</div>
             </div>
         </div>
@@ -539,19 +767,8 @@
             <div class="field toggle-field">
                 <label class="toggle-label">
                     <input type="checkbox" id="turn1_enabled" checked onchange="updateToggleState(); updatePreview();">
-                    <span>Enable winder treads</span>
+                    <span id="turn1-label">Winder treads</span>
                 </label>
-            </div>
-            <div id="turn1-details">
-                <div class="field-row">
-                    <div class="field">
-                        <label>Direction</label>
-                        <select id="turn1_direction" onchange="updatePreview();">
-                            <option value="left" selected>Left</option>
-                            <option value="right">Right</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -560,35 +777,21 @@
             <div class="field toggle-field">
                 <label class="toggle-label">
                     <input type="checkbox" id="turn2_enabled" checked onchange="updateToggleState(); updatePreview();">
-                    <span>Enable winder treads</span>
+                    <span id="turn2-label">Winder treads</span>
                 </label>
-            </div>
-            <div id="turn2-details">
-                <div class="field-row">
-                    <div class="field">
-                        <label>Direction</label>
-                        <select id="turn2_direction" onchange="updatePreview();">
-                            <option value="left" selected>Left</option>
-                            <option value="right">Right</option>
-                        </select>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <!-- Building Regs -->
-        <div class="section">
-            <h2>Building Regs (Doc K)</h2>
-            <div class="checks" id="checks-container">
-                <div class="check-item"><div class="check-dot info"></div> Enter parameters to check compliance</div>
-            </div>
-        </div>
+        </div><!-- /panel-bot -->
 
       </div>
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
-            <button class="btn btn-secondary" onclick="resetCamera();">Reset Camera</button>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="openShareModal()">Share</button>
+                <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
+            </div>
         </div>
     </div>
 
@@ -608,9 +811,48 @@
         </div>
     </div>
 
+    <!-- Share Modal -->
+    <div id="share-modal" role="dialog" aria-modal="true" aria-label="Share your staircase">
+        <div class="share-dialog">
+            <div class="share-header">
+                <h3>Share Your Staircase</h3>
+                <button class="share-close" onclick="closeShareModal()" aria-label="Close">&#10005;</button>
+            </div>
+            <img id="share-preview" alt="Staircase preview">
+            <div>
+                <div class="share-field-label">Message</div>
+                <textarea id="share-text" class="share-textarea">Check out this staircase I designed with StairSmith! 🪜 Generate your own at</textarea>
+            </div>
+            <div>
+                <div class="share-field-label">Hashtags</div>
+                <input id="share-tags" class="share-input" type="text" value="#Architecture #Stairs #BIM #BIM2.0 #StairSmith">
+            </div>
+            <div class="share-actions">
+                <button class="share-btn share-btn-save" onclick="downloadShareImage()" title="Save image">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Save
+                </button>
+                <button class="share-btn share-btn-x" onclick="shareToX()">
+                    <svg width="13" height="13" viewBox="0 0 1200 1227" fill="currentColor"><path d="M714.163 519.284L1160.89 0h-105.86L667.137 450.887 357.328 0H0l468.492 681.821L0 1226.37h105.866l409.625-476.152 327.181 476.152H1200L714.163 519.284zm-144.838 168.06-47.468-67.894-377.686-540.24h162.604l304.797 435.991 47.468 67.894 396.2 566.721H892.214L569.325 687.344z"/></svg>
+                    Post
+                </button>
+                <button class="share-btn share-btn-fb" onclick="shareToFacebook()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                    Facebook
+                </button>
+                <button class="share-btn share-btn-li" onclick="shareToLinkedIn()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
         // ─── THREE.JS SETUP ───
@@ -682,6 +924,79 @@
             controls.target.set(400, 1000, -500);
             controls.update();
         }
+
+        // ─── SHARE WIDGET ───
+        let _shareImageDataUrl = null;
+
+        async function openShareModal() {
+            const btn = event.currentTarget;
+            const origText = btn.innerHTML;
+            btn.innerHTML = 'Capturing…';
+            btn.disabled = true;
+            try {
+                renderer.render(scene, camera);
+                _shareImageDataUrl = renderer.domElement.toDataURL('image/png');
+                document.getElementById('share-preview').src = _shareImageDataUrl;
+                const base = 'Check out this staircase I designed with StairSmith! 🪜 Generate your own at';
+                document.getElementById('share-text').value = base + ' ' + window.location.href;
+                document.getElementById('share-modal').classList.add('open');
+            } catch (err) {
+                console.error('Share capture failed:', err);
+                alert('Could not capture screenshot. Please try again.');
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.remove('open');
+            _shareImageDataUrl = null;
+            document.getElementById('share-preview').src = '';
+        }
+
+        function downloadShareImage() {
+            if (!_shareImageDataUrl) return;
+            const a = document.createElement('a');
+            a.href = _shareImageDataUrl;
+            a.download = 'stairsmith-staircase.png';
+            a.click();
+        }
+
+        function _getShareParts() {
+            const text = document.getElementById('share-text').value.trim();
+            const tagsRaw = document.getElementById('share-tags').value;
+            const tags = tagsRaw.replace(/#/g, '').trim().replace(/\s+/g, ',');
+            const url  = window.location.href;
+            return { text, tags, url };
+        }
+
+        function shareToX() {
+            const { text, tags, url } = _getShareParts();
+            const params = new URLSearchParams({ text, hashtags: tags, url });
+            window.open('https://twitter.com/intent/tweet?' + params, '_blank',
+                'width=600,height=420,noopener,noreferrer');
+        }
+
+        function shareToFacebook() {
+            const { text, url } = _getShareParts();
+            const params = new URLSearchParams({ u: url, quote: text });
+            window.open('https://www.facebook.com/sharer/sharer.php?' + params, '_blank',
+                'width=600,height=460,noopener,noreferrer');
+        }
+
+        function shareToLinkedIn() {
+            const { url } = _getShareParts();
+            const params = new URLSearchParams({ url });
+            window.open('https://www.linkedin.com/sharing/share-offsite/?' + params, '_blank',
+                'width=600,height=500,noopener,noreferrer');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('share-modal').addEventListener('click', function(e) {
+                if (e.target === this) closeShareModal();
+            });
+        });
 
         // ─── FLIGHT DISTRIBUTION ───
         let flightDist = { f1: 0, f2: 0, f3: 0 };
@@ -758,11 +1073,14 @@
         function updateFlightDistUI() {
             const type = document.getElementById('staircase_type').value;
             const section = document.getElementById('flight-dist-section');
+            const heading = document.getElementById('flight-dist-heading');
             if (type === 'straight') {
                 section.style.display = 'none';
+                heading.style.display = 'none';
                 return;
             }
             section.style.display = 'block';
+            heading.style.display = 'block';
             document.getElementById('dist-f3-group').style.display =
                 (type === 'double_winder') ? 'block' : 'none';
 
@@ -793,9 +1111,9 @@
                 nosing: parseFloat(document.getElementById('nosing').value),
                 threshold_depth: parseFloat(document.getElementById('threshold_depth').value),
                 staircase_type: document.getElementById('staircase_type').value,
-                turn1_direction: document.getElementById('turn1_direction').value,
+                turn1_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
                 turn1_enabled: document.getElementById('turn1_enabled').checked,
-                turn2_direction: document.getElementById('turn2_direction').value,
+                turn2_direction: document.getElementById('mirrored').checked ? 'right' : 'left',
                 turn2_enabled: document.getElementById('turn2_enabled').checked,
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
@@ -809,9 +1127,21 @@
                 baserail_width: parseFloat(document.getElementById('baserail_width').value),
                 baserail_height: parseFloat(document.getElementById('baserail_height').value),
                 spindle_width: parseFloat(document.getElementById('spindle_width').value),
-                left_condition: document.getElementById('left_condition').value,
-                right_condition: document.getElementById('right_condition').value,
+                left_condition: getSideCondition('left-side-toggle'),
+                right_condition: getSideCondition('right-side-toggle'),
             };
+        }
+
+        function selectTurn(toggleId) {
+            const toggle = document.getElementById(toggleId);
+            const clicked = event.currentTarget;
+            toggle.querySelectorAll('.turn-btn').forEach(b => b.classList.remove('active'));
+            clicked.classList.add('active');
+        }
+
+        function getSideCondition(toggleId) {
+            const active = document.querySelector('#' + toggleId + ' .turn-btn.active');
+            return active ? active.dataset.value : 'balustrade';
         }
 
         function updateDerived() {
@@ -820,13 +1150,11 @@
             const going = parseFloat(document.getElementById('going').value);
             const rise = ftf / risers;
             const pitch = Math.atan2(rise, going) * 180 / Math.PI;
-            const twoRG = 2 * rise + going;
             const treads = risers - 1;
             const totalGoing = treads * going;
 
             document.getElementById('d-rise').textContent = rise.toFixed(1);
             document.getElementById('d-pitch').textContent = pitch.toFixed(1);
-            document.getElementById('d-2rg').textContent = twoRG.toFixed(0);
             document.getElementById('d-total-going').textContent = totalGoing.toFixed(0);
 
             // Dimension overlay
@@ -843,21 +1171,22 @@
             const type = document.getElementById('staircase_type').value;
             const winderOpts = document.getElementById('winder-options');
             const turn2Opts = document.getElementById('turn2-options');
+            const mirrorRow = document.getElementById('mirror-toggle-row');
 
             winderOpts.classList.toggle('visible', type !== 'straight');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
+            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
 
-            // Toggle detail visibility based on checkbox
+            // Update turn labels and reset flight distribution
             updateToggleState();
-            // Reset flight distribution for new type
             redistributeFlights();
         }
 
         function updateToggleState() {
             const t1 = document.getElementById('turn1_enabled').checked;
             const t2 = document.getElementById('turn2_enabled').checked;
-            document.getElementById('turn1-details').classList.toggle('turn-disabled', !t1);
-            document.getElementById('turn2-details').classList.toggle('turn-disabled', !t2);
+            document.getElementById('turn1-label').textContent = t1 ? 'Winder treads' : 'Level landings';
+            document.getElementById('turn2-label').textContent = t2 ? 'Winder treads' : 'Level landings';
             ensureFlightDistValid();
         }
 
@@ -878,28 +1207,22 @@
         function _doUpdate() {
             const params = getParams();
 
-            // Update building regs
             fetch('/api/check', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params),
             })
             .then(r => r.json())
-            .then(data => {
-                if (data.success) renderChecks(data.checks);
-            })
+            .then(data => { if (data.success) renderChecks(data.checks); })
             .catch(() => {});
 
-            // Update 3D preview
             fetch('/api/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(params),
             })
             .then(r => r.json())
-            .then(data => {
-                if (data.success) renderGeometry(data.geometry);
-            })
+            .then(data => { if (data.success) renderGeometry(data.geometry); })
             .catch(() => {});
 
             updateDerived();
@@ -1432,6 +1755,15 @@
         });
 
         // ─── IFC DOWNLOAD ───
+        function fetchIFCCount() {
+            fetch('/api/ifc_count')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('ifc-count-val').textContent = data.count;
+            })
+            .catch(() => {});
+        }
+
         function downloadIFC() {
             const params = getParams();
             const btn = document.querySelector('.btn-primary');
@@ -1456,6 +1788,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                fetchIFCCount();
             })
             .catch(err => {
                 alert('Error generating IFC: ' + err.message);
@@ -1468,10 +1801,20 @@
 
         // ─── INIT ───
         initThree();
+
+        // Inject counter AFTER canvas so it sits on top in DOM order
+        (function() {
+            const el = document.createElement('div');
+            el.id = 'ifc-counter';
+            el.innerHTML = 'IFC files generated<br><strong id="ifc-count-val">--</strong>';
+            document.getElementById('viewport').appendChild(el);
+        })();
+
         onTypeChange();
         updateToggleState();
         updateDerived();
         updatePreview();
+        fetchIFCCount();
     </script>
 </body>
 </html>
