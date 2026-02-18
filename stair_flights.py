@@ -1362,6 +1362,31 @@ def _preview_double_winder(p):
                                                  f2_x_last_ext_v, f2_z_last_ext))
 
         if actual_winders2 == 0:
+            # When turn 1 uses winders, f2 variables haven't been set yet — compute them
+            if actual_winders1 > 0:
+                nzs = rise * nosing / going
+                if turn1_dir == "left":
+                    f2_x_first = -winder_offset1 - nosing - riser_t / 2
+                    f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+                else:
+                    f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+                    f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+                f2_z_first = flight2_riser_start * rise + nzs
+                f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+                f2_x_last_unclipped = f2_x_last
+                f2_z_last_unclipped = f2_z_last
+                # Clip far end at corner2 post centre
+                if flight2_treads > 0:
+                    dx = f2_x_last - f2_x_first
+                    if abs(dx) > 1e-9:
+                        t_clip = max(0.0, min(1.0, (corner2_x - f2_x_first) / dx))
+                        f2_x_last = f2_x_first + t_clip * dx
+                        f2_z_last = f2_z_first + t_clip * (f2_z_last - f2_z_first)
+                f2_inner_y = corner1_y
+                f2_outer_y = corner1_y + width
+                f1_outer_x = width - corner1_x
+                f2_x_last_ext = None
+
             landing2_z = turn2_winder_start * rise
             land2_top = landing2_z + STRINGER_DROP
 
@@ -1604,9 +1629,16 @@ def _preview_double_winder(p):
             else:
                 oc_face_x = f1_outer_x + hp
                 pc2_face_x = f2_x_first - hp
-            meshes.append(_handrail_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first, **hr_kw))
-            meshes.append(_baserail_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first, **br_kw))
-            meshes.extend(_spindles_flight_x(outer_corner_y1, f1_outer_x, z_corner, f2_x_first, f2_z_first, **sp_kw))
+            if abs(dx_w) > 1e-9:
+                t_oc = (oc_face_x - f1_outer_x) / dx_w
+                z_oc = z_corner + t_oc * (f2_z_first - z_corner)
+                t_pc = (pc2_face_x - f1_outer_x) / dx_w
+                z_pc = z_corner + t_pc * (f2_z_first - z_corner)
+            else:
+                z_oc, z_pc = z_corner, f2_z_first
+            meshes.append(_handrail_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **sp_kw))
             # Outer flight 2: from pitch-change newel to next pitch-change/top newel
             f2_dx = f2_x_last - f2_x_first
             if turn1_dir == "left":
@@ -1765,9 +1797,16 @@ def _preview_double_winder(p):
             else:
                 pc_f2end_face_x = f2_x_end + hp
                 oc2_face_x = f3_outer_x - hp
-            meshes.append(_handrail_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner, **hr_kw))
-            meshes.append(_baserail_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner, **br_kw))
-            meshes.extend(_spindles_flight_x(outer_corner_y2, f2_x_end, f2_z_end, f3_outer_x, z_corner, **sp_kw))
+            if abs(dx_w2) > 1e-9:
+                t_pc2 = (pc_f2end_face_x - f2_x_end) / dx_w2
+                z_pc2 = f2_z_end + t_pc2 * (z_corner - f2_z_end)
+                t_oc2 = (oc2_face_x - f2_x_end) / dx_w2
+                z_oc2 = f2_z_end + t_oc2 * (z_corner - f2_z_end)
+            else:
+                z_pc2, z_oc2 = f2_z_end, z_corner
+            meshes.append(_handrail_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **sp_kw))
             # Winder Y-piece with balustrade (from outer corner to pitch-change newel at f3 start)
             # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
             dy_w2 = f3_y_first - outer_corner_y2
