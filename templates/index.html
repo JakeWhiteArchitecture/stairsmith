@@ -601,6 +601,7 @@
                     <option value="straight">Straight Flight</option>
                     <option value="single_winder">Single Winder (L-shape)</option>
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
+                    <option value="y_shaped">Y-shaped Stair</option>
                 </select>
             </div>
             <div class="field toggle-field" id="mirror-toggle-row">
@@ -1011,6 +1012,8 @@
                 const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
                 const t2 = document.getElementById('turn2_enabled').checked ? 3 : 0;
                 return Math.max(0, numTreads - t1 - t2);
+            } else if (type === 'y_shaped') {
+                return numTreads;
             }
             return numTreads;
         }
@@ -1018,7 +1021,7 @@
         function redistributeFlights() {
             const type = document.getElementById('staircase_type').value;
             const st = getStraightTreads();
-            if (type === 'single_winder') {
+            if (type === 'single_winder' || type === 'y_shaped') {
                 flightDist.f1 = Math.floor(st / 2);
                 flightDist.f2 = st - flightDist.f1;
                 flightDist.f3 = 0;
@@ -1173,9 +1176,9 @@
             const turn2Opts = document.getElementById('turn2-options');
             const mirrorRow = document.getElementById('mirror-toggle-row');
 
-            winderOpts.classList.toggle('visible', type !== 'straight');
+            winderOpts.classList.toggle('visible', type === 'single_winder' || type === 'double_winder');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
-            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
+            mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
             // Update turn labels and reset flight distribution
             updateToggleState();
