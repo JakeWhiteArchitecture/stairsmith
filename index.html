@@ -1076,6 +1076,10 @@
                     flightDist.f1 = Math.floor(rem / 2);
                     flightDist.f3 = rem - flightDist.f1;
                 }
+            } else if (type === 'y_shaped') {
+                flightDist.f1 = 7;
+                flightDist.f2 = 6;
+                flightDist.f3 = 0;
             } else {
                 flightDist.f1 = st;
                 flightDist.f2 = 0;
@@ -1102,8 +1106,9 @@
 
         function transferStep(fromFlight, toFlight) {
             const type = document.getElementById('staircase_type').value;
-            const minF2 = (type === 'double_winder') ? 1 : 0;
-            const mins = { f1: 0, f2: minF2, f3: 0 };
+            const minF1 = (type === 'y_shaped') ? 1 : 0;
+            const minF2 = (type === 'double_winder' || type === 'y_shaped') ? 1 : 0;
+            const mins = { f1: minF1, f2: minF2, f3: 0 };
             const fromKey = 'f' + fromFlight;
             const toKey = 'f' + toFlight;
             if (flightDist[fromKey] > mins[fromKey]) {
@@ -1132,9 +1137,10 @@
             document.getElementById('dist-f2').textContent = flightDist.f2;
             document.getElementById('dist-f3').textContent = flightDist.f3;
 
-            const minF2 = (type === 'double_winder') ? 1 : 0;
+            const minF1 = (type === 'y_shaped') ? 1 : 0;
+            const minF2 = (type === 'double_winder' || type === 'y_shaped') ? 1 : 0;
             // F1 ↔ F2 buttons
-            document.getElementById('btn-f1-to-f2').disabled = (flightDist.f1 <= 0);
+            document.getElementById('btn-f1-to-f2').disabled = (flightDist.f1 <= minF1);
             document.getElementById('btn-f2-to-f1').disabled = (flightDist.f2 <= minF2);
             if (type === 'double_winder') {
                 // F2 ↔ F3 buttons
@@ -1203,7 +1209,7 @@
 
             winderOpts.classList.toggle('visible', type !== 'straight');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
-            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
+            mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
             // Update turn labels and reset flight distribution
             updateToggleState();

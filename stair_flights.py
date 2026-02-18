@@ -1092,9 +1092,8 @@ def _preview_y_shaped(p):
     meshes.append(_stringer_landing_x(outer_corner_y, f2L_lx_end,  0     - st2, landing_z_str_l))
     meshes.append(_stringer_landing_x(outer_corner_y, width + st2, f2R_lx_start, landing_z_str_r))
 
-    # Inner X-direction landing stringer at y=corner_y (always present — inner edge)
-    meshes.append(_stringer_landing_x(corner_y, f2L_x0, 0,     landing_z_base))
-    meshes.append(_stringer_landing_x(corner_y, width,  f2R_x0, landing_z_base))
+    # Inner X-direction landing stringers at y=corner_y removed — they cross the
+    # path of the departure flights and are not required.
 
     # Landing handrails / baserails / spindles
     if render_left:
@@ -1137,24 +1136,6 @@ def _preview_y_shaped(p):
             if clamp:
                 t = max(0.0, min(1.0, t))
             return x0 + t * dx, z0 + t * (z1 - z0)
-
-        # F2L inner (y=corner_y) — always balustrade
-        f2L_x0_ic, f2L_z0_ic = _trim_x(f2L_x0, f2_z0, f2L_x1, f2_z1, c_face_x_L)
-        f2L_x1_ic, f2L_z1_ic = _trim_x(f2L_x0, f2_z0, f2L_x1_fl, f2L_z1_fl, top_face_x_L)
-        f2L_x1_hr, f2L_z1_hr = _trim_x(f2L_x0, f2_z0, f2L_x1,    f2_z1,     top_face_x_L)
-        meshes.append(_stringer_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic))
-        meshes.append(_handrail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_hr, f2L_z1_hr, **hr_kw))
-        meshes.append(_baserail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **br_kw))
-        meshes.extend(_spindles_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **sp_kw))
-
-        # F2R inner (y=corner_y) — always balustrade
-        f2R_x0_ic, f2R_z0_ic = _trim_x(f2R_x0, f2_z0, f2R_x1, f2_z1, c_face_x_R)
-        f2R_x1_ic, f2R_z1_ic = _trim_x(f2R_x0, f2_z0, f2R_x1_fl, f2R_z1_fl, top_face_x_R)
-        f2R_x1_hr, f2R_z1_hr = _trim_x(f2R_x0, f2_z0, f2R_x1,    f2_z1,     top_face_x_R)
-        meshes.append(_stringer_flight_x(corner_y, f2R_x0_ic, f2R_z0_ic, f2R_x1_ic, f2R_z1_ic))
-        meshes.append(_handrail_flight_x(corner_y, f2R_x0_ic, f2R_z0_ic, f2R_x1_hr, f2R_z1_hr, **hr_kw))
-        meshes.append(_baserail_flight_x(corner_y, f2R_x0_ic, f2R_z0_ic, f2R_x1_ic, f2R_z1_ic, **br_kw))
-        meshes.extend(_spindles_flight_x(corner_y, f2R_x0_ic, f2R_z0_ic, f2R_x1_ic, f2R_z1_ic, **sp_kw))
 
         # F2L outer (y=outer_corner_y) — render_left
         if render_left:
