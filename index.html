@@ -133,33 +133,7 @@
             font-weight: 600;
         }
 
-        /* ─── COMPLIANCE PANEL ─── */
-        .checks {
-            margin-top: 10px;
-        }
-
-        .check-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 0;
-            font-size: 12px;
-            border-bottom: 1px solid #0f346033;
-        }
-
-        .check-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .check-dot.pass { background: #4caf50; }
-        .check-dot.warn { background: #ff9800; }
-        .check-dot.fail { background: #f44336; }
-        .check-dot.info { background: #2196f3; }
-
-        /* ─── BUTTONS ─── */
+/* ─── BUTTONS ─── */
         .btn {
             display: block;
             width: 100%;
@@ -1301,30 +1275,17 @@
 import json as _json
 _params = _json.loads('''${paramsJSON}''')
 _geo = generate_preview_geometry(_params)
-_chk = check_building_regs(_params)
-_json.dumps({"geometry": _geo, "checks": _chk})
+_json.dumps({"geometry": _geo})
 `);
                 if (seq !== _updateSeq) return;
                 const result = JSON.parse(resultJSON);
                 renderGeometry(result.geometry);
-                renderChecks(result.checks);
             } catch (e) {
                 console.error('Preview error:', e);
             }
         }
 
-        function renderChecks(checks) {
-            const container = document.getElementById('checks-container');
-            container.innerHTML = '';
-            checks.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'check-item';
-                div.innerHTML = `<div class="check-dot ${c.status}"></div><span>${c.message}</span>`;
-                container.appendChild(div);
-            });
-        }
-
-        function renderGeometry(meshes) {
+function renderGeometry(meshes) {
             // Remove old geometry
             if (staircaseGroup) {
                 scene.remove(staircaseGroup);
@@ -1929,7 +1890,6 @@ _data
                     'stair_balustrade.py',
                     'stair_winder_geometry.py',
                     'stair_flights.py',
-                    'stair_regs.py',
                     'stair_preview.py',
                 ];
                 const v = Date.now();
@@ -1941,7 +1901,7 @@ _data
                 await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, '/home/pyodide')
-from stair_preview import generate_preview_geometry, check_building_regs
+from stair_preview import generate_preview_geometry
 `);
                 window.pyodideReady = true;
                 status.textContent = 'Ready!';

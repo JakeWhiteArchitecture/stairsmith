@@ -13,8 +13,6 @@ from stair_flights import (
     _preview_single_winder,
     _preview_double_winder,
 )
-from stair_regs import check_building_regs  # noqa: F401 — re-exported
-
 
 def generate_preview_geometry(params):
     """
