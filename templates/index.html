@@ -788,6 +788,7 @@
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
             <div style="display:flex; gap:8px; margin-top:8px;">
                 <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="openShareModal()">Share</button>
                 <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
@@ -1795,6 +1796,40 @@
             })
             .finally(() => {
                 btn.textContent = 'Download IFC File';
+                btn.disabled = false;
+            });
+        }
+
+        function downloadDXF() {
+            const params = getParams();
+            const btn = document.getElementById('dxf-btn');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+
+            fetch('/api/download_dxf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params),
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Generation failed');
+                return response.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'staircase_plan.dxf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => {
+                alert('Error generating DXF: ' + err.message);
+            })
+            .finally(() => {
+                btn.textContent = 'Download DXF Plan';
                 btn.disabled = false;
             });
         }

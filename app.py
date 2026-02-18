@@ -126,5 +126,23 @@ def download():
         return jsonify({"success": False, "error": str(e)}), 400
 
 
+@app.route("/api/download_dxf", methods=["POST"])
+def download_dxf():
+    """Generate and download a DXF plan-view file."""
+    from dxf_generator import meshes_to_dxf
+    params = request.get_json()
+    try:
+        meshes = generate_preview_geometry(params)
+        filepath = meshes_to_dxf(meshes, params)
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name="staircase_plan.dxf",
+            mimetype="application/dxf",
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
