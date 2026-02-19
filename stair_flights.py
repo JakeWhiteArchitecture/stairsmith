@@ -1085,12 +1085,9 @@ def _preview_y_shaped(p):
     meshes.append(_stringer_landing_y(0,     f1_landing_y_start_l, f1_landing_y_end, landing_z_str_l))
     meshes.append(_stringer_landing_y(width, f1_landing_y_start_r, f1_landing_y_end, landing_z_str_r))
 
-    # X-direction landing stringer at y=outer_corner_y (far edge)
-    # Left segment: from F2L pitch-change face to Y-stringer face at x=0
-    f2L_lx_end  = f2L_x0 + hp if render_left  else f2L_x0_ext
-    f2R_lx_start = f2R_x0 - hp if render_right else f2R_x0_ext
-    meshes.append(_stringer_landing_x(outer_corner_y, f2L_lx_end,  0     - st2, landing_z_str_l))
-    meshes.append(_stringer_landing_x(outer_corner_y, width + st2, f2R_lx_start, landing_z_str_r))
+    # X-direction landing stringers at y=outer_corner_y are not needed:
+    # the departure flight stringers (F2L/F2R outer) now start directly at the
+    # Y-stringer faces (-st2 and width+st2), so there is no gap to bridge.
 
     # Inner X-direction landing stringers at y=corner_y removed — they cross the
     # path of the departure flights and are not required.
@@ -1142,23 +1139,21 @@ def _preview_y_shaped(p):
             meshes.append(_baserail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **br_kw))
             meshes.extend(_spindles_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **sp_kw))
 
-        # F2L outer (y=outer_corner_y) — wall stringer only
-        meshes.append(_stringer_flight_x_notched(outer_corner_y, f2L_x0_ext, z_ext,
+        # F2L outer (y=outer_corner_y) — wall stringer, starts at Y-stringer face for clean join
+        meshes.append(_stringer_flight_x_notched(outer_corner_y, -st2, z_ext,
                                                  f2L_x1_fl, f2L_z1_fl, ftf, thresh_back_L, tread_t))
 
-        # F2R outer (y=outer_corner_y) — render_right
+        # F2R outer (y=outer_corner_y) — notched wall stringer from Y-stringer face for clean join
+        meshes.append(_stringer_flight_x_notched(outer_corner_y, width + st2, z_ext,
+                                                 f2R_x1_fl, f2R_z1_fl, ftf, thresh_back_R, tread_t))
         if render_right:
             pc2_face_x_R  = f2R_x0 - hp          # pitch-change newel -X face
             out_top_x_R   = thresh_front_R + hp   # top newel +X face
             f2R_x0_oc, f2R_z0_oc = _trim_x(f2R_x0, f2_z0, f2R_x1, f2_z1, pc2_face_x_R)
             f2R_x1_oc, f2R_z1_oc = _trim_x(f2R_x0, f2_z0, f2R_x1, f2_z1, out_top_x_R)
-            meshes.append(_stringer_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc))
             meshes.append(_handrail_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **hr_kw))
             meshes.append(_baserail_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **br_kw))
             meshes.extend(_spindles_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **sp_kw))
-        else:
-            meshes.append(_stringer_flight_x_notched(outer_corner_y, f2R_x0, f2_z0,
-                                                     f2R_x1_fl, f2R_z1_fl, ftf, thresh_back_R, tread_t))
 
     # ── Newel posts ───────────────────────────────────────────────────────
     NEWEL_CAP = 150.0
