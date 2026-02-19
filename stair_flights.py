@@ -1074,23 +1074,9 @@ def _preview_y_shaped(p):
             meshes.append(_stringer_flight_y(width, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext, clip_z_min=0))
 
     # ── Landing stringers ─────────────────────────────────────────────────
-    # Y-direction stringers at x=0 and x=width (Y masters X: extend to rear edge of X)
-    f1_landing_y_start_l = (f1_y1 + hp) if render_left  else f1_y1_ext
-    f1_landing_y_start_r = (f1_y1 + hp) if render_right else f1_y1_ext
-    f1_landing_y_end = outer_corner_y + st2
-
-    landing_z_str_l = landing_z_base if render_left  else (landing_z_base - STRINGER_PITCH_OFFSET)
-    landing_z_str_r = landing_z_base if render_right else (landing_z_base - STRINGER_PITCH_OFFSET)
-
-    meshes.append(_stringer_landing_y(0,     f1_landing_y_start_l, f1_landing_y_end, landing_z_str_l))
-    meshes.append(_stringer_landing_y(width, f1_landing_y_start_r, f1_landing_y_end, landing_z_str_r))
-
-    # X-direction landing stringers at y=outer_corner_y are not needed:
-    # the departure flight stringers (F2L/F2R outer) now start directly at the
-    # Y-stringer faces (-st2 and width+st2), so there is no gap to bridge.
-
-    # Inner X-direction landing stringers at y=corner_y removed — they cross the
-    # path of the departure flights and are not required.
+    # Y-direction landing stringers at x=0 and x=width removed — not required
+    # for the Y-shaped stair; the departure flight inner/outer stringers frame
+    # each branch directly.  X-direction stringers also not needed.
 
     # Landing handrails / baserails / spindles
     # Y-direction side balustrades (x=0 and x=width) removed — not required at the landing sides.
@@ -1177,13 +1163,6 @@ def _preview_y_shaped(p):
         meshes.append(_box_mesh(0,     f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
     if render_right:
         meshes.append(_box_mesh(width, f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
-
-    # Inner corner posts at (0, corner_y) and (width, corner_y) — always present
-    c_ns = max(ns, 100.0) if (flight1_treads == 0 or flight2_treads == 0) else ns
-    hr_c = max(hr_pc1, flight2_start_riser * rise + nzs_hr + hr_rise)
-    c_h = hr_c + NEWEL_CAP
-    meshes.append(_box_mesh(0,     corner_y, c_h / 2, c_ns, c_ns, c_h, "#8B7355"))
-    meshes.append(_box_mesh(width, corner_y, c_h / 2, c_ns, c_ns, c_h, "#8B7355"))
 
     # Outer corner posts at (0, outer_corner_y) and (width, outer_corner_y)
     oc_hr = max(hr_pc1, flight2_start_riser * rise + nzs_hr + hr_rise)
