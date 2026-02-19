@@ -1132,19 +1132,19 @@ def _preview_y_shaped(p):
                 t = max(0.0, min(1.0, t))
             return x0 + t * dx, z0 + t * (z1 - z0)
 
-        # F2L outer (y=outer_corner_y) — render_left
+        # F2L inner (y=corner_y) — balustrade moved here from outer side
+        f2L_x0_ic, f2L_z0_ic = _trim_x(f2L_x0, f2_z0, f2L_x1, f2_z1, c_face_x_L)
+        f2L_x1_ic, f2L_z1_ic = _trim_x(f2L_x0, f2_z0, f2L_x1_fl, f2L_z1_fl, top_face_x_L)
+        f2L_x1_hr, f2L_z1_hr = _trim_x(f2L_x0, f2_z0, f2L_x1,    f2_z1,     top_face_x_L)
         if render_left:
-            pc2_face_x_L  = f2L_x0 + hp          # pitch-change newel +X face (F2L side)
-            out_top_x_L   = thresh_front_L - hp   # top newel -X face
-            f2L_x0_oc, f2L_z0_oc = _trim_x(f2L_x0, f2_z0, f2L_x1, f2_z1, pc2_face_x_L)
-            f2L_x1_oc, f2L_z1_oc = _trim_x(f2L_x0, f2_z0, f2L_x1, f2_z1, out_top_x_L)
-            meshes.append(_stringer_flight_x(outer_corner_y, f2L_x0_oc, f2L_z0_oc, f2L_x1_oc, f2L_z1_oc))
-            meshes.append(_handrail_flight_x(outer_corner_y, f2L_x0_oc, f2L_z0_oc, f2L_x1_oc, f2L_z1_oc, **hr_kw))
-            meshes.append(_baserail_flight_x(outer_corner_y, f2L_x0_oc, f2L_z0_oc, f2L_x1_oc, f2L_z1_oc, **br_kw))
-            meshes.extend(_spindles_flight_x(outer_corner_y, f2L_x0_oc, f2L_z0_oc, f2L_x1_oc, f2L_z1_oc, **sp_kw))
-        else:
-            meshes.append(_stringer_flight_x_notched(outer_corner_y, f2L_x0_ext, z_ext,
-                                                     f2L_x1_fl, f2L_z1_fl, ftf, thresh_back_L, tread_t))
+            meshes.append(_stringer_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic))
+            meshes.append(_handrail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_hr, f2L_z1_hr, **hr_kw))
+            meshes.append(_baserail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **br_kw))
+            meshes.extend(_spindles_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **sp_kw))
+
+        # F2L outer (y=outer_corner_y) — wall stringer only
+        meshes.append(_stringer_flight_x_notched(outer_corner_y, f2L_x0_ext, z_ext,
+                                                 f2L_x1_fl, f2L_z1_fl, ftf, thresh_back_L, tread_t))
 
         # F2R outer (y=outer_corner_y) — render_right
         if render_right:
