@@ -1328,9 +1328,9 @@ def _preview_double_winder(p):
             landing1_cx = (width + ext) / 2
         meshes.append(_box_mesh(
             landing1_cx,
-            corner1_y + width / 2,
+            corner1_y + (width - ext) / 2,
             landing1_z + tread_t / 2,
-            landing1_w, width, tread_t, "#c8a87c",
+            landing1_w, width + ext, tread_t, "#c8a87c",
             name="Landing 1", ifc_type="landing",
         ))
 
