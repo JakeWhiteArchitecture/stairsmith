@@ -1225,11 +1225,39 @@
             updatePreview();
         }
 
-        // For winder/landing corner toggles — does NOT redistribute flights
+        // For winder/landing corner toggles — absorbs/releases the 3 winder
+        // treads into the adjacent flight so the user's distribution is preserved.
         function selectWinderTurn(groupId) {
             const group = document.getElementById(groupId);
             const btn = event.target;
+            const wasWinder = isTurnWinder(groupId);
             group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
+            const isWinder = isTurnWinder(groupId);
+
+            if (wasWinder !== isWinder) {
+                const type = document.getElementById('staircase_type').value;
+                // +3 when switching TO flat (winders become straight treads)
+                // -3 when switching TO winder (straight treads become winders)
+                const delta = isWinder ? -3 : 3;
+
+                if (type === 'double_winder') {
+                    if (groupId === 'turn1-toggle') {
+                        flightDist.f1 += delta;
+                    } else {
+                        flightDist.f3 += delta;
+                    }
+                } else if (type === 'single_winder') {
+                    flightDist.f1 += delta;
+                }
+
+                // If any flight went negative, fall back to full redistribution
+                if (flightDist.f1 < 0 || flightDist.f2 < 0 || flightDist.f3 < 0) {
+                    redistributeFlights();
+                } else {
+                    updateFlightDistUI();
+                }
+            }
+
             updatePreview();
         }
 
