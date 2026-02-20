@@ -297,7 +297,7 @@ def _preview_single_winder(p):
     if actual_winders == 0:
         flight2_start_riser += 1
         flight2_treads = max(0, flight2_treads - 1)
-    winder_offset = (wx + wy - hp) if actual_winders > 0 else (hp - 2 * nosing)
+    winder_offset = (wx + wy - hp) if actual_winders > 0 else 0.0
     flight2_shift = winder_offset + nosing + riser_t / 2
     for i in range(flight2_treads):
         tread_z = (flight2_start_riser + i) * rise - tread_t
@@ -1341,7 +1341,7 @@ def _preview_double_winder(p):
     flight2_riser_start = riser_idx
 
     # Flight 2 (perpendicular, offset by X+Y from internal corner)
-    winder_offset1 = (wx + wy - hp) if actual_winders1 > 0 else (hp - 2 * nosing)
+    winder_offset1 = (wx + wy - hp) if actual_winders1 > 0 else 0.0
     flight2_shift = winder_offset1 + nosing + riser_t / 2
     for i in range(flight2_treads):
         tread_z = (riser_idx + i) * rise - tread_t
