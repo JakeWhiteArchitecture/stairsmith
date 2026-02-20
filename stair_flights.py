@@ -244,9 +244,7 @@ def _preview_single_winder(p):
 
     # Winder treads — construction-based profiles
     winder_start_riser = flight1_treads + 1
-    # When flat landing, add hp to center the landing nosing on newel post
-    corner_shift = hp if actual_winders == 0 else 0.0
-    corner_y = flight1_treads * going + corner_shift
+    corner_y = flight1_treads * going
     corner_x = 0 if turn_dir == "left" else width
 
     for i in range(actual_winders):
@@ -284,10 +282,11 @@ def _preview_single_winder(p):
             landing_cx = (width - ext) / 2
         else:
             landing_cx = (width + ext) / 2
-        # Landing nosing at corner_y (newel center). Rear edge extends back to
-        # flight1_treads*going - nosing for overhang. Front extends to corner_y + width + ext.
+        # Landing nosing at corner_y + hp (newel center). Rear edge extends back to
+        # flight1_treads*going - nosing for overhang. Front extends forward by width + ext.
+        landing_nosing = corner_y + hp
         landing_rear = flight1_treads * going - nosing
-        landing_depth = corner_y + width + ext - landing_rear
+        landing_depth = landing_nosing + width + ext - landing_rear
         landing_cy = landing_rear + landing_depth / 2
         meshes.append(_box_mesh(
             landing_cx,
@@ -1286,9 +1285,7 @@ def _preview_double_winder(p):
     riser_idx = flight1_treads + 1
 
     # Turn 1 winders — construction-based profiles
-    # When flat landing, add hp to center the landing nosing on newel post
-    corner1_shift = hp if actual_winders1 == 0 else 0.0
-    corner1_y = flight1_treads * going + corner1_shift
+    corner1_y = flight1_treads * going
     corner1_x = 0 if turn1_dir == "left" else width
 
     turn1_winder_start = riser_idx
@@ -1330,10 +1327,11 @@ def _preview_double_winder(p):
             landing1_cx = (width - ext) / 2
         else:
             landing1_cx = (width + ext) / 2
-        # Landing nosing at corner1_y (newel center). Rear edge extends back to
-        # flight1_treads*going - nosing for overhang. Front extends to corner1_y + width + ext.
+        # Landing nosing at corner1_y + hp (newel center). Rear edge extends back to
+        # flight1_treads*going - nosing for overhang. Front extends forward by width + ext.
+        landing1_nosing = corner1_y + hp
         landing1_rear = flight1_treads * going - nosing
-        landing1_depth = corner1_y + width + ext - landing1_rear
+        landing1_depth = landing1_nosing + width + ext - landing1_rear
         landing1_cy = landing1_rear + landing1_depth / 2
         meshes.append(_box_mesh(
             landing1_cx,
