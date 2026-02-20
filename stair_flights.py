@@ -282,11 +282,10 @@ def _preview_single_winder(p):
             landing_cx = (width - ext) / 2
         else:
             landing_cx = (width + ext) / 2
-        # Both nosing edges centred on newel post.
-        # Landing spans from inner newel face to outer newel face.
+        # Nosing edge on centreline (corner_y + hp); riser set back by nosing offset.
         hp = ns / 2
-        landing_cy = corner_y + width / 2
-        landing_depth = width - 2 * hp
+        landing_cy = corner_y + hp - width / 2
+        landing_depth = width
         meshes.append(_box_mesh(
             landing_cx,
             landing_cy,
@@ -1326,11 +1325,10 @@ def _preview_double_winder(p):
             landing1_cx = (width - ext) / 2
         else:
             landing1_cx = (width + ext) / 2
-        # Both nosing edges centred on newel post.
-        # Landing spans from inner newel face to outer newel face.
+        # Nosing edge on centreline (corner1_y + hp); riser set back by nosing offset.
         hp = ns / 2
-        landing1_cy = corner1_y + width / 2
-        landing1_depth = width - 2 * hp
+        landing1_cy = corner1_y + hp - width / 2
+        landing1_depth = width
         meshes.append(_box_mesh(
             landing1_cx,
             landing1_cy,
