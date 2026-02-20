@@ -282,9 +282,10 @@ def _preview_single_winder(p):
             landing_cx = (width - ext) / 2
         else:
             landing_cx = (width + ext) / 2
-        # Landing depth extends backward by nosing to overlap the riser below,
-        # similar to regular treads. Total depth = width + 2*ext (back nosing + forward width + forward ext)
-        landing_depth = width + 2 * ext
+        # Landing depth extends backward by nosing beyond the riser to create overhang,
+        # similar to regular treads. Rear edge starts nosing before riser.
+        # Total depth = width + 2*ext + nosing (back overhang + riser coverage + platform + forward ext)
+        landing_depth = width + 2 * ext + nosing
         landing_cy = corner_y - nosing + landing_depth / 2
         meshes.append(_box_mesh(
             landing_cx,
@@ -1273,9 +1274,9 @@ def _preview_double_winder(p):
     riser_h = rise - tread_t
     for i in range(flight1_treads + 1):
         if riser_t > 0:
-            # When flat landing at turn 1, push the top riser back by nosing
+            # When flat landing at turn 1, pull the top riser back by nosing (in -Y)
             # so the landing tread overhangs it correctly
-            landing_riser_offset = nosing if (i == flight1_treads and actual_winders1 == 0) else 0.0
+            landing_riser_offset = -nosing if (i == flight1_treads and actual_winders1 == 0) else 0.0
             meshes.append(_box_mesh(
                 width / 2, i * going + riser_t / 2 + flight1_shift_y + landing_riser_offset, i * rise + riser_h / 2,
                 width, riser_t, riser_h, "#e8dcc8"
@@ -1326,10 +1327,11 @@ def _preview_double_winder(p):
             landing1_cx = (width - ext) / 2
         else:
             landing1_cx = (width + ext) / 2
-        # Landing depth extends backward by nosing to overlap the riser below,
-        # similar to regular treads. Total depth = width + 2*ext (back nosing + forward width + forward ext)
-        landing1_depth = width + 2 * ext
-        landing1_cy = corner1_y - nosing + landing1_depth / 2
+        # Landing depth extends backward by nosing beyond the riser to create overhang,
+        # similar to regular treads. Rear edge starts nosing before riser.
+        # Total depth = width + 2*ext + nosing (back overhang + riser coverage + platform + forward ext)
+        landing1_depth = width + 2 * ext + nosing
+        landing1_cy = corner1_y - 2*nosing + landing1_depth / 2
         meshes.append(_box_mesh(
             landing1_cx,
             landing1_cy,
