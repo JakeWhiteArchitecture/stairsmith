@@ -278,9 +278,9 @@ def _preview_single_winder(p):
         hp = ns / 2
         landing_w = width + nosing + hp
         if turn_dir == "left":
-            landing_cx = (width - hp) / 2
+            landing_cx = (width + nosing - hp) / 2
         else:
-            landing_cx = (width + hp) / 2
+            landing_cx = (width + hp - nosing) / 2
         landing_cy = corner_y + width / 2
         landing_depth = width
         meshes.append(_box_mesh(
@@ -1320,9 +1320,9 @@ def _preview_double_winder(p):
         hp = ns / 2
         landing1_w = width + nosing + hp
         if turn1_dir == "left":
-            landing1_cx = (width - hp) / 2
+            landing1_cx = (width + nosing - hp) / 2
         else:
-            landing1_cx = (width + hp) / 2
+            landing1_cx = (width + hp - nosing) / 2
         landing1_cy = corner1_y + width / 2
         landing1_depth = width
         meshes.append(_box_mesh(
@@ -1431,14 +1431,14 @@ def _preview_double_winder(p):
     # Turn 2 landing tread when winders are off
     if actual_winders2 == 0:
         landing2_z = turn2_winder_start * rise - tread_t
-        ext = nosing + riser_t  # extension under first riser of flight 3
-        # Both nosing edges centred on newel post; departure extends under flight 3's first riser
+        hp = ns / 2
+        # Nosing edges aligned with newel post centres, riser set back under nosing
         landing2_cx = flight3_start_x + width / 2
         meshes.append(_box_mesh(
             landing2_cx,
-            corner2_y + (width - ext) / 2,
+            corner2_y + (width + nosing - hp) / 2,
             landing2_z + tread_t / 2,
-            width, width + ext, tread_t, "#c8a87c",
+            width, width + nosing + hp, tread_t, "#c8a87c",
             name="Landing 2", ifc_type="landing",
         ))
 
