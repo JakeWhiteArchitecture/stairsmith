@@ -282,10 +282,9 @@ def _preview_single_winder(p):
             landing_cx = (width - ext) / 2
         else:
             landing_cx = (width + ext) / 2
-        # Landing positioned like corner 2: extends from (corner_y - ext) to (corner_y + width)
-        ext = nosing + riser_t
-        landing_cy = corner_y + (width - ext) / 2
-        landing_depth = width + ext
+        # Y is the approach direction (flight 1); ext is already in X (departure toward flight 2).
+        landing_cy = corner_y + width / 2
+        landing_depth = width
         meshes.append(_box_mesh(
             landing_cx,
             landing_cy,
@@ -1325,9 +1324,9 @@ def _preview_double_winder(p):
             landing1_cx = (width - ext) / 2
         else:
             landing1_cx = (width + ext) / 2
-        # Landing positioned like corner 2: extends from (corner1_y - ext) to (corner1_y + width)
-        landing1_cy = corner1_y + (width - ext) / 2
-        landing1_depth = width + ext
+        # Y is the approach direction (flight 1); ext is already in X (departure toward flight 2).
+        landing1_cy = corner1_y + width / 2
+        landing1_depth = width
         meshes.append(_box_mesh(
             landing1_cx,
             landing1_cy,
