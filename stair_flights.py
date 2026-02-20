@@ -282,10 +282,11 @@ def _preview_single_winder(p):
             landing_cx = (width - ext) / 2
         else:
             landing_cx = (width + ext) / 2
-        # Landing extends backward by ext (nosing + riser_t) to tuck under the riser,
-        # and forward by width. Center at corner_y + (width - ext) / 2.
-        landing_cy = corner_y + (width - ext) / 2
-        landing_depth = width + ext
+        # Both nosing edges centred on newel post (at corner_y + hp).
+        # Landing is square platform centered on newel.
+        hp = ns / 2
+        landing_cy = corner_y + hp
+        landing_depth = width
         meshes.append(_box_mesh(
             landing_cx,
             landing_cy,
@@ -1325,10 +1326,11 @@ def _preview_double_winder(p):
             landing1_cx = (width - ext) / 2
         else:
             landing1_cx = (width + ext) / 2
-        # Landing extends backward by ext (nosing + riser_t) to tuck under the riser,
-        # and forward by width. Center at corner1_y + (width - ext) / 2.
-        landing1_cy = corner1_y + (width - ext) / 2
-        landing1_depth = width + ext
+        # Both nosing edges centred on newel post (at corner1_y + hp).
+        # Landing is square platform centered on newel.
+        hp = ns / 2
+        landing1_cy = corner1_y + hp
+        landing1_depth = width
         meshes.append(_box_mesh(
             landing1_cx,
             landing1_cy,
