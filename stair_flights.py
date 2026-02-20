@@ -161,15 +161,8 @@ def _preview_straight(p):
             _slope = (z1 - z0) / (y1 - y0) if abs(y1 - y0) > 1e-9 else 0
             y0_w = y0 - WALL_STRINGER_EXTENSION
             z0_w = z0 - WALL_STRINGER_EXTENSION * _slope
-            # Clip so stringer bottom doesn't go below ground
-            drop = STRINGER_HEIGHT - STRINGER_PITCH_OFFSET
-            if z0_w - drop < 0 and _slope > 1e-9:
-                max_ext = (z0 - drop) / _slope
-                max_ext = max(0.0, max_ext)
-                y0_w = y0 - max_ext
-                z0_w = z0 - max_ext * _slope
             meshes.append(_stringer_flight_y_notched(x_pos, y0_w, z0_w, y1, z1, ftf, threshold_back, tread_t,
-                                                     name=f"{side} Stringer F1"))
+                                                     name=f"{side} Stringer F1", clip_z_min=0))
 
     return meshes
 
@@ -1276,8 +1269,11 @@ def _preview_double_winder(p):
     riser_h = rise - tread_t
     for i in range(flight1_treads + 1):
         if riser_t > 0:
+            # When flat landing at turn 1, push the top riser back by nosing
+            # so the landing tread overhangs it correctly
+            landing_riser_offset = nosing if (i == flight1_treads and actual_winders1 == 0) else 0.0
             meshes.append(_box_mesh(
-                width / 2, i * going + riser_t / 2 + flight1_shift_y, i * rise + riser_h / 2,
+                width / 2, i * going + riser_t / 2 + flight1_shift_y + landing_riser_offset, i * rise + riser_h / 2,
                 width, riser_t, riser_h, "#e8dcc8"
             ))
 
