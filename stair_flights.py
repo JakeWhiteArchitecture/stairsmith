@@ -274,9 +274,9 @@ def _preview_single_winder(p):
     # Landing tread when winders are off
     if actual_winders == 0:
         landing_z = winder_start_riser * rise - tread_t
-        # Nosing edges aligned with newel post centers
+        # Nosing edges aligned with newel post centers, with nosing overhang
         hp = ns / 2
-        landing_w = width + hp
+        landing_w = width + nosing + hp
         if turn_dir == "left":
             landing_cx = (width - hp) / 2
         else:
@@ -1316,9 +1316,9 @@ def _preview_double_winder(p):
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
         landing1_z = turn1_winder_start * rise - tread_t
-        # Nosing edges aligned with newel post centers
+        # Nosing edges aligned with newel post centers, with nosing overhang
         hp = ns / 2
-        landing1_w = width + hp
+        landing1_w = width + nosing + hp
         if turn1_dir == "left":
             landing1_cx = (width - hp) / 2
         else:
