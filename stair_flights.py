@@ -293,6 +293,9 @@ def _preview_single_winder(p):
             name="Landing", ifc_type="landing",
         ))
 
+    # Flight 2 Y center position — matches landing center when flat landing is used
+    flight2_y_center = landing_y + (width + nosing) / 2 if actual_winders == 0 else landing_y + width / 2
+
     # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
     flight2_start_riser = winder_start_riser + actual_winders
     # When winders are off, the landing consumes 1 rise — shift flight 2 up
@@ -308,7 +311,7 @@ def _preview_single_winder(p):
         else:
             tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
         meshes.append(_box_mesh(
-            tread_x, landing_y + width / 2, tread_z + tread_t / 2,
+            tread_x, flight2_y_center, tread_z + tread_t / 2,
             going + nosing + riser_t, width, tread_t, "#c8a87c"
         ))
 
@@ -321,7 +324,7 @@ def _preview_single_winder(p):
             else:
                 riser_x = width + i * going + winder_offset + nosing + riser_t / 2
             meshes.append(_box_mesh(
-                riser_x, landing_y + width / 2, riser_z,
+                riser_x, flight2_y_center, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
             ))
 
@@ -335,7 +338,7 @@ def _preview_single_winder(p):
         thresh_front = width + flight2_treads * going + winder_offset - nosing
         thresh_back = thresh_front + threshold_d
     meshes.append(_box_mesh(
-        (thresh_front + thresh_back) / 2, landing_y + width / 2, ftf - tread_t / 2,
+        (thresh_front + thresh_back) / 2, flight2_y_center, ftf - tread_t / 2,
         threshold_d, width, tread_t, "#c8a87c",
         name="Threshold", ifc_type="threshold",
     ))
@@ -1344,6 +1347,9 @@ def _preview_double_winder(p):
         flight2_treads = max(0, flight2_treads - 1)
     flight2_riser_start = riser_idx
 
+    # Flight 2 Y center position — matches landing center when flat landing is used
+    flight2_y_center = landing1_y + (width + nosing) / 2 if actual_winders1 == 0 else landing1_y + width / 2
+
     # Flight 2 (perpendicular, offset by X+Y from internal corner)
     winder_offset1 = (wx + wy - hp) if actual_winders1 > 0 else 0.0
     flight2_shift = winder_offset1 + nosing + riser_t / 2
@@ -1354,7 +1360,7 @@ def _preview_double_winder(p):
         else:
             tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
         meshes.append(_box_mesh(
-            tread_x, landing1_y + width / 2, tread_z + tread_t / 2,
+            tread_x, flight2_y_center, tread_z + tread_t / 2,
             going + nosing + riser_t, width, tread_t, "#c8a87c"
         ))
 
@@ -1367,7 +1373,7 @@ def _preview_double_winder(p):
             else:
                 riser_x = width + i * going + winder_offset1 + nosing + riser_t / 2
             meshes.append(_box_mesh(
-                riser_x, landing1_y + width / 2, riser_z,
+                riser_x, flight2_y_center, riser_z,
                 riser_t, width, riser_h, "#e8dcc8"
             ))
 
