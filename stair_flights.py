@@ -211,6 +211,15 @@ def _preview_single_winder(p):
         flight1_treads = straight_treads // 2
         flight2_treads = straight_treads - flight1_treads
 
+    # Enforce minimum 1 step for flights adjacent to flat landing
+    if actual_winders == 0 and straight_treads >= 2:
+        flight1_treads = max(1, flight1_treads)
+        flight2_treads = max(1, flight2_treads)
+        # Rebalance if needed
+        if flight1_treads + flight2_treads != straight_treads:
+            flight1_treads = straight_treads // 2
+            flight2_treads = straight_treads - flight1_treads
+
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
     hp = ns / 2.0
@@ -1251,6 +1260,40 @@ def _preview_double_winder(p):
         flight1_treads = straight_treads // 3
         flight2_treads = straight_treads // 3
         flight3_treads = straight_treads - flight1_treads - flight2_treads
+
+    # Enforce minimum 1 step for flights adjacent to flat landings
+    # and minimum 1 step between two flat landings
+    if straight_treads >= 2:
+        if actual_winders1 == 0:
+            # Flat landing 1: ensure flight1 >= 1 and flight2 >= 1
+            flight1_treads = max(1, flight1_treads)
+            flight2_treads = max(1, flight2_treads)
+        if actual_winders2 == 0:
+            # Flat landing 2: ensure flight2 >= 1 and flight3 >= 1
+            flight2_treads = max(1, flight2_treads)
+            flight3_treads = max(1, flight3_treads)
+        # Rebalance if needed
+        total = flight1_treads + flight2_treads + flight3_treads
+        if total != straight_treads:
+            # Distribute excess or deficit proportionally
+            excess = total - straight_treads
+            if excess > 0:
+                # Reduce from largest flight(s) first
+                if flight3_treads > 1 and excess > 0:
+                    reduce = min(flight3_treads - 1, excess)
+                    flight3_treads -= reduce
+                    excess -= reduce
+                if flight1_treads > 1 and excess > 0:
+                    reduce = min(flight1_treads - 1, excess)
+                    flight1_treads -= reduce
+                    excess -= reduce
+                if flight2_treads > 1 and excess > 0:
+                    reduce = min(flight2_treads - 1, excess)
+                    flight2_treads -= reduce
+                    excess -= reduce
+            else:
+                # Add to flights that can grow
+                flight3_treads -= excess  # excess is negative, so this adds
 
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
