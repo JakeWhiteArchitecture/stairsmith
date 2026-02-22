@@ -278,13 +278,10 @@ def _preview_single_winder(p):
     # Landing tread when winders are off
     if actual_winders == 0:
         landing_z = winder_start_riser * rise - tread_t
-        # Nosing edges aligned with newel post centers, with nosing overhang
+        # Landing width matches flight 1 tread width to avoid showing through stringer
         hp = ns / 2
-        landing_w = width + nosing + hp
-        if turn_dir == "left":
-            landing_cx = (width + nosing - hp) / 2
-        else:
-            landing_cx = (width + hp - nosing) / 2
+        landing_w = width
+        landing_cx = width / 2
         landing_cy = landing_y + width / 2
         landing_depth = width
         meshes.append(_box_mesh(
@@ -1324,13 +1321,10 @@ def _preview_double_winder(p):
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
         landing1_z = turn1_winder_start * rise - tread_t
-        # Nosing edges aligned with newel post centers, with nosing overhang
+        # Landing width matches flight 1 tread width to avoid showing through stringer
         hp = ns / 2
-        landing1_w = width + nosing + hp
-        if turn1_dir == "left":
-            landing1_cx = (width + nosing - hp) / 2
-        else:
-            landing1_cx = (width + hp - nosing) / 2
+        landing1_w = width
+        landing1_cx = width / 2
         landing1_cy = landing1_y + width / 2
         landing1_depth = width
         meshes.append(_box_mesh(
@@ -1440,13 +1434,14 @@ def _preview_double_winder(p):
     if actual_winders2 == 0:
         landing2_z = turn2_winder_start * rise - tread_t
         hp = ns / 2
-        # Nosing edges aligned with newel post centres, riser set back under nosing
+        # Landing width matches flight tread widths to avoid showing through stringer
         landing2_cx = flight3_start_x + width / 2
+        landing2_cy = corner2_y + width / 2
         meshes.append(_box_mesh(
             landing2_cx,
-            corner2_y + (width + nosing - hp) / 2,
+            landing2_cy,
             landing2_z + tread_t / 2,
-            width, width + nosing + hp, tread_t, "#c8a87c",
+            width, width, tread_t, "#c8a87c",
             name="Landing 2", ifc_type="landing",
         ))
 
