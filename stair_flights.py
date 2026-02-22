@@ -249,7 +249,7 @@ def _preview_single_winder(p):
 
     # Landing position — shifted forward by nosing when flat landing replaces winders
     # This ensures the landing overhangs the last flight 1 riser correctly
-    landing_y = corner_y + nosing if actual_winders == 0 else corner_y
+    landing_y = corner_y - nosing if actual_winders == 0 else corner_y
 
     for i in range(actual_winders):
         winder_z = (winder_start_riser + i) * rise - tread_t
@@ -1289,7 +1289,7 @@ def _preview_double_winder(p):
 
     # Landing 1 position — shifted forward by nosing when flat landing replaces winders
     # This ensures the landing overhangs the last flight 1 riser correctly
-    landing1_y = corner1_y + nosing if actual_winders1 == 0 else corner1_y
+    landing1_y = corner1_y - nosing if actual_winders1 == 0 else corner1_y
 
     turn1_winder_start = riser_idx
     for i in range(actual_winders1):
