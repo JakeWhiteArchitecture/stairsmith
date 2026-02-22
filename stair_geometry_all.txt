@@ -1,0 +1,3923 @@
+"""
+Stair Preview Engine — shared constants, parameter parsing, and _box_mesh helper.
+"""
+
+
+STRINGER_THICKNESS = 32.0        # mm
+STRINGER_HEIGHT = 275.0          # mm
+STRINGER_PITCH_OFFSET = 25.0     # mm – stringer top sits this far above the pitch line
+STRINGER_DROP = 75.0             # landing stringer top above tread plane
+WALL_STRINGER_EXTENSION = 70.0   # mm – stringer extends past nosing when wall (no newel)
+STRINGER_COLOR = "#b5a48a"
+
+HANDRAIL_WIDTH = 70.0            # mm
+HANDRAIL_HEIGHT = 40.0           # mm
+HANDRAIL_RISE = 900.0            # mm – vertical from nosing pitch line to top of handrail
+HANDRAIL_COLOR = "#8B7355"
+
+SPINDLE_SIZE = 32.0              # mm – square cross-section
+SPINDLE_MAX_GAP = 99.0           # mm – max clear gap between spindles (building regs: 100mm sphere)
+
+_BOX_COLOR_TO_IFC = {
+    "#c8a87c": "tread",       # treads, landings, thresholds (override for landing/threshold)
+    "#e8dcc8": "riser",       # risers
+    "#d4a574": "winder_tread",
+    "#8B7355": "newel",       # newel posts
+}
+
+
+def _box_mesh(x, y, z, w, d, h, color, name="", ifc_type=""):
+    """Create a box mesh definition for Three.js.
+
+    Stores both Three.js coords (Y-up) and IFC-native coords (Z-up) so
+    the mesh list can drive both the preview and the IFC converter.
+    ifc_type is auto-inferred from color if not provided.
+    """
+    if not ifc_type:
+        ifc_type = _BOX_COLOR_TO_IFC.get(color, "")
+    return {
+        "type": "box",
+        "position": [x, z, -y],  # swap Y/Z for Three.js (Y-up)
+        "size": [w, h, d],
+        "ifc_center": [x, y, z],  # IFC Z-up native coords
+        "ifc_size": [w, d, h],    # [width_x, depth_y, height_z]
+        "color": color,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _parse(params):
+    p = {}
+    p["floor_to_floor"] = float(params.get("floor_to_floor", 2700))
+    p["stair_width"] = float(params.get("stair_width", 900))
+    p["num_risers"] = int(params.get("num_risers", 14))
+    p["going"] = float(params.get("going", 227))
+    p["tread_thickness"] = float(params.get("tread_thickness", 22))
+    p["riser_thickness"] = float(params.get("riser_thickness", 9))
+    p["nosing"] = float(params.get("nosing", 16))
+    p["staircase_type"] = params.get("staircase_type", "double_winder")
+    p["turn1_direction"] = params.get("turn1_direction", "left")
+    p["turn1_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
+    p["turn2_direction"] = params.get("turn2_direction", "left")
+    p["turn2_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
+    p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
+    p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
+    p["newel_size"] = float(params.get("newel_size", 90))
+    # Winder X: distance from internal corner of newel along post face (min 25, max newel_size)
+    raw_x = float(params.get("winder_x", 25))
+    p["winder_x"] = max(25.0, min(p["newel_size"], raw_x))
+    # Winder Y: going from X endpoint toward flight (min 50)
+    raw_y = float(params.get("winder_y", 50))
+    p["winder_y"] = max(50.0, raw_y)
+    # Same X/Y applies to both turns
+    p["winder_x2"] = p["winder_x"]
+    p["winder_y2"] = p["winder_y"]
+    p["threshold_depth"] = float(params.get("threshold_depth", 100))
+    # Flight distribution overrides (-1 = auto / equal split)
+    p["flight1_steps"] = int(params.get("flight1_steps", -1))
+    p["flight2_steps"] = int(params.get("flight2_steps", -1))
+    p["flight3_steps"] = int(params.get("flight3_steps", -1))
+    # Balustrade dimensions
+    p["handrail_width"] = float(params.get("handrail_width", 70))
+    p["handrail_height"] = float(params.get("handrail_height", 40))
+    p["handrail_rise"] = float(params.get("handrail_rise", 900))
+    p["baserail_width"] = float(params.get("baserail_width", 50))
+    p["baserail_height"] = float(params.get("baserail_height", 30))
+    p["spindle_width"] = float(params.get("spindle_width", 32))
+    p["left_condition"] = params.get("left_condition", "balustrade")
+    p["right_condition"] = params.get("right_condition", "wall")
+    p["rise"] = p["floor_to_floor"] / p["num_risers"]
+    p["num_treads"] = p["num_risers"] - 1
+    p["num_risers_val"] = p["num_risers"]
+    return p
+"""
+Stair Preview Engine — winder geometry helpers.
+
+compute_winder_geometry, _winder_profiles_from_construction,
+and _winder_riser_meshes.
+"""
+
+import math
+
+
+def compute_winder_geometry(newel_size, stair_width):
+    """Compute winder construction geometry following the 4-step sequence.
+
+    Step 1: Abstract layout — two flights at 90°, inner strings cross at junction.
+    Step 2: Newel post centred on junction point (fixed, never moves).
+    Step 3: Calculate offset and shift flights away from corner.
+    Step 4: Determine winder division lines from post face marks.
+
+    Returns a dict with:
+        offset: how far each flight shifts along its axis
+        effective_width: stair_width minus offset (warn if < 600mm)
+        winder_centre_offset: offset from post centreline to winder centre point
+        face_marks: [25mm, 75mm] from corner on each post face
+        kite_going: 50mm (25+25 wrapped around corner)
+        flank_going: 50mm (75-25 on each face)
+        min_post_warning: True if newel_size < 75mm
+    """
+    half_post = newel_size / 2.0
+    corner_allowance = 25.0  # mm from corner of post face
+    min_going = 50.0  # mm minimum winder going
+
+    # Step 3: offset = N/2 - 25mm
+    offset = half_post - corner_allowance
+
+    # Effective width at the turn after shifting
+    effective_width = stair_width - offset
+
+    # Winder centre point offset from post centreline
+    winder_centre_offset = offset  # same as flight offset from centreline
+
+    # Face marks from corner: 25mm (kite edge) and 75mm (flank edge)
+    mark_kite = corner_allowance  # 25mm from corner
+    mark_flank = corner_allowance + min_going  # 75mm from corner
+
+    # Verify goings
+    kite_going = corner_allowance + corner_allowance  # 25mm wraps around corner = 50mm
+    flank_going = mark_flank - mark_kite  # 75 - 25 = 50mm
+
+    return {
+        "offset": offset,
+        "effective_width": effective_width,
+        "winder_centre_offset": winder_centre_offset,
+        "mark_kite": mark_kite,
+        "mark_flank": mark_flank,
+        "kite_going": kite_going,
+        "flank_going": flank_going,
+        "min_post_warning": newel_size < 75.0,
+        "width_warning": effective_width < 600.0,
+    }
+
+
+def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width,
+                                         turn_direction, winder_index, num_winders=3,
+                                         rotation=0, riser_extension=0,
+                                         flight_extension=0, winder_x=25.0):
+    """Generate winder tread profile using angular division lines.
+
+    Division lines radiate from the winder centre point at equal angles
+    (90° / num_winders). The winder centre is the intersection of the 25mm
+    marks on the two post faces at the turn corner.
+
+    The kite winder preserves the 25×25mm contact with the newel post corner.
+
+    rotation: degrees to rotate the entire profile around (post_cx, post_cy).
+              0 = flight approaches along +Y (turn 1 standard).
+              -90 = flight approaches along -X (turn 2 after left turn 1).
+
+    riser_extension: mm to extend the upper boundary of non-last winders
+                     past the division line, so the riser above can sit on the tread.
+
+    Angles measured from 0° (flight-1 outer string direction, along X)
+    to 90° (flight-2 outer string direction, along Y).
+
+    Args:
+        post_cx, post_cy: post centreline position (fixed, Step 2)
+        newel_size: post dimension (square)
+        stair_width: nominal stair width
+        turn_direction: 'left' or 'right'
+        winder_index: 0-based index of this winder
+        num_winders: total winders in this turn (2-4)
+    Returns:
+        list of (x, y) tuples defining the tread profile polygon
+    """
+    hp = newel_size / 2.0
+    x_sign = 1.0 if turn_direction == "left" else -1.0
+
+    # Post corner nearest turn interior (Face A and Face B meet here)
+    pc_x = post_cx + x_sign * hp
+    pc_y = post_cy + hp
+
+    # Winder centre: intersection of winder_x marks on both post faces
+    wc_x = pc_x - x_sign * winder_x
+    wc_y = pc_y - winder_x
+
+    # Outer string positions
+    outer_f1_x = post_cx + x_sign * stair_width
+    outer_f2_y = post_cy + stair_width
+
+    # Post face edges
+    post_bottom_y = post_cy - hp
+    post_opp_x = post_cx - x_sign * hp
+
+    # Angular division: 90° split into num_winders equal segments.
+    # Inner contact points are FIXED at 25mm marks on the post faces.
+    # Only the OUTER points follow angular rays from the winder centre.
+    angle_step = (math.pi / 2.0) / num_winders
+
+    def ray_outer(angle):
+        """Where a ray from winder centre at angle hits the outer L-boundary."""
+        dx = x_sign * math.cos(angle)
+        dy = math.sin(angle)
+        t_f1 = (outer_f1_x - wc_x) / dx if abs(dx) > 1e-9 else float('inf')
+        t_f2 = (outer_f2_y - wc_y) / dy if abs(dy) > 1e-9 else float('inf')
+        if t_f1 < 0: t_f1 = float('inf')
+        if t_f2 < 0: t_f2 = float('inf')
+        t = min(t_f1, t_f2)
+        return (wc_x + dx * t, wc_y + dy * t)
+
+    a0 = winder_index * angle_step
+    a1 = (winder_index + 1) * angle_step
+
+    outer_s = ray_outer(a0)
+    outer_e = ray_outer(a1)
+
+    # Angle to outer L-corner
+    oc_dx = (outer_f1_x - wc_x) / x_sign
+    oc_dy = outer_f2_y - wc_y
+    a_outer_corner = math.atan2(oc_dy, oc_dx)
+    straddles_outer = a0 < a_outer_corner < a1
+
+    # Fixed 25mm inner marks on post faces
+    mark_a = (pc_x, wc_y)   # 25mm mark on Face A (vertical face)
+    mark_b = (wc_x, pc_y)   # 25mm mark on Face B (horizontal face)
+
+    # Pre-compute riser extension points for non-last winders.
+    # These extend the upper boundary (at a1) by riser_extension past
+    # the division line so the riser above can sit on the tread.
+    ext_inner = ext_outer = None
+    if riser_extension > 0 and winder_index < num_winders - 1:
+        a_ic = math.atan2(winder_x, winder_x)
+        if a1 < a_ic - 1e-6:
+            inner_a1 = mark_a
+        elif a1 > a_ic + 1e-6:
+            inner_a1 = mark_b
+        else:
+            inner_a1 = (pc_x, pc_y)
+        dlx = outer_e[0] - inner_a1[0]
+        dly = outer_e[1] - inner_a1[1]
+        dl = math.sqrt(dlx * dlx + dly * dly)
+        if dl > 1e-9:
+            pnx = x_sign * (-dly / dl) * riser_extension
+            pny = x_sign * (dlx / dl) * riser_extension
+            ext_inner = (inner_a1[0] + pnx, inner_a1[1] + pny)
+            # Clamp ext_inner to post face, preserving perpendicular
+            # distance from the division line by sliding along it.
+            ex, ey = ext_inner
+            if abs(inner_a1[0] - pc_x) < 1e-6:
+                # inner_a1 is on Face A — slide along division line to x = pc_x
+                if abs(ex - pc_x) > 1e-6 and abs(dlx) > 1e-9:
+                    t = (pc_x - ex) / dlx
+                    ex = pc_x
+                    ey = ey + t * dly
+                else:
+                    ex = pc_x
+                ey = min(ey, pc_y)
+            elif abs(inner_a1[1] - pc_y) < 1e-6:
+                # inner_a1 is on Face B — slide along division line to y = pc_y
+                if abs(ey - pc_y) > 1e-6 and abs(dly) > 1e-9:
+                    t = (pc_y - ey) / dly
+                    ex = ex + t * dlx
+                    ey = pc_y
+                else:
+                    ey = pc_y
+                if x_sign > 0:
+                    ex = max(ex, post_opp_x)
+                else:
+                    ex = min(ex, post_opp_x)
+            else:
+                # At post corner — no inner extension needed
+                ex = pc_x
+                ey = pc_y
+            ext_inner = (ex, ey)
+            # Trace from ext_inner along division line to hit the outer
+            # L-boundary so the tread extension is flush with the wall
+            t_f1 = (outer_f1_x - ext_inner[0]) / dlx if abs(dlx) > 1e-9 else float('inf')
+            t_f2 = (outer_f2_y - ext_inner[1]) / dly if abs(dly) > 1e-9 else float('inf')
+            if t_f1 < 0: t_f1 = float('inf')
+            if t_f2 < 0: t_f2 = float('inf')
+            t = min(t_f1, t_f2)
+            ext_outer = (ext_inner[0] + dlx * t, ext_inner[1] + dly * t)
+
+    # First winder (flight-1 side flank)
+    if winder_index == 0:
+        # Extend leading edge toward flight 1 by flight_extension
+        entry_y = post_bottom_y - flight_extension
+
+        if flight_extension > 0:
+            # Winder extends below post — full flight width with L-shaped
+            # inner edge that wraps around the post bottom face
+            profile = [
+                (post_cx, entry_y),          # inner bottom at flight width
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+        else:
+            # Winder doesn't extend below post — inner edge at post face
+            profile = [
+                (pc_x, entry_y),             # inner bottom at post face
+                (outer_f1_x, entry_y),       # outer bottom
+            ]
+
+        # outer_s is at a0=0 which is along flight-1 axis
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_e)          # angled outer point
+        if ext_outer:
+            profile.append(ext_outer)
+            profile.append(ext_inner)
+        profile.append(mark_a)           # fixed 25mm mark on Face A
+
+        if flight_extension > 0:
+            # Close the L-shape: down post face to post bottom, jog to flight edge
+            profile.append((pc_x, post_bottom_y))
+            profile.append((post_cx, post_bottom_y))
+
+    # Last winder (flight-2 side flank)
+    elif winder_index == num_winders - 1:
+        # Extend rear edge toward flight 2 so it runs under flight 2's
+        # first riser. Total extension = flight_extension + riser_extension.
+        total_exit_ext = flight_extension + riser_extension
+        exit_x = post_opp_x - x_sign * total_exit_ext
+
+        if total_exit_ext > 0:
+            # Exit extends past post — full flight width with L-shaped
+            # inner edge that wraps around the post opposite face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (post_opp_x, pc_y),              # along post face to post edge
+                (post_opp_x, post_cy),           # jog to flight inner edge
+                (exit_x, post_cy),               # continue at flight width
+                (exit_x, outer_f2_y),            # exit outer
+            ]
+        else:
+            # Exit doesn't extend past post — inner edge at post face
+            profile = [
+                mark_b,                          # fixed 25mm mark on Face B
+                (exit_x, pc_y),                  # exit edge inner
+                (exit_x, outer_f2_y),            # exit edge outer
+            ]
+
+        # outer_e is at a1=90° which is along flight-2 axis
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)              # angled outer point
+
+    # Middle winders (kite or half-kite)
+    else:
+        # Determine which part of the inner L-shape this winder gets.
+        ic_dx = (pc_x - wc_x) / x_sign if x_sign != 0 else 1.0
+        ic_dy = pc_y - wc_y
+        a_inner_corner = math.atan2(ic_dy, ic_dx)
+        a_mid = (a0 + a1) / 2.0
+
+        if a_mid < a_inner_corner - 1e-6:
+            # Face A side only (before post corner)
+            profile = [mark_a, (pc_x, pc_y)]
+        elif a_mid > a_inner_corner + 1e-6:
+            # Face B side only (after post corner)
+            profile = [(pc_x, pc_y), mark_b]
+        else:
+            # Straddles corner — full L-shape (kite)
+            profile = [mark_a, (pc_x, pc_y), mark_b]
+
+        # Insert extension before outer_e so tread extends past division line
+        if ext_inner:
+            profile.append(ext_inner)
+            profile.append(ext_outer)
+        profile.append(outer_e)
+        if straddles_outer:
+            profile.append((outer_f1_x, outer_f2_y))
+        profile.append(outer_s)
+
+    # Apply rotation around post centre if needed (for turn 2)
+    if rotation != 0:
+        rad = math.radians(rotation)
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+        rotated = []
+        for (px, py) in profile:
+            dx = px - post_cx
+            dy = py - post_cy
+            rx = cos_r * dx - sin_r * dy + post_cx
+            ry = sin_r * dx + cos_r * dy + post_cy
+            rotated.append((rx, ry))
+        profile = rotated
+
+    return profile
+
+
+def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
+                         num_winders, winder_start_riser, rise, tread_t,
+                         riser_t, nosing=0, rotation=0, winder_x=25.0):
+    """Generate riser meshes between consecutive winder treads.
+
+    Returns a list of winder_polygon mesh dicts (thin strips along division
+    lines, extruded vertically by riser_h).
+    """
+    if num_winders < 2 or riser_t <= 0:
+        return []
+
+    riser_h = rise - tread_t
+    hp = ns / 2.0
+    x_sign = 1.0 if turn_dir == "left" else -1.0
+
+    pc_x = corner_x + x_sign * hp
+    pc_y = corner_y + hp
+    wc_x = pc_x - x_sign * winder_x
+    wc_y = pc_y - winder_x
+
+    outer_f1_x = corner_x + x_sign * width
+    outer_f2_y = corner_y + width
+
+    mark_a = (pc_x, wc_y)
+    mark_b = (wc_x, pc_y)
+
+    angle_step = (math.pi / 2.0) / num_winders
+    a_inner_corner = math.atan2(winder_x, winder_x)  # pi/4
+
+    def ray_outer(angle):
+        dx = x_sign * math.cos(angle)
+        dy = math.sin(angle)
+        t_f1 = (outer_f1_x - wc_x) / dx if abs(dx) > 1e-9 else float('inf')
+        t_f2 = (outer_f2_y - wc_y) / dy if abs(dy) > 1e-9 else float('inf')
+        if t_f1 < 0: t_f1 = float('inf')
+        if t_f2 < 0: t_f2 = float('inf')
+        t = min(t_f1, t_f2)
+        return (wc_x + dx * t, wc_y + dy * t)
+
+    meshes = []
+    for j in range(num_winders - 1):
+        a_boundary = (j + 1) * angle_step
+
+        # Inner point on post face
+        if a_boundary < a_inner_corner - 1e-6:
+            inner = mark_a
+        elif a_boundary > a_inner_corner + 1e-6:
+            inner = mark_b
+        else:
+            inner = (pc_x, pc_y)
+
+        outer = ray_outer(a_boundary)
+
+        # Division line direction and perpendicular
+        lx = outer[0] - inner[0]
+        ly = outer[1] - inner[1]
+        length = math.sqrt(lx * lx + ly * ly)
+        if length < 1e-9:
+            continue
+
+        # Unit normal toward upper winder
+        unx = x_sign * (-ly / length)
+        uny = x_sign * (lx / length)
+
+        # Nosing setback: shift entire riser toward upper winder by nosing,
+        # so the nosing of the tread above overhangs past the riser front face.
+        # Then the back face is riser_t further toward the upper winder.
+        front_off = nosing              # toward upper winder
+        back_off = nosing + riser_t     # riser_t past front face
+
+        inner_front = (inner[0] + unx * front_off, inner[1] + uny * front_off)
+
+        # Clamp the front inner point to the post face by sliding along the
+        # division line, so the riser doesn't penetrate the newel post.
+        post_opp_x = corner_x - x_sign * hp
+        def _clamp_to_post(pt):
+            ex, ey = pt
+            if abs(inner[0] - pc_x) < 1e-6:
+                # inner is on Face A — slide along division line to x = pc_x
+                if abs(ex - pc_x) > 1e-6 and abs(lx) > 1e-9:
+                    base_x = inner[0] + front_off * unx
+                    base_y = inner[1] + front_off * uny
+                    t = (pc_x - base_x) / lx
+                    ex = pc_x
+                    ey = base_y + t * ly
+                else:
+                    ex = pc_x
+                ey = min(ey, pc_y)
+            elif abs(inner[1] - pc_y) < 1e-6:
+                # inner is on Face B — slide along division line to y = pc_y
+                if abs(ey - pc_y) > 1e-6 and abs(ly) > 1e-9:
+                    base_x = inner[0] + front_off * unx
+                    base_y = inner[1] + front_off * uny
+                    t = (pc_y - base_y) / ly
+                    ex = base_x + t * lx
+                    ey = pc_y
+                else:
+                    ey = pc_y
+                if x_sign > 0:
+                    ex = max(ex, post_opp_x)
+                else:
+                    ex = min(ex, post_opp_x)
+            else:
+                # At post corner
+                ex = pc_x
+                ey = pc_y
+            return (ex, ey)
+        inner_front = _clamp_to_post(inner_front)
+        # Derive inner_back from the clamped front point so the riser always
+        # has full riser_t perpendicular thickness.  Independent clamping of
+        # inner_back using back_off collapsed both points to the post corner
+        # for the first winder boundary (< 45°), producing a zero-thickness
+        # degenerate triangle instead of a proper riser quadrilateral.
+        inner_back = (inner_front[0] + unx * riser_t, inner_front[1] + uny * riser_t)
+
+        # Trace both outer points along division line to hit the wall
+        def _trace_to_wall(pt):
+            tf1 = (outer_f1_x - pt[0]) / lx if abs(lx) > 1e-9 else float('inf')
+            tf2 = (outer_f2_y - pt[1]) / ly if abs(ly) > 1e-9 else float('inf')
+            if tf1 < 0: tf1 = float('inf')
+            if tf2 < 0: tf2 = float('inf')
+            t = min(tf1, tf2)
+            return (pt[0] + lx * t, pt[1] + ly * t)
+
+        outer_front = _trace_to_wall(inner_front)
+        outer_back = _trace_to_wall(inner_back)
+
+        # Riser polygon: front face set back by nosing from division line,
+        # back face riser_t further, both outer ends flush with wall
+        strip = [
+            inner_back,     # back face, inner end
+            outer_back,     # back face, outer end (on the wall)
+            outer_front,    # front face, outer end (on the wall)
+            inner_front,    # front face, inner end
+        ]
+
+        # Apply rotation if needed (turn 2)
+        if rotation != 0:
+            rad = math.radians(rotation)
+            cos_r = math.cos(rad)
+            sin_r = math.sin(rad)
+            rotated = []
+            for (px, py) in strip:
+                dx = px - corner_x
+                dy = py - corner_y
+                rx = cos_r * dx - sin_r * dy + corner_x
+                ry = sin_r * dx + cos_r * dy + corner_y
+                rotated.append((rx, ry))
+            strip = rotated
+
+        z_bottom = (winder_start_riser + j) * rise
+        meshes.append({
+            "type": "winder_polygon",
+            "profile": [[pt[0], pt[1]] for pt in strip],
+            "z": z_bottom,
+            "thickness": riser_h,
+            "color": "#e8dcc8",
+            "name": f"Winder Riser {j+1}",
+            "ifc_type": "winder_riser",
+        })
+
+    return meshes
+"""
+Stair Preview Engine — flight builder functions.
+
+_preview_straight, _preview_single_winder, _preview_double_winder.
+"""
+
+import math
+
+from stair_constants import (
+    STRINGER_THICKNESS, STRINGER_HEIGHT, STRINGER_PITCH_OFFSET, STRINGER_DROP,
+    WALL_STRINGER_EXTENSION, _box_mesh,
+)
+from stair_balustrade import (
+    _stringer_flight_y, _stringer_flight_x,
+    _stringer_landing_y, _stringer_landing_x,
+    _stringer_flight_y_notched, _stringer_flight_x_notched,
+    _handrail_flight_y, _handrail_flight_x,
+    _handrail_landing_y, _handrail_landing_x,
+    _baserail_flight_y, _baserail_flight_x,
+    _baserail_landing_y, _baserail_landing_x,
+    _spindles_flight_y, _spindles_flight_x,
+    _spindles_landing_y, _spindles_landing_x,
+)
+from stair_winder_geometry import (
+    compute_winder_geometry,
+    _winder_profiles_from_construction,
+    _winder_riser_meshes,
+)
+
+
+def _preview_straight(p):
+    import math
+    meshes = []
+    width = p["stair_width"] - STRINGER_THICKNESS
+    going = p["going"]
+    rise = p["rise"]
+    tread_t = p["tread_thickness"]
+    riser_t = p["riser_thickness"]
+    nosing = p["nosing"]
+    num_treads = p["num_treads"]
+    num_risers = p["num_risers_val"]
+
+    for i in range(num_treads):
+        tread_y = i * going - nosing
+        tread_z = (i + 1) * rise - tread_t
+        tread_length = going + nosing + riser_t
+        meshes.append(_box_mesh(
+            width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c",
+            name=f"Flight 1 Tread {i+1}", ifc_type="tread",
+        ))
+
+    riser_h = rise - tread_t
+    for i in range(num_risers):
+        riser_y = i * going
+        riser_z = i * rise
+        if riser_t > 0:
+            meshes.append(_box_mesh(
+                width / 2, riser_y + riser_t / 2, riser_z + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8",
+                name=f"Riser F1-{i+1}", ifc_type="riser",
+            ))
+
+    # --- Landing threshold strip ---
+    ftf = num_risers * rise
+    threshold_d = p["threshold_depth"]
+    threshold_y = num_treads * going - nosing            # front (nosing overhang)
+    threshold_back = num_treads * going - nosing + threshold_d
+    meshes.append(_box_mesh(
+        width / 2, threshold_y + threshold_d / 2, ftf - tread_t + tread_t / 2,
+        width, threshold_d, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
+    ))
+
+    # --- Stringers and balustrade ---
+    nzs = rise * nosing / going
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    y0 = 0.0
+    y1 = num_treads * going + riser_t / 2       # flush with riser back face
+    y1_nf = num_treads * going                  # non-flushed (at last riser)
+    z0 = rise + nzs
+    z1 = (num_treads + 1) * rise + nzs + riser_t * rise / (2 * going)
+    z1_nf = (num_treads + 1) * rise + nzs
+
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
+    NEWEL_CAP = 150.0
+    hr_rise_val = p["handrail_rise"]
+    bottom_post_y = -nosing
+    top_post_y = threshold_y
+
+    for side_idx, (x_pos, condition) in enumerate([(0.0, p["left_condition"]), (width, p["right_condition"])]):
+        side = "Left" if side_idx == 0 else "Right"
+        if condition == "balustrade":
+            bot_face_y = bottom_post_y + hp
+            top_face_y = top_post_y - hp
+            dy = y1 - y0
+            # For balustrade, stringer terminates at rear face of bottom post (no extension)
+            _slope = (z1 - z0) / (y1 - y0) if abs(y1 - y0) > 1e-9 else 0
+            y0_stringer = bot_face_y
+            if abs(y1 - y0) > 1e-9:
+                t_stringer = (bot_face_y - y0) / (y1 - y0)
+                z0_stringer = z0 + t_stringer * (z1 - z0)
+            else:
+                z0_stringer = z0
+            # Clip handrail/baserail/spindle start at bottom post face
+            y0_c, z0_c = y0, z0
+            if abs(dy) > 1e-9 and bot_face_y > y0:
+                t_c = min(1.0, (bot_face_y - y0) / dy)
+                y0_c = y0 + t_c * dy
+                z0_c = z0 + t_c * (z1 - z0)
+            # Clip end at top post face
+            y1_c, z1_c = y1, z1
+            if abs(dy) > 1e-9 and top_face_y < y1:
+                t_c = max(0.0, (top_face_y - y0) / dy)
+                y1_c = y0 + t_c * dy
+                z1_c = z0 + t_c * (z1 - z0)
+            meshes.append(_stringer_flight_y(x_pos, y0_stringer, z0_stringer, y1_c, z1_c,
+                                             name=f"{side} Stringer F1", clip_z_min=0))
+            # Handrail clip (using non-flushed endpoint)
+            dy_nf = y1_nf - y0
+            y1_hr, z1_hr = y1_nf, z1_nf
+            if abs(dy_nf) > 1e-9 and top_face_y < y1_nf:
+                t_c = max(0.0, (top_face_y - y0) / dy_nf)
+                y1_hr = y0 + t_c * dy_nf
+                z1_hr = z0 + t_c * (z1_nf - z0)
+            meshes.append(_handrail_flight_y(x_pos, y0_c, z0_c, y1_hr, z1_hr,
+                                             name=f"{side} Handrail F1", **hr_kw))
+            meshes.append(_baserail_flight_y(x_pos, y0_c, z0_c, y1_c, z1_c,
+                                             name=f"{side} Baserail F1", **br_kw))
+            if abs(dy_nf) > 1e-9:
+                t_sp0 = (bot_face_y - y0) / dy_nf
+                t_sp1 = (top_face_y - y0) / dy_nf
+                sp_z0 = z0 + t_sp0 * (z1_nf - z0)
+                sp_z1 = z0 + t_sp1 * (z1_nf - z0)
+                meshes.extend(_spindles_flight_y(x_pos, bot_face_y, sp_z0, top_face_y, sp_z1,
+                                                 name_prefix=f"{side} Spindle F1", **sp_kw))
+            # Newel posts
+            hr_bot = rise + nzs + hr_rise_val
+            bot_h = hr_bot + NEWEL_CAP
+            meshes.append(_box_mesh(x_pos, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355",
+                                    name=f"{side} Bottom Post", ifc_type="newel"))
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
+            # Stringer bottom = pitch_line - 250mm
+            # Newel bottom = pitch_line - 400mm (150mm below stringer bottom)
+            # Newel top = pitch_line + handrail_rise + NEWEL_CAP
+            pitch_line = ftf + nzs
+            newel_bottom = pitch_line - 400.0
+            newel_top = pitch_line + hr_rise_val + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(x_pos, top_post_y, top_z_center, ns, ns, top_h, "#8B7355",
+                                    name=f"{side} Top Post", ifc_type="newel"))
+        else:
+            # Wall condition: notched stringer with base extension (no newel to terminate to)
+            _slope = (z1 - z0) / (y1 - y0) if abs(y1 - y0) > 1e-9 else 0
+            y0_w = y0 - WALL_STRINGER_EXTENSION
+            z0_w = z0 - WALL_STRINGER_EXTENSION * _slope
+            meshes.append(_stringer_flight_y_notched(x_pos, y0_w, z0_w, y1, z1, ftf, threshold_back, tread_t,
+                                                     name=f"{side} Stringer F1", clip_z_min=0))
+
+    return meshes
+
+
+
+
+def _preview_single_winder(p):
+    import math
+    meshes = []
+    width = p["stair_width"] - STRINGER_THICKNESS
+    going = p["going"]
+    rise = p["rise"]
+    tread_t = p["tread_thickness"]
+    riser_t = p["riser_thickness"]
+    nosing = p["nosing"]
+    num_treads = p["num_treads"]
+    winders = p["turn1_winders"]
+    turn_dir = p["turn1_direction"]
+    turn1_enabled = p.get("turn1_enabled", True)
+
+    # Balustrade keyword dicts
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
+    # Map left/right conditions to inner/outer based on turn direction
+    # Left turn: left (x=0) = inner, right (x=width) = outer
+    # Right turn: left (x=0) = outer, right (x=width) = inner
+    if p["turn1_direction"] == "left":
+        render_inner = p["left_condition"] == "balustrade"
+        render_outer = p["right_condition"] == "balustrade"
+    else:
+        render_inner = p["right_condition"] == "balustrade"
+        render_outer = p["left_condition"] == "balustrade"
+
+    actual_winders = winders if turn1_enabled else 0
+    straight_treads = num_treads - actual_winders
+    # Use custom flight distribution if provided and valid
+    f1_ov, f2_ov = p.get("flight1_steps", -1), p.get("flight2_steps", -1)
+    if f1_ov >= 0 and f2_ov >= 0 and f1_ov + f2_ov == straight_treads:
+        flight1_treads = f1_ov
+        flight2_treads = f2_ov
+    else:
+        flight1_treads = straight_treads // 2
+        flight2_treads = straight_treads - flight1_treads
+
+    # Step 3: Calculate offset and half-post
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    wg = compute_winder_geometry(ns, width)
+    offset = wg["offset"]
+    wx = p["winder_x"]  # distance from internal corner along post face
+    wy = p["winder_y"]  # going from X endpoint toward flight
+
+    # Flight shift: X+Y measured from internal corner (at hp above post centre)
+    flight1_shift_y = (hp - wx - wy + nosing) if actual_winders > 0 else 0.0
+    bottom_post_y = flight1_shift_y - nosing
+
+    # Flight 1 treads
+    for i in range(flight1_treads):
+        tread_y = i * going - nosing + flight1_shift_y
+        tread_z = (i + 1) * rise - tread_t
+        tread_length = going + nosing + riser_t
+        meshes.append(_box_mesh(
+            width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c"
+        ))
+
+    # Flight 1 risers
+    riser_h = rise - tread_t
+    for i in range(flight1_treads + 1):
+        if riser_t > 0:
+            meshes.append(_box_mesh(
+                width / 2, i * going + riser_t / 2 + flight1_shift_y, i * rise + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
+            ))
+
+    # Winder treads — construction-based profiles
+    winder_start_riser = flight1_treads + 1
+    corner_y = flight1_treads * going
+    corner_x = 0 if turn_dir == "left" else width
+
+    for i in range(actual_winders):
+        winder_z = (winder_start_riser + i) * rise - tread_t
+        profile = _winder_profiles_from_construction(
+            corner_x, corner_y, p["newel_size"], width,
+            turn_dir, i, actual_winders,
+            riser_extension=riser_t + nosing,
+            flight_extension=wx + wy - 2 * hp,
+            winder_x=wx)
+        meshes.append({
+            "type": "winder_polygon",
+            "profile": [[pt[0], pt[1]] for pt in profile],
+            "z": winder_z,
+            "thickness": tread_t,
+            "color": "#d4a574",
+            "name": f"Winder {i+1}",
+            "ifc_type": "winder_tread",
+        })
+
+    # Winder risers (between consecutive winder treads)
+    meshes.extend(_winder_riser_meshes(
+        corner_x, corner_y, ns, width, turn_dir,
+        actual_winders, winder_start_riser, rise, tread_t, riser_t,
+        nosing=nosing, winder_x=wx))
+
+    # Landing tread when winders are off
+    if actual_winders == 0:
+        landing_z = winder_start_riser * rise - tread_t
+        # Nosing edges aligned with newel post centers, with nosing overhang
+        hp = ns / 2
+        landing_w = width + nosing + hp
+        if turn_dir == "left":
+            landing_cx = (width + nosing - hp) / 2
+        else:
+            landing_cx = (width + hp - nosing) / 2
+        landing_cy = corner_y + width / 2
+        landing_depth = width
+        meshes.append(_box_mesh(
+            landing_cx,
+            landing_cy,
+            landing_z + tread_t / 2,
+            landing_w, landing_depth, tread_t, "#c8a87c",
+            name="Landing", ifc_type="landing",
+        ))
+
+    # Flight 2 treads (perpendicular, offset by X+Y from internal corner)
+    flight2_start_riser = winder_start_riser + actual_winders
+    # When winders are off, the landing consumes 1 rise — shift flight 2 up
+    if actual_winders == 0:
+        flight2_start_riser += 1
+        flight2_treads = max(0, flight2_treads - 1)
+    winder_offset = (wx + wy - hp) if actual_winders > 0 else 0.0
+    flight2_shift = winder_offset + nosing + riser_t / 2
+    for i in range(flight2_treads):
+        tread_z = (flight2_start_riser + i) * rise - tread_t
+        if turn_dir == "left":
+            tread_x = -(i * going) - going / 2 + nosing / 2 - flight2_shift
+        else:
+            tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
+        meshes.append(_box_mesh(
+            tread_x, corner_y + width / 2, tread_z + tread_t / 2,
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
+        ))
+
+    # Flight 2 risers (perpendicular — thin in X, spanning width in Y)
+    if riser_t > 0:
+        for i in range(flight2_treads + 1):
+            riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
+            if turn_dir == "left":
+                riser_x = -(i * going) - winder_offset - nosing - riser_t / 2
+            else:
+                riser_x = width + i * going + winder_offset + nosing + riser_t / 2
+            meshes.append(_box_mesh(
+                riser_x, corner_y + width / 2, riser_z,
+                riser_t, width, riser_h, "#e8dcc8"
+            ))
+
+    # --- Landing threshold strip ---
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    if turn_dir == "left":
+        thresh_front = -(flight2_treads * going) - winder_offset + nosing
+        thresh_back = thresh_front - threshold_d
+    else:
+        thresh_front = width + flight2_treads * going + winder_offset - nosing
+        thresh_back = thresh_front + threshold_d
+    meshes.append(_box_mesh(
+        (thresh_front + thresh_back) / 2, corner_y + width / 2, ftf - tread_t / 2,
+        threshold_d, width, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
+    ))
+
+    # --- Balustrade helpers ---
+    c_ns = max(ns, 100.0) if (flight1_treads == 0 or flight2_treads == 0) else ns
+    c_hp = c_ns / 2.0
+    top_post_x = thresh_front
+
+    # --- Stringers (only for flat landings) ---
+    if actual_winders == 0:
+        # Flight 1: runs along +Y. Inner side = corner_x (0 for left, width for right),
+        # outer side = width - corner_x.
+        inner_x = corner_x  # 0 for left, width for right
+        outer_x = width - corner_x  # width for left, 0 for right
+        f1_y0 = flight1_shift_y  # first riser Y
+        f1_y1 = flight1_treads * going + flight1_shift_y  # last riser Y
+        nzs = rise * nosing / going  # nosing z-shift: pitch line offset at nosing vs riser
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
+
+        landing_z_base = winder_start_riser * rise
+        land_top = landing_z_base + STRINGER_DROP
+        # Extend outer flight 1 along pitch until top edge meets landing stringer top
+        z_ext = land_top - STRINGER_PITCH_OFFSET
+        dy = f1_y1 - f1_y0
+        dz = f1_z1 - f1_z0
+        f1_y1_ext = f1_y1 + (z_ext - f1_z1) * dy / dz if abs(dz) > 1e-9 else f1_y1
+
+        # Flight 2 coordinates + outer extension
+        inner_y = corner_y
+        outer_y = corner_y + width
+        if turn_dir == "left":
+            f2_x0 = -winder_offset - nosing - riser_t / 2
+            f2_x1 = -(flight2_treads * going) - winder_offset - nosing - riser_t / 2
+        else:
+            f2_x0 = width + winder_offset + nosing + riser_t / 2
+            f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
+        f2_z0 = flight2_start_riser * rise + nzs
+        f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
+        z_ext2 = land_top - STRINGER_PITCH_OFFSET
+        dx2 = f2_x1 - f2_x0
+        dz2 = f2_z1 - f2_z0
+        f2_x0_ext = f2_x0 + (z_ext2 - f2_z0) * dx2 / dz2 if abs(dz2) > 1e-9 else f2_x0
+
+        # Flight 1 stringers
+        bot_face_y = bottom_post_y + hp
+        dy1 = f1_y1 - f1_y0
+        if flight1_treads > 0:
+            # Calculate trimmed top position at pitch-change newel face
+            pc_face_y = f1_y1 - hp
+            if abs(dy1) > 1e-9:
+                t_top = (pc_face_y - f1_y0) / dy1
+                f1_y1_trim = pc_face_y
+                f1_z1_trim = f1_z0 + t_top * (f1_z1 - f1_z0)
+            else:
+                f1_y1_trim = f1_y1
+                f1_z1_trim = f1_z1
+
+            if render_inner:
+                f1_y0_c, f1_z0_c = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_c = f1_y0 + t_c * dy1
+                    f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
+                meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
+                meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+            if render_outer:
+                # Outer flight 1: clipped at outer bottom/pitch-change newel faces
+                f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_oc = f1_y0 + t_c * dy1
+                    f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **hr_kw))
+                meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **br_kw))
+                # Spindles: from bottom post face to pitch-change newel face
+                meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext, clip_z_min=0))
+
+        # Landing flat stringers — outer endpoints linked to flight stringer extensions
+        st2 = STRINGER_THICKNESS / 2
+        # Outer corner newel position
+        outer_corner_y = corner_y + width
+        # Landing stringer endpoints: use newel face when balustrade present, extended position otherwise
+        if turn_dir == "left":
+            f2_landing_x_end = f2_x0 + hp if render_outer else f2_x0_ext
+        else:
+            f2_landing_x_start = f2_x0 - hp if render_outer else f2_x0_ext
+        # Y-direction landing stringer masters the X stringer: extends through the full X
+        # stringer thickness to its rear edge (+st2 past the X stringer centre).
+        # Handrail/baserail/spindles still terminate at the newel post face (hp).
+        f1_landing_y_start = (f1_y1 + hp) if render_outer else f1_y1_ext
+        f1_landing_y_end = outer_corner_y + st2
+        # In wall condition, drop landing stringers to align top edge with flight stringers
+        landing_z_stringer = landing_z_base if render_outer else (landing_z_base - STRINGER_PITCH_OFFSET)
+        if turn_dir == "left":
+            meshes.append(_stringer_landing_x(corner_y, f2_x0, inner_x, landing_z_base))
+            # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
+            meshes.append(_stringer_landing_y(outer_x, f1_landing_y_start, f1_landing_y_end, landing_z_stringer))
+            meshes.append(_stringer_landing_x(outer_corner_y, f2_landing_x_end, outer_x - st2, landing_z_stringer))
+            if render_outer:
+                # Add handrails and baserails for landing when balustrade is present
+                # Run from newel post face to newel post face to eliminate gaps
+                meshes.append(_handrail_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **hr_kw))
+                meshes.append(_handrail_landing_x(corner_y + width, f2_x0 + hp, outer_x - hp, landing_z_base, **hr_kw))
+                meshes.append(_baserail_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **br_kw))
+                meshes.append(_baserail_landing_x(corner_y + width, f2_x0 + hp, outer_x - hp, landing_z_base, **br_kw))
+                # Add spindles for landing
+                meshes.extend(_spindles_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **sp_kw))
+                meshes.extend(_spindles_landing_x(corner_y + width, f2_x0 + hp, outer_x - hp, landing_z_base, **sp_kw))
+        else:
+            meshes.append(_stringer_landing_x(corner_y, inner_x, f2_x0, landing_z_base))
+            # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
+            meshes.append(_stringer_landing_y(outer_x, f1_landing_y_start, f1_landing_y_end, landing_z_stringer))
+            meshes.append(_stringer_landing_x(outer_corner_y, outer_x + st2, f2_landing_x_start, landing_z_stringer))
+            if render_outer:
+                # Add handrails and baserails for landing when balustrade is present
+                # Run from newel post face to newel post face to eliminate gaps
+                meshes.append(_handrail_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **hr_kw))
+                meshes.append(_handrail_landing_x(corner_y + width, outer_x + hp, f2_x0 - hp, landing_z_base, **hr_kw))
+                meshes.append(_baserail_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **br_kw))
+                meshes.append(_baserail_landing_x(corner_y + width, outer_x + hp, f2_x0 - hp, landing_z_base, **br_kw))
+                # Add spindles for landing
+                meshes.extend(_spindles_landing_y(outer_x, f1_y1 + hp, corner_y + width - hp, landing_z_base, **sp_kw))
+                meshes.extend(_spindles_landing_x(corner_y + width, outer_x + hp, f2_x0 - hp, landing_z_base, **sp_kw))
+
+        # Flight 2 stringers (notched for threshold, flush with riser back)
+        if flight2_treads > 0:
+            z_fl = riser_t * rise / (2 * going)
+            f2_x1_fl = f2_x1 + (-riser_t / 2 if turn_dir == "left" else riser_t / 2)
+            f2_z1_fl = f2_z1 + z_fl
+            if turn_dir == "left":
+                top_face_x = top_post_x + hp
+                c_face_x = corner_x - c_hp
+            else:
+                top_face_x = top_post_x - hp
+                c_face_x = corner_x + c_hp
+            if render_inner:
+                # Trim start at corner newel face
+                dx_h = f2_x1 - f2_x0
+                if abs(dx_h) > 1e-9:
+                    t_c0 = max(0.0, min(1.0, (c_face_x - f2_x0) / dx_h))
+                    f2_x0_ic = f2_x0 + t_c0 * dx_h
+                    f2_z0_ic = f2_z0 + t_c0 * (f2_z1 - f2_z0)
+                else:
+                    f2_x0_ic, f2_z0_ic = f2_x0, f2_z0
+                # Trim end at top post face (stringer line)
+                dx_s = f2_x1_fl - f2_x0
+                f2_x1_c, f2_z1_c = f2_x1_fl, f2_z1_fl
+                if abs(dx_s) > 1e-9:
+                    t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_s))
+                    f2_x1_c = f2_x0 + t_c * dx_s
+                    f2_z1_c = f2_z0 + t_c * (f2_z1_fl - f2_z0)
+                meshes.append(_stringer_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c))
+                # Trim end at top post face (handrail line)
+                f2_x1_hr, f2_z1_hr = f2_x1, f2_z1
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_h))
+                    f2_x1_hr = f2_x0 + t_c * dx_h
+                    f2_z1_hr = f2_z0 + t_c * (f2_z1 - f2_z0)
+                meshes.append(_handrail_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_hr, f2_z1_hr, **hr_kw))
+                meshes.append(_baserail_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c, **br_kw))
+                meshes.extend(_spindles_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+            if render_outer:
+                # Outer flight 2: clipped at pitch-change newel face and top post face
+                if turn_dir == "left":
+                    out_top_face_x = top_post_x - hp  # top newel +X face (flight approaches from +X)
+                    pc2_face_x = f2_x0 - hp  # pitch-change newel +X face
+                else:
+                    out_top_face_x = top_post_x + hp  # top newel -X face
+                    pc2_face_x = f2_x0 + hp  # pitch-change newel -X face
+                dx_h = f2_x1 - f2_x0
+                f2_x1_oc, f2_z1_oc = f2_x1, f2_z1
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (out_top_face_x - f2_x0) / dx_h))
+                    f2_x1_oc = f2_x0 + t_c * dx_h
+                    f2_z1_oc = f2_z0 + t_c * (f2_z1 - f2_z0)
+                f2_x0_oc, f2_z0_oc = f2_x0, f2_z0
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (pc2_face_x - f2_x0) / dx_h))
+                    f2_x0_oc = f2_x0 + t_c * dx_h
+                    f2_z0_oc = f2_z0 + t_c * (f2_z1 - f2_z0)
+                meshes.append(_stringer_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
+                meshes.append(_handrail_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x_notched(outer_y, f2_x0_ext, z_ext2, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+
+    # --- Pitched stringers for winder flights ---
+    if actual_winders > 0:
+        inner_x = corner_x
+        outer_x = width - corner_x
+        nzs = rise * nosing / going
+
+        # Flight 1
+        f1_y0 = flight1_shift_y
+        f1_y1 = flight1_treads * going + flight1_shift_y
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
+        bot_face_y = bottom_post_y + hp
+        dy1 = f1_y1 - f1_y0
+        if flight1_treads > 0:
+            if render_inner:
+                f1_y0_c, f1_z0_c = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_c = f1_y0 + t_c * dy1
+                    f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                # Trim top end at corner newel -Y face
+                c_face_y_f1 = corner_y - c_hp
+                if abs(dy1) > 1e-9:
+                    t_top = max(0.0, min(1.0, (c_face_y_f1 - f1_y0) / dy1))
+                    f1_y1_ic = f1_y0 + t_top * dy1
+                    f1_z1_ic = f1_z0 + t_top * (f1_z1 - f1_z0)
+                else:
+                    f1_y1_ic, f1_z1_ic = f1_y1, f1_z1
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_ic, f1_z1_ic, clip_z_min=0))
+                meshes.append(_handrail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **hr_kw))
+                meshes.append(_baserail_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **br_kw))
+                meshes.extend(_spindles_flight_y(inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+
+        # Flight 2 coordinates
+        inner_y = corner_y
+        outer_y = corner_y + width
+        if turn_dir == "left":
+            f2_x0 = -winder_offset - nosing - riser_t / 2
+            f2_x1 = -(flight2_treads * going) - winder_offset - nosing - riser_t / 2
+        else:
+            f2_x0 = width + winder_offset + nosing + riser_t / 2
+            f2_x1 = width + flight2_treads * going + winder_offset + nosing + riser_t / 2
+        f2_z0 = flight2_start_riser * rise + nzs
+        f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
+        z_fl = riser_t * rise / (2 * going)
+        f2_x1_fl = f2_x1 + (-riser_t / 2 if turn_dir == "left" else riser_t / 2)
+        f2_z1_fl = f2_z1 + z_fl
+
+        # Winder outer stringer geometry (needed by both outer paths)
+        outer_corner_y = corner_y + width
+        wy_len = abs(outer_corner_y - f1_y1)
+        wx_len = abs(outer_x - f2_x0)
+        total_path = wy_len + wx_len
+        z_winder = f2_z0 - f1_z1
+        z_corner = f1_z1 + z_winder * wy_len / total_path if total_path > 1e-9 else f1_z1
+
+        if turn_dir == "left":
+            top_face_x = top_post_x + hp
+            c_face_x = corner_x - c_hp
+        else:
+            top_face_x = top_post_x - hp
+            c_face_x = corner_x + c_hp
+
+        if flight2_treads > 0:
+            if render_inner:
+                # Trim start at corner newel face
+                dx_h = f2_x1 - f2_x0
+                if abs(dx_h) > 1e-9:
+                    t_c0 = max(0.0, min(1.0, (c_face_x - f2_x0) / dx_h))
+                    f2_x0_ic = f2_x0 + t_c0 * dx_h
+                    f2_z0_ic = f2_z0 + t_c0 * (f2_z1 - f2_z0)
+                else:
+                    f2_x0_ic, f2_z0_ic = f2_x0, f2_z0
+                # Trim end at top post face (stringer line)
+                dx_s = f2_x1_fl - f2_x0
+                f2_x1_c, f2_z1_c = f2_x1_fl, f2_z1_fl
+                if abs(dx_s) > 1e-9:
+                    t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_s))
+                    f2_x1_c = f2_x0 + t_c * dx_s
+                    f2_z1_c = f2_z0 + t_c * (f2_z1_fl - f2_z0)
+                meshes.append(_stringer_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c))
+                # Trim end at top post face (handrail line)
+                f2_x1_hr, f2_z1_hr = f2_x1, f2_z1
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (top_face_x - f2_x0) / dx_h))
+                    f2_x1_hr = f2_x0 + t_c * dx_h
+                    f2_z1_hr = f2_z0 + t_c * (f2_z1 - f2_z0)
+                meshes.append(_handrail_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_hr, f2_z1_hr, **hr_kw))
+                meshes.append(_baserail_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c, **br_kw))
+                meshes.extend(_spindles_flight_x(inner_y, f2_x0_ic, f2_z0_ic, f2_x1_c, f2_z1_c, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x_notched(inner_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+
+        if render_outer:
+            if flight1_treads > 0:
+                # Outer flight 1: clipped at bottom and pitch-change newel faces
+                f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_oc = f1_y0 + t_c * dy1
+                    f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1, f1_z1, clip_z_min=0))
+                meshes.append(_handrail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
+                meshes.append(_baserail_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
+                meshes.extend(_spindles_flight_y(outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **sp_kw))
+            # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
+            # Terminate Y-piece flush with front face of X-piece stringer (upper masters lower)
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y - f1_y1
+            y_ext = outer_corner_y - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext,
+                                             clip_z_min=0 if flight1_treads == 0 else None))
+            pc1_face_y_end = f1_y1 + hp  # +Y face of pitch-change newel
+            oc_face_y = outer_corner_y - hp  # -Y face of outer corner newel
+            if abs(dy_w) > 1e-9:
+                t_oc_y = (oc_face_y - f1_y1) / dy_w
+                z_oc_y = f1_z1 + t_oc_y * (z_corner - f1_z1)
+            else:
+                z_oc_y = z_corner
+            meshes.append(_handrail_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **hr_kw))
+            meshes.append(_baserail_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **br_kw))
+            meshes.extend(_spindles_flight_y(outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **sp_kw))
+            # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
+            # X-piece extends to Y-piece outer face so upper flight masters at corner
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            dx_w = f2_x0 - outer_x
+            z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
+            if turn_dir == "left":
+                oc_face_x = outer_x - hp  # -X face
+                pc2_face_x = f2_x0 + hp  # +X face of pitch-change newel at f2_x0
+            else:
+                oc_face_x = outer_x + hp  # +X face
+                pc2_face_x = f2_x0 - hp  # -X face
+            if abs(dx_w) > 1e-9:
+                t_oc_x = (oc_face_x - outer_x) / dx_w
+                z_oc_x = z_corner + t_oc_x * (f2_z0 - z_corner)
+                t_pc_x = (pc2_face_x - outer_x) / dx_w
+                z_pc_x = z_corner + t_pc_x * (f2_z0 - z_corner)
+            else:
+                z_oc_x, z_pc_x = z_corner, f2_z0
+            meshes.append(_handrail_flight_x(outer_corner_y, oc_face_x, z_oc_x, pc2_face_x, z_pc_x, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y, oc_face_x, z_oc_x, pc2_face_x, z_pc_x, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y, oc_face_x, z_oc_x, pc2_face_x, z_pc_x, **sp_kw))
+            # Outer flight 2: from pitch-change newel to top post
+            if flight2_treads > 0:
+                if turn_dir == "left":
+                    out_top_face_x = top_post_x - hp
+                    pc2_start_x = f2_x0 - hp
+                else:
+                    out_top_face_x = top_post_x + hp
+                    pc2_start_x = f2_x0 + hp
+                dx_h = f2_x1 - f2_x0
+                f2_x1_oc, f2_z1_oc = f2_x1, f2_z1
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (out_top_face_x - f2_x0) / dx_h))
+                    f2_x1_oc = f2_x0 + t_c * dx_h
+                    f2_z1_oc = f2_z0 + t_c * (f2_z1 - f2_z0)
+                f2_x0_oc, f2_z0_oc = f2_x0, f2_z0
+                if abs(dx_h) > 1e-9:
+                    t_c = max(0.0, min(1.0, (pc2_start_x - f2_x0) / dx_h))
+                    f2_x0_oc = f2_x0 + t_c * dx_h
+                    f2_z0_oc = f2_z0 + t_c * (f2_z1 - f2_z0)
+                meshes.append(_stringer_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
+                meshes.append(_handrail_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_x(outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **sp_kw))
+        else:
+            # Extend winder corner stringers: upper flight masters lower
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y - f1_y1
+            y_ext = outer_corner_y - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            if flight1_treads > 0:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(outer_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+                meshes.append(_stringer_flight_y(outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
+            else:
+                # Merge wall extension into winder Y-piece
+                yp_slope = (z_corner - f1_z1) / (outer_corner_y - f1_y1) if abs(outer_corner_y - f1_y1) > 1e-9 else 0
+                yp_y_start = f1_y1 - WALL_STRINGER_EXTENSION
+                yp_z_start = f1_z1 - WALL_STRINGER_EXTENSION * yp_slope
+                meshes.append(_stringer_flight_y(outer_x, yp_y_start, yp_z_start, y_ext, z_y_ext, clip_z_min=0))
+            x_ext = (outer_x + st2) if turn_dir == "left" else (outer_x - st2)
+            dx_w = f2_x0 - outer_x
+            z_x_ext = z_corner + (x_ext - outer_x) * (f2_z0 - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y, x_ext, z_x_ext, f2_x0, f2_z0))
+            if flight2_treads > 0:
+                meshes.append(_stringer_flight_x_notched(outer_y, f2_x0, f2_z0, f2_x1_fl, f2_z1_fl, ftf, thresh_back, tread_t))
+
+    # --- Newel posts (top = 150mm above highest abutting handrail) ---
+    NEWEL_CAP = 150.0
+    hr_rise = p["handrail_rise"]
+    nzs_hr = rise * nosing / going
+    inner_x = corner_x
+    outer_x = width - corner_x
+    outer_y_pos = corner_y + width
+
+    # Inner newel posts
+    if render_inner:
+        if flight1_treads > 0:
+            hr_bot = rise + nzs_hr + hr_rise
+            bot_h = hr_bot + NEWEL_CAP
+            meshes.append(_box_mesh(inner_x, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+        hr_c_f1 = (flight1_treads + 1) * rise + nzs_hr + hr_rise
+        hr_c_f2 = flight2_start_riser * rise + nzs_hr + hr_rise
+        c_h = max(hr_c_f1, hr_c_f2) + NEWEL_CAP
+        meshes.append(_box_mesh(inner_x, corner_y, c_h / 2, c_ns, c_ns, c_h, "#8B7355"))
+        if flight2_treads > 0:
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
+            pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(top_post_x, corner_y, top_z_center, ns, ns, top_h, "#8B7355"))
+    else:
+        # Wall condition on inner side: add stub newel at corner (no stringers)
+        # Stub: 50mm below F1 stringer bottom, 50mm above F2 stringer top
+        pitch_f1 = (flight1_treads + 1) * rise + nzs_hr
+        pitch_f2 = flight2_start_riser * rise + nzs_hr
+        f1_stringer_bottom = pitch_f1 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        f2_stringer_top    = pitch_f2 + STRINGER_PITCH_OFFSET
+        stub_bottom = f1_stringer_bottom - 50.0
+        stub_top    = f2_stringer_top    + 50.0
+        stub_h = stub_top - stub_bottom
+        stub_z_center = (stub_top + stub_bottom) / 2
+        meshes.append(_box_mesh(inner_x, corner_y, stub_z_center, ns, ns, stub_h, "#8B7355"))
+        # Note: Stub stringers removed - they were causing green artifacts
+
+    # Outer newel posts (bottom, pitch-change at f1_y1, outer corner, pitch-change at f2_x0, top)
+    if render_outer:
+        nzs_w = rise * nosing / going
+        if flight1_treads > 0:
+            hr_bot = rise + nzs_w + hr_rise
+            bot_h = hr_bot + NEWEL_CAP
+            meshes.append(_box_mesh(outer_x, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+        # Pitch-change newel where flight 1 meets winder/landing on outer wall
+        f1_y1_val = flight1_treads * going + flight1_shift_y
+        hr_pc1 = (flight1_treads + 1) * rise + nzs_w + hr_rise
+        pc1_h = hr_pc1 + NEWEL_CAP
+        meshes.append(_box_mesh(outer_x, f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
+        # Outer corner newel (where Y-run meets X-run)
+        oc_hr = max(hr_pc1, flight2_start_riser * rise + nzs_w + hr_rise)
+        oc_h = oc_hr + NEWEL_CAP
+        meshes.append(_box_mesh(outer_x, outer_y_pos, oc_h / 2, ns, ns, oc_h, "#8B7355"))
+        # Pitch-change newel where winder/landing meets flight 2 on outer wall
+        f2_x0_val = (-winder_offset - nosing - riser_t / 2) if turn_dir == "left" \
+            else (width + winder_offset + nosing + riser_t / 2)
+        hr_pc2 = flight2_start_riser * rise + nzs_w + hr_rise
+        pc2_h = hr_pc2 + NEWEL_CAP
+        meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc2_h / 2, ns, ns, pc2_h, "#8B7355"))
+        # Top newel - extends FROM cutting plane (150mm below stringer bottom) UPWARD
+        if flight2_treads > 0:
+            pitch_line_top = (flight2_start_riser + flight2_treads) * rise + nzs_w
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(top_post_x, outer_y_pos, top_z_center, ns, ns, top_h, "#8B7355"))
+
+    return meshes
+
+
+
+
+def _preview_y_shaped(p):
+    """Y-shaped stair: Flight 1 goes +Y, then a flat landing, with two departure flights
+    springing symmetrically — Flight 2L going -X from x=0 and Flight 2R going +X from x=width.
+    No winders; always a flat landing. No mirror or winder toggle applicable.
+    """
+    meshes = []
+    width = p["stair_width"] - STRINGER_THICKNESS
+    going = p["going"]
+    rise = p["rise"]
+    tread_t = p["tread_thickness"]
+    riser_t = p["riser_thickness"]
+    nosing = p["nosing"]
+    num_treads = p["num_treads"]
+
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
+    # left_condition controls F1 left side (x=0) + F2L outer (y=outer_corner_y)
+    # right_condition controls F1 right side (x=width) + F2R outer (y=outer_corner_y)
+    render_left  = p["left_condition"]  == "balustrade"
+    render_right = p["right_condition"] == "balustrade"
+
+    # Always flat landing — split treads between F1 and F2
+    straight_treads = num_treads
+    f1_ov, f2_ov = p.get("flight1_steps", -1), p.get("flight2_steps", -1)
+    if f1_ov >= 0 and f2_ov >= 0 and f1_ov + f2_ov == straight_treads:
+        flight1_treads = f1_ov
+        flight2_treads = f2_ov
+    else:
+        flight1_treads = straight_treads // 2
+        flight2_treads = straight_treads - flight1_treads
+
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    flight1_shift_y = 0.0
+    bottom_post_y = -nosing
+
+    # ── Flight 1 treads (+Y) ──────────────────────────────────────────────
+    for i in range(flight1_treads):
+        tread_y = i * going - nosing
+        tread_z = (i + 1) * rise - tread_t
+        tread_length = going + nosing + riser_t
+        meshes.append(_box_mesh(
+            width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c"
+        ))
+
+    riser_h = rise - tread_t
+    for i in range(flight1_treads + 1):
+        if riser_t > 0:
+            meshes.append(_box_mesh(
+                width / 2, i * going + riser_t / 2, i * rise + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
+            ))
+
+    winder_start_riser = flight1_treads + 1
+    corner_y = flight1_treads * going        # top riser Y of F1
+    outer_corner_y = corner_y + width        # far edge of landing
+
+    # ── Landing tread (flat, extends both sides) ──────────────────────────
+    landing_z = winder_start_riser * rise - tread_t
+    ext = nosing + riser_t
+    meshes.append(_box_mesh(
+        width / 2, corner_y + width / 2, landing_z + tread_t / 2,
+        width + 2 * ext, width, tread_t, "#c8a87c",
+        name="Landing", ifc_type="landing",
+    ))
+
+    # Landing consumes 1 rise; adjust flight 2
+    flight2_start_riser = winder_start_riser + 1
+    flight2_treads = max(0, flight2_treads - 1)
+
+    winder_offset = 0.0
+    flight2_shift = nosing + riser_t / 2
+
+    # ── Departure flight coordinates ─────────────────────────────────────
+    # F2L goes -X from x=0;  F2R goes +X from x=width
+    f2L_x0 = -(nosing + riser_t / 2)
+    f2L_x1 = -(flight2_treads * going + nosing + riser_t / 2)
+    f2R_x0 =  width + nosing + riser_t / 2
+    f2R_x1 =  width + flight2_treads * going + nosing + riser_t / 2
+
+    nzs = rise * nosing / going
+    f2_z0 = flight2_start_riser * rise + nzs
+    f2_z1 = (flight2_start_riser + flight2_treads) * rise + nzs
+
+    # ── F2L treads ────────────────────────────────────────────────────────
+    for i in range(flight2_treads):
+        tread_z = (flight2_start_riser + i) * rise - tread_t
+        tread_x = -(i * going) - going / 2 + nosing / 2 - flight2_shift
+        meshes.append(_box_mesh(
+            tread_x, corner_y + width / 2, tread_z + tread_t / 2,
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
+        ))
+
+    # ── F2R treads ────────────────────────────────────────────────────────
+    for i in range(flight2_treads):
+        tread_z = (flight2_start_riser + i) * rise - tread_t
+        tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
+        meshes.append(_box_mesh(
+            tread_x, corner_y + width / 2, tread_z + tread_t / 2,
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
+        ))
+
+    # ── F2L risers ────────────────────────────────────────────────────────
+    if riser_t > 0:
+        for i in range(flight2_treads + 1):
+            riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
+            riser_x = -(i * going + nosing + riser_t / 2)
+            meshes.append(_box_mesh(
+                riser_x, corner_y + width / 2, riser_z,
+                riser_t, width, riser_h, "#e8dcc8"
+            ))
+
+    # ── F2R risers ────────────────────────────────────────────────────────
+    if riser_t > 0:
+        for i in range(flight2_treads + 1):
+            riser_z = (flight2_start_riser + i - 1) * rise + riser_h / 2
+            riser_x = width + i * going + nosing + riser_t / 2
+            meshes.append(_box_mesh(
+                riser_x, corner_y + width / 2, riser_z,
+                riser_t, width, riser_h, "#e8dcc8"
+            ))
+
+    # ── Threshold strips ──────────────────────────────────────────────────
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    thresh_front_L = -(flight2_treads * going) + nosing
+    thresh_back_L  = thresh_front_L - threshold_d
+    thresh_front_R =  width + flight2_treads * going - nosing
+    thresh_back_R  = thresh_front_R + threshold_d
+    meshes.append(_box_mesh(
+        (thresh_front_L + thresh_back_L) / 2, corner_y + width / 2, ftf - tread_t / 2,
+        threshold_d, width, tread_t, "#c8a87c",
+        name="Threshold L", ifc_type="threshold",
+    ))
+    meshes.append(_box_mesh(
+        (thresh_front_R + thresh_back_R) / 2, corner_y + width / 2, ftf - tread_t / 2,
+        threshold_d, width, tread_t, "#c8a87c",
+        name="Threshold R", ifc_type="threshold",
+    ))
+
+    # ── Stringer setup ───────────────────────────────────────────────────
+    st2 = STRINGER_THICKNESS / 2
+    landing_z_base = winder_start_riser * rise
+    land_top = landing_z_base + STRINGER_DROP
+    z_ext = land_top - STRINGER_PITCH_OFFSET
+
+    # F1 pitch-line coordinates
+    f1_y0 = 0.0
+    f1_y1 = flight1_treads * going
+    f1_z0 = rise + nzs
+    f1_z1 = (flight1_treads + 1) * rise + nzs
+    dy1 = f1_y1 - f1_y0
+
+    # Extend pitch line to landing elevation (for wall condition)
+    f1_y1_ext = f1_y1 + (z_ext - f1_z1) * dy1 / (f1_z1 - f1_z0) if abs(f1_z1 - f1_z0) > 1e-9 else f1_y1
+
+    # F2 pitch-line coordinates
+    dx_L = f2L_x1 - f2L_x0
+    dz_L = f2_z1 - f2_z0
+    dx_R = f2R_x1 - f2R_x0
+    dz_R = f2_z1 - f2_z0
+    f2L_x0_ext = f2L_x0 + (z_ext - f2_z0) * dx_L / dz_L if abs(dz_L) > 1e-9 else f2L_x0
+    f2R_x0_ext = f2R_x0 + (z_ext - f2_z0) * dx_R / dz_R if abs(dz_R) > 1e-9 else f2R_x0
+
+    bot_face_y = bottom_post_y + hp
+
+    # ── Flight 1 stringers ────────────────────────────────────────────────
+    if flight1_treads > 0:
+        # Trim top of stringer/balustrade at pitch-change newel face
+        pc_face_y = f1_y1 - hp
+        if abs(dy1) > 1e-9:
+            t_top = (pc_face_y - f1_y0) / dy1
+            f1_y1_trim = pc_face_y
+            f1_z1_trim = f1_z0 + t_top * (f1_z1 - f1_z0)
+        else:
+            f1_y1_trim = f1_y1
+            f1_z1_trim = f1_z1
+
+        # Clip balustrade start at bottom-post face
+        def _clip_start(y0, z0, y1, z1):
+            if abs(y1 - y0) > 1e-9 and bot_face_y > y0:
+                t = min(1.0, (bot_face_y - y0) / (y1 - y0))
+                return y0 + t * (y1 - y0), z0 + t * (z1 - z0)
+            return y0, z0
+
+        f1_y0_c, f1_z0_c = _clip_start(f1_y0, f1_z0, f1_y1, f1_z1)
+        # Stringer starts at rear face of bottom post
+        f1_y0_str = bot_face_y
+        if abs(f1_y1 - f1_y0) > 1e-9:
+            t_str = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+            f1_z0_str = f1_z0 + t_str * (f1_z1 - f1_z0)
+        else:
+            f1_z0_str = f1_z0
+
+        _slope_f1 = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+
+        # Left side (x=0)
+        if render_left:
+            meshes.append(_stringer_flight_y(0, f1_y0_str, f1_z0_str, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+            meshes.append(_handrail_flight_y(0, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
+            meshes.append(_baserail_flight_y(0, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
+            meshes.extend(_spindles_flight_y(0, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
+        else:
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope_f1
+            meshes.append(_stringer_flight_y(0, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext, clip_z_min=0))
+
+        # Right side (x=width)
+        if render_right:
+            meshes.append(_stringer_flight_y(width, f1_y0_str, f1_z0_str, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+            meshes.append(_handrail_flight_y(width, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
+            meshes.append(_baserail_flight_y(width, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
+            meshes.extend(_spindles_flight_y(width, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
+        else:
+            f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+            f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope_f1
+            meshes.append(_stringer_flight_y(width, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext, clip_z_min=0))
+
+    # ── Landing stringers ─────────────────────────────────────────────────
+    # Y-direction landing stringers at x=0 and x=width removed — not required
+    # for the Y-shaped stair; the departure flight inner/outer stringers frame
+    # each branch directly.  X-direction stringers also not needed.
+
+    # Landing handrails / baserails / spindles
+    # Y-direction side balustrades (x=0 and x=width) removed — not required at the landing sides.
+    if render_left:
+        meshes.append(_handrail_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **hr_kw))
+        meshes.append(_baserail_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **br_kw))
+        meshes.extend(_spindles_landing_x(outer_corner_y, f2L_x0 + hp, 0 - hp, landing_z_base, **sp_kw))
+
+    if render_right:
+        meshes.append(_handrail_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **hr_kw))
+        meshes.append(_baserail_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **br_kw))
+        meshes.extend(_spindles_landing_x(outer_corner_y, width + hp, f2R_x0 - hp, landing_z_base, **sp_kw))
+
+    # ── Departure flight stringers ────────────────────────────────────────
+    if flight2_treads > 0:
+        z_fl = riser_t * rise / (2 * going)
+        f2L_x1_fl = f2L_x1 - riser_t / 2
+        f2L_z1_fl = f2_z1 + z_fl
+        f2R_x1_fl = f2R_x1 + riser_t / 2
+        f2R_z1_fl = f2_z1 + z_fl
+
+        # Inner corner face positions for trimming balustrade start
+        c_ns = max(ns, 100.0) if (flight1_treads == 0 or flight2_treads == 0) else ns
+        c_hp = c_ns / 2.0
+        c_face_x_L = 0     - c_hp   # -X face of inner corner at x=0
+        c_face_x_R = width + c_hp   # +X face of inner corner at x=width
+        top_face_x_L = thresh_front_L + hp   # end-post face toward F2L
+        top_face_x_R = thresh_front_R - hp   # end-post face toward F2R
+
+        def _trim_x(x0, z0, x1, z1, face, clamp=True):
+            dx = x1 - x0
+            if abs(dx) < 1e-9:
+                return x0, z0
+            t = (face - x0) / dx
+            if clamp:
+                t = max(0.0, min(1.0, t))
+            return x0 + t * dx, z0 + t * (z1 - z0)
+
+        # F2L inner (y=corner_y) — balustrade moved here from outer side
+        f2L_x0_ic, f2L_z0_ic = _trim_x(f2L_x0, f2_z0, f2L_x1, f2_z1, c_face_x_L)
+        f2L_x1_ic, f2L_z1_ic = _trim_x(f2L_x0, f2_z0, f2L_x1_fl, f2L_z1_fl, top_face_x_L)
+        f2L_x1_hr, f2L_z1_hr = _trim_x(f2L_x0, f2_z0, f2L_x1,    f2_z1,     top_face_x_L)
+        if render_left:
+            meshes.append(_stringer_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic))
+            meshes.append(_handrail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_hr, f2L_z1_hr, **hr_kw))
+            meshes.append(_baserail_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **br_kw))
+            meshes.extend(_spindles_flight_x(corner_y, f2L_x0_ic, f2L_z0_ic, f2L_x1_ic, f2L_z1_ic, **sp_kw))
+
+        # F2L outer (y=outer_corner_y) — wall stringer, starts at Y-stringer face for clean join
+        meshes.append(_stringer_flight_x_notched(outer_corner_y, -st2, z_ext,
+                                                 f2L_x1_fl, f2L_z1_fl, ftf, thresh_back_L, tread_t))
+
+        # F2R outer (y=outer_corner_y) — notched wall stringer from Y-stringer face for clean join
+        meshes.append(_stringer_flight_x_notched(outer_corner_y, width + st2, z_ext,
+                                                 f2R_x1_fl, f2R_z1_fl, ftf, thresh_back_R, tread_t))
+        if render_right:
+            pc2_face_x_R  = f2R_x0 - hp          # pitch-change newel -X face
+            out_top_x_R   = thresh_front_R + hp   # top newel +X face
+            f2R_x0_oc, f2R_z0_oc = _trim_x(f2R_x0, f2_z0, f2R_x1, f2_z1, pc2_face_x_R)
+            f2R_x1_oc, f2R_z1_oc = _trim_x(f2R_x0, f2_z0, f2R_x1, f2_z1, out_top_x_R)
+            meshes.append(_handrail_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y, f2R_x0_oc, f2R_z0_oc, f2R_x1_oc, f2R_z1_oc, **sp_kw))
+
+    # ── Newel posts ───────────────────────────────────────────────────────
+    NEWEL_CAP = 150.0
+    hr_rise = p["handrail_rise"]
+    nzs_hr = nzs
+
+    # Bottom posts (foot of F1)
+    if flight1_treads > 0:
+        hr_bot = rise + nzs_hr + hr_rise
+        bot_h = hr_bot + NEWEL_CAP
+        if render_left:
+            meshes.append(_box_mesh(0,     bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+        if render_right:
+            meshes.append(_box_mesh(width, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+
+    # Pitch-change posts at top of F1 (= start of landing)
+    f1_y1_val = float(flight1_treads * going)
+    hr_pc1 = (flight1_treads + 1) * rise + nzs_hr + hr_rise
+    pc1_h = hr_pc1 + NEWEL_CAP
+    if render_left:
+        meshes.append(_box_mesh(0,     f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
+    if render_right:
+        meshes.append(_box_mesh(width, f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
+
+    # Outer corner posts at (0, outer_corner_y) and (width, outer_corner_y)
+    oc_hr = max(hr_pc1, flight2_start_riser * rise + nzs_hr + hr_rise)
+    oc_h = oc_hr + NEWEL_CAP
+    if render_left:
+        meshes.append(_box_mesh(0,     outer_corner_y, oc_h / 2, ns, ns, oc_h, "#8B7355"))
+    if render_right:
+        meshes.append(_box_mesh(width, outer_corner_y, oc_h / 2, ns, ns, oc_h, "#8B7355"))
+
+    # Pitch-change posts at departure starts (on outer_corner_y line)
+    hr_pc2 = flight2_start_riser * rise + nzs_hr + hr_rise
+    pc2_h = hr_pc2 + NEWEL_CAP
+    if render_left:
+        meshes.append(_box_mesh(f2L_x0, outer_corner_y, pc2_h / 2, ns, ns, pc2_h, "#8B7355"))
+    if render_right:
+        meshes.append(_box_mesh(f2R_x0, outer_corner_y, pc2_h / 2, ns, ns, pc2_h, "#8B7355"))
+
+    # Top posts (end of departure flights)
+    if flight2_treads > 0:
+        pitch_top = (flight2_start_riser + flight2_treads) * rise + nzs_hr
+        newel_bot = pitch_top - 400.0
+        newel_top_z = pitch_top + hr_rise + NEWEL_CAP
+        top_h = newel_top_z - newel_bot
+        top_zc = (newel_bot + newel_top_z) / 2
+        # Inner top posts (always)
+        meshes.append(_box_mesh(thresh_front_L, corner_y,       top_zc, ns, ns, top_h, "#8B7355"))
+        meshes.append(_box_mesh(thresh_front_R, corner_y,       top_zc, ns, ns, top_h, "#8B7355"))
+        # Outer top posts
+        if render_left:
+            meshes.append(_box_mesh(thresh_front_L, outer_corner_y, top_zc, ns, ns, top_h, "#8B7355"))
+        if render_right:
+            meshes.append(_box_mesh(thresh_front_R, outer_corner_y, top_zc, ns, ns, top_h, "#8B7355"))
+
+    return meshes
+
+
+
+
+def _preview_double_winder(p):
+    import math
+    meshes = []
+    width = p["stair_width"] - STRINGER_THICKNESS
+    going = p["going"]
+    rise = p["rise"]
+    tread_t = p["tread_thickness"]
+    riser_t = p["riser_thickness"]
+    nosing = p["nosing"]
+    num_treads = p["num_treads"]
+    winders1 = p["turn1_winders"]
+    winders2 = p["turn2_winders"]
+    turn1_dir = p["turn1_direction"]
+    turn2_dir = p["turn2_direction"]
+    turn1_enabled = p.get("turn1_enabled", True)
+    turn2_enabled = p.get("turn2_enabled", True)
+
+    # Balustrade keyword dicts (passed to handrail/baserail/spindle helpers)
+    hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"]}
+    br_kw = {"br_width": p["baserail_width"], "br_height": p["baserail_height"]}
+    sp_kw = {"spindle_size": p["spindle_width"], "hr_height": p["handrail_height"],
+             "hr_rise": p["handrail_rise"], "br_height": p["baserail_height"]}
+
+    # Map left/right conditions to inner/outer based on turn1 direction
+    if turn1_dir == "left":
+        render_inner = p["left_condition"] == "balustrade"
+        render_outer = p["right_condition"] == "balustrade"
+    else:
+        render_inner = p["right_condition"] == "balustrade"
+        render_outer = p["left_condition"] == "balustrade"
+
+    actual_winders1 = winders1 if turn1_enabled else 0
+    actual_winders2 = winders2 if turn2_enabled else 0
+    total_winders = actual_winders1 + actual_winders2
+    straight_treads = num_treads - total_winders
+    # Use custom flight distribution if provided and valid
+    f1_ov = p.get("flight1_steps", -1)
+    f2_ov = p.get("flight2_steps", -1)
+    f3_ov = p.get("flight3_steps", -1)
+    if f1_ov >= 0 and f2_ov >= 0 and f3_ov >= 0 and f1_ov + f2_ov + f3_ov == straight_treads:
+        flight1_treads = f1_ov
+        flight2_treads = f2_ov
+        flight3_treads = f3_ov
+    else:
+        flight1_treads = straight_treads // 3
+        flight2_treads = straight_treads // 3
+        flight3_treads = straight_treads - flight1_treads - flight2_treads
+
+    # Step 3: Calculate offset and half-post
+    ns = p["newel_size"]
+    hp = ns / 2.0
+    wg = compute_winder_geometry(ns, width)
+    offset = wg["offset"]
+    wx = p["winder_x"]
+    wy = p["winder_y"]
+    wx2 = p["winder_x2"]
+    wy2 = p["winder_y2"]
+
+    riser_idx = 0
+    flight1_shift_y = (hp - wx - wy + nosing) if actual_winders1 > 0 else 0.0
+
+    # Flight 1 (offset by X+Y from internal corner)
+    for i in range(flight1_treads):
+        tread_y = i * going - nosing + flight1_shift_y
+        tread_z = (i + 1) * rise - tread_t
+        tread_length = going + nosing + riser_t
+        meshes.append(_box_mesh(
+            width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c"
+        ))
+
+    riser_h = rise - tread_t
+    for i in range(flight1_treads + 1):
+        if riser_t > 0:
+            # No offset needed - landing will be positioned to overhang naturally
+            landing_riser_offset = 0.0
+            meshes.append(_box_mesh(
+                width / 2, i * going + riser_t / 2 + flight1_shift_y + landing_riser_offset, i * rise + riser_h / 2,
+                width, riser_t, riser_h, "#e8dcc8"
+            ))
+
+    riser_idx = flight1_treads + 1
+
+    # Turn 1 winders — construction-based profiles
+    corner1_y = flight1_treads * going
+    corner1_x = 0 if turn1_dir == "left" else width
+
+    turn1_winder_start = riser_idx
+    for i in range(actual_winders1):
+        winder_z = (riser_idx + i) * rise - tread_t
+        profile = _winder_profiles_from_construction(
+            corner1_x, corner1_y, ns, width,
+            turn1_dir, i, actual_winders1,
+            riser_extension=riser_t + nosing,
+            flight_extension=wx + wy - 2 * hp,
+            winder_x=wx)
+        meshes.append({
+            "type": "winder_polygon",
+            "profile": [[pt[0], pt[1]] for pt in profile],
+            "z": winder_z,
+            "thickness": tread_t,
+            "color": "#d4a574",
+            "name": f"Turn1 Winder {i+1}",
+            "ifc_type": "winder_tread",
+        })
+
+    # Turn 1 winder risers
+    meshes.extend(_winder_riser_meshes(
+        corner1_x, corner1_y, ns, width, turn1_dir,
+        actual_winders1, turn1_winder_start, rise, tread_t, riser_t,
+        nosing=nosing, winder_x=wx))
+
+    # Newel post at turn 1 — placed at end with handrail-based height
+
+    # Bottom newel post (foot of staircase, centred on first tread nosing line)
+    bottom_post_y = flight1_shift_y - nosing
+
+    # Turn 1 landing tread when winders are off
+    if actual_winders1 == 0:
+        landing1_z = turn1_winder_start * rise - tread_t
+        # Nosing edges aligned with newel post centers, with nosing overhang
+        hp = ns / 2
+        landing1_w = width + nosing + hp
+        if turn1_dir == "left":
+            landing1_cx = (width + nosing - hp) / 2
+        else:
+            landing1_cx = (width + hp - nosing) / 2
+        landing1_cy = corner1_y + width / 2
+        landing1_depth = width
+        meshes.append(_box_mesh(
+            landing1_cx,
+            landing1_cy,
+            landing1_z + tread_t / 2,
+            landing1_w, landing1_depth, tread_t, "#c8a87c",
+            name="Landing 1", ifc_type="landing",
+        ))
+
+    riser_idx += actual_winders1
+    # When turn 1 winders are off, the landing consumes 1 rise — shift flight 2 up
+    if actual_winders1 == 0:
+        riser_idx += 1
+        flight2_treads = max(0, flight2_treads - 1)
+    flight2_riser_start = riser_idx
+
+    # Flight 2 (perpendicular, offset by X+Y from internal corner)
+    winder_offset1 = (wx + wy - hp) if actual_winders1 > 0 else 0.0
+    flight2_shift = winder_offset1 + nosing + riser_t / 2
+    for i in range(flight2_treads):
+        tread_z = (riser_idx + i) * rise - tread_t
+        if turn1_dir == "left":
+            tread_x = -(i * going) - going / 2 + nosing / 2 - flight2_shift
+        else:
+            tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
+        meshes.append(_box_mesh(
+            tread_x, corner1_y + width / 2, tread_z + tread_t / 2,
+            going + nosing + riser_t, width, tread_t, "#c8a87c"
+        ))
+
+    # Flight 2 risers
+    if riser_t > 0:
+        for i in range(flight2_treads + 1):
+            riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
+            if turn1_dir == "left":
+                riser_x = -(i * going) - winder_offset1 - nosing - riser_t / 2
+            else:
+                riser_x = width + i * going + winder_offset1 + nosing + riser_t / 2
+            meshes.append(_box_mesh(
+                riser_x, corner1_y + width / 2, riser_z,
+                riser_t, width, riser_h, "#e8dcc8"
+            ))
+
+    riser_idx += flight2_treads
+
+    # Turn 2 winders — corner2 links flight 2 top riser (offset1) to turn 2 entry (offset2)
+    winder_offset2 = (wx2 + wy2 - hp) if actual_winders2 > 0 else 0.0
+    if turn1_dir == "left":
+        corner2_x = -(flight2_treads * going) - winder_offset1 - winder_offset2
+    else:
+        corner2_x = width + flight2_treads * going + winder_offset1 + winder_offset2
+    corner2_y = corner1_y
+
+    # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
+    turn2_rotation = 90 if turn1_dir == "left" else -90
+
+    turn2_winder_start = riser_idx
+    for i in range(actual_winders2):
+        winder_z = (riser_idx + i) * rise - tread_t
+        profile = _winder_profiles_from_construction(
+            corner2_x, corner2_y, ns, width,
+            turn2_dir, i, actual_winders2,
+            rotation=turn2_rotation,
+            riser_extension=riser_t + nosing,
+            flight_extension=wx2 + wy2 - 2 * hp,
+            winder_x=wx2)
+        meshes.append({
+            "type": "winder_polygon",
+            "profile": [[pt[0], pt[1]] for pt in profile],
+            "z": winder_z,
+            "thickness": tread_t,
+            "color": "#d4a574",
+            "name": f"Turn2 Winder {i+1}",
+            "ifc_type": "winder_tread",
+        })
+
+    # Turn 2 winder risers
+    meshes.extend(_winder_riser_meshes(
+        corner2_x, corner2_y, ns, width, turn2_dir,
+        actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
+        nosing=nosing, rotation=turn2_rotation, winder_x=wx2))
+
+    # Newel post at turn 2 — placed at end with handrail-based height
+
+    riser_idx += actual_winders2
+    # When turn 2 winders are off, the landing consumes 1 rise — shift flight 3 up
+    if actual_winders2 == 0:
+        riser_idx += 1
+        flight3_treads = max(0, flight3_treads - 1)
+    flight3_riser_start = riser_idx
+
+    if turn1_dir == "left" and turn2_dir == "left":
+        flight3_start_x = corner2_x - width
+        flight3_start_y = corner2_y
+    elif turn1_dir == "right" and turn2_dir == "right":
+        flight3_start_x = corner2_x
+        flight3_start_y = corner2_y
+    elif turn1_dir == "left" and turn2_dir == "right":
+        flight3_start_x = corner2_x
+        flight3_start_y = corner2_y + width
+    else:
+        flight3_start_x = corner2_x - width
+        flight3_start_y = corner2_y + width
+
+    # Turn 2 landing tread when winders are off
+    if actual_winders2 == 0:
+        landing2_z = turn2_winder_start * rise - tread_t
+        hp = ns / 2
+        # Nosing edges aligned with newel post centres, riser set back under nosing
+        landing2_cx = flight3_start_x + width / 2
+        meshes.append(_box_mesh(
+            landing2_cx,
+            corner2_y + (width + nosing - hp) / 2,
+            landing2_z + tread_t / 2,
+            width, width + nosing + hp, tread_t, "#c8a87c",
+            name="Landing 2", ifc_type="landing",
+        ))
+
+    # Flight 3 shift — nosing centred on post when winders off
+    if actual_winders2 > 0:
+        flight3_shift_y = -(winder_offset2 + riser_t)
+    else:
+        flight3_shift_y = -(flight3_start_y - corner2_y) - riser_t
+
+    for i in range(flight3_treads):
+        tread_z = (riser_idx + i) * rise - tread_t
+        tread_y = flight3_start_y - (i + 1) * going - nosing + flight3_shift_y
+        tread_length = going + nosing + riser_t
+        meshes.append(_box_mesh(
+            flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
+            width, tread_length, tread_t, "#c8a87c"
+        ))
+
+    # Flight 3 risers (going in -Y direction)
+    if riser_t > 0:
+        for i in range(flight3_treads + 1):
+            riser_z = (flight3_riser_start + i - 1) * rise + riser_h / 2
+            riser_y = flight3_start_y - i * going - nosing + riser_t / 2 + flight3_shift_y
+            meshes.append(_box_mesh(
+                flight3_start_x + width / 2, riser_y, riser_z,
+                width, riser_t, riser_h, "#e8dcc8"
+            ))
+
+    # --- Landing threshold strip (flight 3 top) ---
+    ftf = (num_treads + 1) * rise
+    threshold_d = p["threshold_depth"]
+    thresh_riser_y = flight3_start_y - flight3_treads * going + flight3_shift_y
+    thresh_front_y = thresh_riser_y + nosing
+    thresh_back_y = thresh_front_y - threshold_d
+    meshes.append(_box_mesh(
+        flight3_start_x + width / 2,
+        (thresh_front_y + thresh_back_y) / 2,
+        ftf - tread_t / 2,
+        width, threshold_d, tread_t, "#c8a87c",
+        name="Threshold", ifc_type="threshold",
+    ))
+
+    # Top newel post y position (centred on threshold nosing line)
+    top_post_y = thresh_front_y
+
+    # Corner / end post half-sizes (auto-enlarged to 100mm when absorbing
+    # a 0-tread flight's newel)
+    c1_ns = max(ns, 100.0) if flight1_treads == 0 else ns
+    c2_ns = max(ns, 100.0) if flight3_treads == 0 else ns
+    c1_hp = c1_ns / 2.0
+    c2_hp = c2_ns / 2.0
+
+    # --- Stringers (only for flat landings) ---
+    if actual_winders1 == 0 or actual_winders2 == 0:
+        # Stringer X positions: inner (newel side) and outer (wall side)
+        # Flight 1 inner = corner1_x, outer = width - corner1_x
+        f1_inner_x = corner1_x          # 0 for left, width for right
+        f1_outer_x = width - corner1_x  # width for left, 0 for right
+        f2_x_last_ext = None  # set below if flight 2 outer extends to landing 2
+        nzs = rise * nosing / going  # nosing z-shift: pitch line offset at nosing vs riser
+
+        if actual_winders1 == 0:
+            # === Flight 1 coordinates ===
+            f1_y0 = flight1_shift_y
+            f1_y1 = flight1_treads * going + flight1_shift_y
+            f1_z0 = rise + nzs
+            f1_z1 = (flight1_treads + 1) * rise + nzs
+
+            landing1_z = turn1_winder_start * rise
+            land1_top = landing1_z + STRINGER_DROP
+            # Flight 1 outer extension along pitch
+            z_ext1 = land1_top - STRINGER_PITCH_OFFSET
+            dy1 = f1_y1 - f1_y0
+            dz1 = f1_z1 - f1_z0
+            f1_y1_ext = f1_y1 + (z_ext1 - f1_z1) * dy1 / dz1 if abs(dz1) > 1e-9 else f1_y1
+
+            # === Flight 2 coordinates + extensions (computed before landing stringers) ===
+            f2_inner_y = corner1_y
+            f2_outer_y = corner1_y + width
+            if turn1_dir == "left":
+                f2_x_first = -winder_offset1 - nosing - riser_t / 2
+                f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+            else:
+                f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+                f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+            f2_z_first = flight2_riser_start * rise + nzs
+            f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+            # Save unclipped positions for balustrade newel face calculations
+            f2_x_last_unclipped = f2_x_last
+            f2_z_last_unclipped = f2_z_last
+            # Clip far end at corner2 post centre if turn 2 also has a landing
+            if actual_winders2 == 0 and flight2_treads > 0:
+                dx = f2_x_last - f2_x_first
+                if abs(dx) > 1e-9:
+                    t_clip = (corner2_x - f2_x_first) / dx
+                    t_clip = max(0.0, min(1.0, t_clip))
+                    f2_x_last = f2_x_first + t_clip * dx
+                    f2_z_last = f2_z_first + t_clip * (f2_z_last - f2_z_first)
+            # Flight 2 outer extensions
+            f2_dx = f2_x_last - f2_x_first
+            f2_dz = f2_z_last - f2_z_first
+            f2_x_first_ext, f2_z_first_ext = f2_x_first, f2_z_first
+            f2_x_last_ext_v, f2_z_last_ext = f2_x_last, f2_z_last
+            if abs(f2_dz) > 1e-9:
+                z_ext_s = land1_top - STRINGER_PITCH_OFFSET
+                f2_x_first_ext = f2_x_first + (z_ext_s - f2_z_first) * f2_dx / f2_dz
+                f2_z_first_ext = z_ext_s
+            if actual_winders2 == 0 and abs(f2_dz) > 1e-9:
+                land2_top_pre = turn2_winder_start * rise + STRINGER_DROP
+                z_ext_e = land2_top_pre - STRINGER_PITCH_OFFSET
+                f2_x_last_ext_v = f2_x_last + (z_ext_e - f2_z_last) * f2_dx / f2_dz
+                f2_z_last_ext = z_ext_e
+            f2_x_last_ext = f2_x_last_ext_v  # share with turn 2 section
+
+            # === Flight 1 stringers ===
+            bot_face_y = bottom_post_y + hp
+            dy1 = f1_y1 - f1_y0
+            # Calculate trimmed top position at pitch-change newel face
+            pc_face_y_f1 = f1_y1 - hp
+            if abs(dy1) > 1e-9:
+                t_top = (pc_face_y_f1 - f1_y0) / dy1
+                f1_y1_trim = pc_face_y_f1
+                f1_z1_trim = f1_z0 + t_top * (f1_z1 - f1_z0)
+            else:
+                f1_y1_trim = f1_y1
+                f1_z1_trim = f1_z1
+
+            if render_inner:
+                f1_y0_c, f1_z0_c = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_c = f1_y0 + t_c * dy1
+                    f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_trim, f1_z1_trim, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+            if render_outer:
+                f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_oc = f1_y0 + t_c * dy1
+                    f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1_trim, f1_z1_trim, clip_z_min=0))
+                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **br_kw))
+                # Spindles: from bottom post face to pitch-change newel face
+                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1_trim, f1_z1_trim, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_w, f1_z0_w, f1_y1_ext, z_ext1, clip_z_min=0))
+
+            # === Turn 1 landing stringers — outer endpoints linked to extensions ===
+            st2 = STRINGER_THICKNESS / 2
+            # Outer corner newel position
+            outer1_corner_y = corner1_y + width
+            # Landing stringer endpoints: use newel face when balustrade present, extended position otherwise
+            if turn1_dir == "left":
+                f2_landing_x_end = f2_x_first + hp if render_outer else f2_x_first_ext
+            else:
+                f2_landing_x_start = f2_x_first - hp if render_outer else f2_x_first_ext
+            # Y-direction landing stringer masters the X stringer: extends through the full X
+            # stringer thickness to its rear edge (+st2 past the X stringer centre).
+            # Handrail/baserail/spindles still terminate at the newel post face (hp).
+            f1_landing_y_start = (f1_y1 + hp) if render_outer else f1_y1_ext
+            f1_landing_y_end = outer1_corner_y + st2
+            # In wall condition, drop landing stringers to align top edge with flight stringers
+            landing1_z_stringer = landing1_z if render_outer else (landing1_z - STRINGER_PITCH_OFFSET)
+            if turn1_dir == "left":
+                meshes.append(_stringer_landing_x(corner1_y, f2_x_first, f1_inner_x, landing1_z))
+                # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_landing_y_start, f1_landing_y_end, landing1_z_stringer))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f2_landing_x_end, f1_outer_x - st2, landing1_z_stringer))
+                if render_outer:
+                    # Add handrails and baserails for landing when balustrade is present
+                    # Run from newel post face to newel post face to eliminate gaps
+                    meshes.append(_handrail_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **hr_kw))
+                    meshes.append(_handrail_landing_x(corner1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **hr_kw))
+                    meshes.append(_baserail_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **br_kw))
+                    meshes.append(_baserail_landing_x(corner1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **br_kw))
+                    # Add spindles for landing
+                    meshes.extend(_spindles_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **sp_kw))
+                    meshes.extend(_spindles_landing_x(corner1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **sp_kw))
+            else:
+                meshes.append(_stringer_landing_x(corner1_y, f1_inner_x, f2_x_first, landing1_z))
+                # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
+                meshes.append(_stringer_landing_y(f1_outer_x, f1_landing_y_start, f1_landing_y_end, landing1_z_stringer))
+                meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x + st2, f2_landing_x_start, landing1_z_stringer))
+                if render_outer:
+                    # Add handrails and baserails for landing when balustrade is present
+                    # Run from newel post face to newel post face to eliminate gaps
+                    meshes.append(_handrail_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **hr_kw))
+                    meshes.append(_handrail_landing_x(corner1_y + width, f1_outer_x + hp, f2_x_first - hp, landing1_z, **hr_kw))
+                    meshes.append(_baserail_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **br_kw))
+                    meshes.append(_baserail_landing_x(corner1_y + width, f1_outer_x + hp, f2_x_first - hp, landing1_z, **br_kw))
+                    # Add spindles for landing
+                    meshes.extend(_spindles_landing_y(f1_outer_x, f1_y1 + hp, corner1_y + width - hp, landing1_z, **sp_kw))
+                    meshes.extend(_spindles_landing_x(corner1_y + width, f1_outer_x + hp, f2_x_first - hp, landing1_z, **sp_kw))
+
+            # === Flight 2 stringers — trim inner to corner newel faces ===
+            f2_dx = f2_x_last - f2_x_first
+            if render_inner:
+                if abs(f2_dx) > 1e-9:
+                    if turn1_dir == "left":
+                        c1_face_x = corner1_x - c1_hp
+                        c2_face_x = corner2_x + c2_hp
+                    else:
+                        c1_face_x = corner1_x + c1_hp
+                        c2_face_x = corner2_x - c2_hp
+                    t0 = (c1_face_x - f2_x_first) / f2_dx
+                    t1 = (c2_face_x - f2_x_first) / f2_dx
+                    f2_ic_z0 = f2_z_first + t0 * (f2_z_last - f2_z_first)
+                    f2_ic_z1 = f2_z_first + t1 * (f2_z_last - f2_z_first)
+                    meshes.append(_stringer_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1))
+                    meshes.append(_handrail_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **hr_kw))
+                    meshes.append(_baserail_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **br_kw))
+                    meshes.extend(_spindles_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **sp_kw))
+                else:
+                    meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+                    meshes.append(_handrail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **hr_kw))
+                    meshes.append(_baserail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **br_kw))
+                    meshes.extend(_spindles_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+            if render_outer:
+                # Outer flight 2: clipped at pitch-change newel faces
+                if turn1_dir == "left":
+                    pc1_face_x = f2_x_first + hp  # +X face of pitch-change newel at f2 start
+                    # Use unclipped position for flat landing to extend to actual newel face
+                    pc2_face_x = f2_x_last - hp if actual_winders2 > 0 else f2_x_last_unclipped - hp  # face toward f2
+                else:
+                    pc1_face_x = f2_x_first - hp
+                    # Use unclipped position for flat landing to extend to actual newel face
+                    pc2_face_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last_unclipped + hp
+                f2_x0_oc, f2_z0_oc = f2_x_first, f2_z_first
+                # Use unclipped position for flat landing at turn 2
+                f2_x1_oc = f2_x_last_unclipped if actual_winders2 == 0 else f2_x_last
+                f2_z1_oc = f2_z_last_unclipped if actual_winders2 == 0 else f2_z_last
+                if abs(f2_dx) > 1e-9:
+                    # For flat landing at turn 2, calculate using unclipped positions for both ends
+                    if actual_winders2 == 0:
+                        dx_full = f2_x_last_unclipped - f2_x_first
+                        dz_full = f2_z_last_unclipped - f2_z_first
+                        if abs(dx_full) > 1e-9:
+                            t_c0 = (pc1_face_x - f2_x_first) / dx_full
+                            f2_x0_oc = f2_x_first + t_c0 * dx_full
+                            f2_z0_oc = f2_z_first + t_c0 * dz_full
+                            t_c2 = (pc2_face_x - f2_x_first) / dx_full
+                            f2_x1_oc = f2_x_first + t_c2 * dx_full
+                            f2_z1_oc = f2_z_first + t_c2 * dz_full
+                    else:
+                        t_c = max(0.0, min(1.0, (pc1_face_x - f2_x_first) / f2_dx))
+                        f2_x0_oc = f2_x_first + t_c * f2_dx
+                        f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
+                        t_c2 = max(0.0, min(1.0, (pc2_face_x - f2_x_first) / f2_dx))
+                        f2_x1_oc = f2_x_first + t_c2 * f2_dx
+                        f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+                meshes.append(_stringer_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
+                meshes.append(_handrail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first_ext, f2_z_first_ext,
+                                                 f2_x_last_ext_v, f2_z_last_ext))
+
+        if actual_winders2 == 0:
+            # When turn 1 uses winders, f2 variables haven't been set yet — compute them
+            if actual_winders1 > 0:
+                nzs = rise * nosing / going
+                if turn1_dir == "left":
+                    f2_x_first = -winder_offset1 - nosing - riser_t / 2
+                    f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+                else:
+                    f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+                    f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+                f2_z_first = flight2_riser_start * rise + nzs
+                f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+                f2_x_last_unclipped = f2_x_last
+                f2_z_last_unclipped = f2_z_last
+                # Clip far end at corner2 post centre
+                if flight2_treads > 0:
+                    dx = f2_x_last - f2_x_first
+                    if abs(dx) > 1e-9:
+                        t_clip = max(0.0, min(1.0, (corner2_x - f2_x_first) / dx))
+                        f2_x_last = f2_x_first + t_clip * dx
+                        f2_z_last = f2_z_first + t_clip * (f2_z_last - f2_z_first)
+                f2_inner_y = corner1_y
+                f2_outer_y = corner1_y + width
+                f1_outer_x = width - corner1_x
+                f2_x_last_ext = None
+
+            landing2_z = turn2_winder_start * rise
+            land2_top = landing2_z + STRINGER_DROP
+
+            # Flight 3: outer = wall side, inner = newel side
+            # f3_wall_x is the outer (wall) edge — inner/outer are swapped vs flight 1
+            if turn1_dir == turn2_dir:
+                f3_outer_x = flight3_start_x + corner1_x        # wall side
+                f3_inner_x = flight3_start_x + width - corner1_x  # newel side
+            else:
+                f3_outer_x = flight3_start_x + width - corner1_x  # wall side
+                f3_inner_x = flight3_start_x + corner1_x          # newel side
+
+            # Flight 3 coordinates + clipping + outer extension
+            f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+            f3_y_first_unclipped = f3_y_first  # Save for newel post face calculations
+            f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
+            f3_z_first = flight3_riser_start * rise + nzs
+            f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
+            # Clip near end at corner2 post centre Y
+            if flight3_treads > 0:
+                dy = f3_y_last - f3_y_first
+                if abs(dy) > 1e-9:
+                    t_clip = (corner2_y - f3_y_first) / dy
+                    t_clip = max(0.0, min(1.0, t_clip))
+                    f3_y_first = f3_y_first + t_clip * dy if t_clip > 0 else f3_y_first
+                    f3_z_first = f3_z_first + t_clip * (f3_z_last - f3_z_first) if t_clip > 0 else f3_z_first
+            # Flight 3 outer extension along pitch
+            f3_y_first_ext, f3_z_first_ext = f3_y_first, f3_z_first
+            f3_dy = f3_y_last - f3_y_first
+            f3_dz = f3_z_last - f3_z_first
+            if abs(f3_dz) > 1e-9:
+                z_ext3 = land2_top - STRINGER_PITCH_OFFSET
+                f3_y_first_ext = f3_y_first + (z_ext3 - f3_z_first) * f3_dy / f3_dz
+                f3_z_first_ext = z_ext3
+
+            # === Turn 2 landing stringers — outer endpoints linked to extensions ===
+            st2 = STRINGER_THICKNESS / 2
+            # Outer corner newel position
+            outer2_corner_y = corner2_y + width
+            # Y-direction landing stringer masters the X stringer: extends through the full X
+            # stringer thickness to its rear edge (+st2 past the X stringer centre).
+            f3_landing_y_start = outer2_corner_y + st2
+            f3_landing_y_end = f3_y_first_unclipped + hp if render_outer else f3_y_first_ext
+            # In wall condition, drop landing stringers to align top edge with flight stringers
+            landing2_z_stringer = landing2_z if render_outer else (landing2_z - STRINGER_PITCH_OFFSET)
+            # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
+            meshes.append(_stringer_landing_y(f3_outer_x, f3_landing_y_start, f3_landing_y_end, landing2_z_stringer))
+            x_inner_end = f2_x_last_ext if f2_x_last_ext is not None else corner2_x
+            if f3_outer_x < x_inner_end:
+                # X stringer approaching from right, stop at right face of Y stringer
+                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x + st2, landing2_z_stringer))
+                if render_outer:
+                    # Run from newel post face to newel post face to eliminate gaps
+                    meshes.append(_handrail_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **hr_kw))
+                    meshes.append(_baserail_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **br_kw))
+                    meshes.extend(_spindles_landing_x(outer2_corner_y, f2_x_last - hp, f3_outer_x + hp, landing2_z, **sp_kw))
+            else:
+                # X stringer approaching from left, stop at left face of Y stringer
+                meshes.append(_stringer_landing_x(outer2_corner_y, x_inner_end, f3_outer_x - st2, landing2_z_stringer))
+                if render_outer:
+                    # Run from newel post face to newel post face to eliminate gaps
+                    meshes.append(_handrail_landing_x(outer2_corner_y, f2_x_last + hp, f3_outer_x - hp, landing2_z, **hr_kw))
+                    meshes.append(_baserail_landing_x(outer2_corner_y, f2_x_last + hp, f3_outer_x - hp, landing2_z, **br_kw))
+                    meshes.extend(_spindles_landing_x(outer2_corner_y, f2_x_last + hp, f3_outer_x - hp, landing2_z, **sp_kw))
+            if render_outer:
+                # Add Y-direction landing handrail, baserail, and spindles
+                # Run from newel post face to newel post face to eliminate gaps
+                meshes.append(_handrail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **hr_kw))
+                meshes.append(_baserail_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **br_kw))
+                meshes.extend(_spindles_landing_y(f3_outer_x, corner2_y + width - hp, f3_y_first_unclipped + hp, landing2_z, **sp_kw))
+
+            # === Flight 3 stringers (notched for threshold, flush with riser back) ===
+            z_fl = riser_t * rise / (2 * going)
+            f3_y_last_fl = f3_y_last - riser_t / 2
+            f3_z_last_fl = f3_z_last + z_fl
+            top_face_y = top_post_y + hp
+            dy3h = f3_y_last - f3_y_first
+            if render_inner:
+                dy3s = f3_y_last_fl - f3_y_first
+                f3_y_end_c, f3_z_end_c = f3_y_last_fl, f3_z_last_fl
+                if abs(dy3s) > 1e-9 and top_face_y > f3_y_last_fl:
+                    t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3s))
+                    f3_y_end_c = f3_y_first + t_c * dy3s
+                    f3_z_end_c = f3_z_first + t_c * (f3_z_last_fl - f3_z_first)
+                f3_y_hr_c, f3_z_hr_c = f3_y_last, f3_z_last
+                if abs(dy3h) > 1e-9 and top_face_y > f3_y_last:
+                    t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3h))
+                    f3_y_hr_c = f3_y_first + t_c * dy3h
+                    f3_z_hr_c = f3_z_first + t_c * (f3_z_last - f3_z_first)
+                # Trim start at corner2 newel face
+                c2_face_f3 = (corner2_y + c2_hp) if f3_y_first_unclipped > corner2_y else (corner2_y - c2_hp)
+                dy3_full = f3_y_last - f3_y_first
+                if abs(dy3_full) > 1e-9:
+                    t_c2f = (c2_face_f3 - f3_y_first) / dy3_full
+                    f3_z_c2 = f3_z_first + t_c2f * (f3_z_last - f3_z_first)
+                else:
+                    f3_z_c2 = f3_z_first
+                if abs(dy3s) > 1e-9:
+                    t_c2fs = (c2_face_f3 - f3_y_first) / dy3s
+                    f3_z_c2s = f3_z_first + t_c2fs * (f3_z_last_fl - f3_z_first)
+                else:
+                    f3_z_c2s = f3_z_first
+                meshes.append(_stringer_flight_y(f3_inner_x, c2_face_f3, f3_z_c2s,
+                                                 f3_y_end_c, f3_z_end_c))
+                meshes.append(_handrail_flight_y(f3_inner_x, c2_face_f3, f3_z_c2,
+                                                 f3_y_hr_c, f3_z_hr_c, **hr_kw))
+                meshes.append(_baserail_flight_y(f3_inner_x, c2_face_f3, f3_z_c2s,
+                                                 f3_y_end_c, f3_z_end_c, **br_kw))
+                meshes.extend(_spindles_flight_y(f3_inner_x, c2_face_f3, f3_z_c2,
+                                                 f3_y_hr_c, f3_z_hr_c, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
+                                                         f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+            if render_outer:
+                # Outer flight 3: from pitch-change newel face to top newel face
+                pc_face_f3 = f3_y_first - hp  # -Y face (toward flight)
+                top_face_y_out = top_post_y + hp  # +Y face (toward flight)
+                f3_y0_oc, f3_z0_oc = f3_y_first, f3_z_first
+                f3_y1_oc, f3_z1_oc = f3_y_last, f3_z_last
+                if abs(dy3h) > 1e-9:
+                    t_c0 = max(0.0, min(1.0, (pc_face_f3 - f3_y_first) / dy3h))
+                    f3_y0_oc = f3_y_first + t_c0 * dy3h
+                    f3_z0_oc = f3_z_first + t_c0 * (f3_z_last - f3_z_first)
+                    t_c1 = max(0.0, min(1.0, (top_face_y_out - f3_y_first) / dy3h))
+                    f3_y1_oc = f3_y_first + t_c1 * dy3h
+                    f3_z1_oc = f3_z_first + t_c1 * (f3_z_last - f3_z_first)
+                meshes.append(_stringer_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc))
+                meshes.append(_handrail_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first_ext, f3_z_first_ext,
+                                                         f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+
+    # --- Pitched stringers for winder flights ---
+    if actual_winders1 > 0:
+        nzs = rise * nosing / going
+        f1_inner_x = corner1_x
+        f1_outer_x = width - corner1_x
+
+        # Flight 1 stringers
+        f1_y0 = flight1_shift_y
+        f1_y1 = flight1_treads * going + flight1_shift_y
+        f1_z0 = rise + nzs
+        f1_z1 = (flight1_treads + 1) * rise + nzs
+        bot_face_y = bottom_post_y + hp
+        dy1 = f1_y1 - f1_y0
+        if flight1_treads > 0:
+            if render_inner:
+                f1_y0_c, f1_z0_c = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_c = f1_y0 + t_c * dy1
+                    f1_z0_c = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer = f1_z0
+                # Trim top end at corner1 newel -Y face
+                c1_face_y_f1 = corner1_y - c1_hp
+                if abs(dy1) > 1e-9:
+                    t_top = max(0.0, min(1.0, (c1_face_y_f1 - f1_y0) / dy1))
+                    f1_y1_ic = f1_y0 + t_top * dy1
+                    f1_z1_ic = f1_z0 + t_top * (f1_z1 - f1_z0)
+                else:
+                    f1_y1_ic, f1_z1_ic = f1_y1, f1_z1
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_stringer, f1_z0_stringer, f1_y1_ic, f1_z1_ic, clip_z_min=0))
+                meshes.append(_handrail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_inner_x, f1_y0_c, f1_z0_c, f1_y1_ic, f1_z1_ic, **sp_kw))
+            else:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_inner_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+
+        # Turn 1 winder outer stringer geometry
+        outer_corner_y1 = corner1_y + width
+        f2_inner_y = corner1_y
+        f2_outer_y = corner1_y + width
+        if turn1_dir == "left":
+            f2_x_first = -winder_offset1 - nosing - riser_t / 2
+            f2_x_last = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x_first = width + winder_offset1 + nosing + riser_t / 2
+            f2_x_last = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f2_z_first = flight2_riser_start * rise + nzs
+        f2_z_last = (flight2_riser_start + flight2_treads) * rise + nzs
+        wy_len = abs(outer_corner_y1 - f1_y1)
+        wx_len = abs(f1_outer_x - f2_x_first)
+        total_path = wy_len + wx_len
+        z_winder = f2_z_first - f1_z1
+        z_corner = f1_z1 + z_winder * wy_len / total_path if total_path > 1e-9 else f1_z1
+
+        if render_outer:
+            if flight1_treads > 0:
+                # Outer flight 1: clipped at bottom and pitch-change newel faces
+                f1_y0_oc, f1_z0_oc = f1_y0, f1_z0
+                if abs(dy1) > 1e-9 and bot_face_y > f1_y0:
+                    t_c = min(1.0, (bot_face_y - f1_y0) / dy1)
+                    f1_y0_oc = f1_y0 + t_c * dy1
+                    f1_z0_oc = f1_z0 + t_c * (f1_z1 - f1_z0)
+                # Stringer terminates at rear face of bottom post (no extension for balustrade)
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_stringer_outer = bot_face_y
+                if abs(f1_y1 - f1_y0) > 1e-9:
+                    t_stringer = (bot_face_y - f1_y0) / (f1_y1 - f1_y0)
+                    f1_z0_stringer_outer = f1_z0 + t_stringer * (f1_z1 - f1_z0)
+                else:
+                    f1_z0_stringer_outer = f1_z0
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_stringer_outer, f1_z0_stringer_outer, f1_y1, f1_z1, clip_z_min=0))
+                meshes.append(_handrail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **hr_kw))
+                meshes.append(_baserail_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **br_kw))
+                meshes.extend(_spindles_flight_y(f1_outer_x, f1_y0_oc, f1_z0_oc, f1_y1, f1_z1, **sp_kw))
+            # Winder Y-piece: handrail/baserail/spindles from pitch-change newel to outer corner newel
+            # Terminate Y-piece flush with front face of X-piece stringer (X-piece masters)
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y1 - f1_y1
+            y_ext = outer_corner_y1 - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext,
+                                             clip_z_min=0 if flight1_treads == 0 else None))
+            pc1_face_y_end = f1_y1 + hp
+            oc_face_y = outer_corner_y1 - hp
+            if abs(dy_w) > 1e-9:
+                t_oc_y = (oc_face_y - f1_y1) / dy_w
+                z_oc_y = f1_z1 + t_oc_y * (z_corner - f1_z1)
+            else:
+                z_oc_y = z_corner
+            meshes.append(_handrail_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **hr_kw))
+            meshes.append(_baserail_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **br_kw))
+            meshes.extend(_spindles_flight_y(f1_outer_x, pc1_face_y_end, f1_z1, oc_face_y, z_oc_y, **sp_kw))
+            # Winder X-piece: handrail/baserail/spindles from outer corner newel to pitch-change newel
+            # X-piece extends to Y-piece outer face so upper flight masters at corner
+            dx_w = f2_x_first - f1_outer_x
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
+            if turn1_dir == "left":
+                oc_face_x = f1_outer_x - hp
+                pc2_face_x = f2_x_first + hp
+            else:
+                oc_face_x = f1_outer_x + hp
+                pc2_face_x = f2_x_first - hp
+            if abs(dx_w) > 1e-9:
+                t_oc = (oc_face_x - f1_outer_x) / dx_w
+                z_oc = z_corner + t_oc * (f2_z_first - z_corner)
+                t_pc = (pc2_face_x - f1_outer_x) / dx_w
+                z_pc = z_corner + t_pc * (f2_z_first - z_corner)
+            else:
+                z_oc, z_pc = z_corner, f2_z_first
+            meshes.append(_handrail_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y1, oc_face_x, z_oc, pc2_face_x, z_pc, **sp_kw))
+            # Outer flight 2: from pitch-change newel to next pitch-change/top newel
+            f2_dx = f2_x_last - f2_x_first
+            if turn1_dir == "left":
+                pc2_start_x = f2_x_first - hp
+                pc2_end_x = f2_x_last + hp if actual_winders2 > 0 else f2_x_last + hp
+            else:
+                pc2_start_x = f2_x_first + hp
+                pc2_end_x = f2_x_last - hp if actual_winders2 > 0 else f2_x_last - hp
+            f2_x0_oc, f2_z0_oc = f2_x_first, f2_z_first
+            f2_x1_oc, f2_z1_oc = f2_x_last, f2_z_last
+            if abs(f2_dx) > 1e-9:
+                t_c = max(0.0, min(1.0, (pc2_start_x - f2_x_first) / f2_dx))
+                f2_x0_oc = f2_x_first + t_c * f2_dx
+                f2_z0_oc = f2_z_first + t_c * (f2_z_last - f2_z_first)
+                t_c2 = max(0.0, min(1.0, (pc2_end_x - f2_x_first) / f2_dx))
+                f2_x1_oc = f2_x_first + t_c2 * f2_dx
+                f2_z1_oc = f2_z_first + t_c2 * (f2_z_last - f2_z_first)
+            meshes.append(_stringer_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc))
+            meshes.append(_handrail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **hr_kw))
+            meshes.append(_baserail_flight_x(f2_outer_y, f2_x0_oc, f2_z0_oc, f2_x1_oc, f2_z1_oc, **br_kw))
+            if abs(f2_dx) > 1e-9:
+                meshes.extend(_spindles_flight_x(f2_outer_y, pc2_start_x, f2_z0_oc, pc2_end_x, f2_z1_oc, **sp_kw))
+        else:
+            # Extend winder corner stringers: upper flight masters lower
+            st2 = STRINGER_THICKNESS / 2
+            dy_w = outer_corner_y1 - f1_y1
+            y_ext = outer_corner_y1 - st2
+            z_y_ext = z_corner - st2 * (z_corner - f1_z1) / dy_w if abs(dy_w) > 1e-9 else z_corner
+            if flight1_treads > 0:
+                _slope = (f1_z1 - f1_z0) / (f1_y1 - f1_y0) if abs(f1_y1 - f1_y0) > 1e-9 else 0
+                f1_y0_w = f1_y0 - WALL_STRINGER_EXTENSION
+                f1_z0_w = f1_z0 - WALL_STRINGER_EXTENSION * _slope
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y0_w, f1_z0_w, f1_y1, f1_z1, clip_z_min=0))
+                meshes.append(_stringer_flight_y(f1_outer_x, f1_y1, f1_z1, y_ext, z_y_ext))
+            else:
+                # Merge wall extension into winder Y-piece
+                yp_slope = (z_corner - f1_z1) / (outer_corner_y1 - f1_y1) if abs(outer_corner_y1 - f1_y1) > 1e-9 else 0
+                yp_y_start = f1_y1 - WALL_STRINGER_EXTENSION
+                yp_z_start = f1_z1 - WALL_STRINGER_EXTENSION * yp_slope
+                meshes.append(_stringer_flight_y(f1_outer_x, yp_y_start, yp_z_start, y_ext, z_y_ext, clip_z_min=0))
+            dx_w = f2_x_first - f1_outer_x
+            x_ext = (f1_outer_x + st2) if turn1_dir == "left" else (f1_outer_x - st2)
+            z_x_ext = z_corner + (x_ext - f1_outer_x) * (f2_z_first - z_corner) / dx_w if abs(dx_w) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y1, x_ext, z_x_ext, f2_x_first, f2_z_first))
+            meshes.append(_stringer_flight_x(f2_outer_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+
+        # Flight 2 inner stringers — trim to corner newel faces
+        if render_inner:
+            f2_dx = f2_x_last - f2_x_first
+            if abs(f2_dx) > 1e-9:
+                if turn1_dir == "left":
+                    c1_face_x = corner1_x - c1_hp
+                    c2_face_x = corner2_x + c2_hp
+                else:
+                    c1_face_x = corner1_x + c1_hp
+                    c2_face_x = corner2_x - c2_hp
+                t0 = (c1_face_x - f2_x_first) / f2_dx
+                t1 = (c2_face_x - f2_x_first) / f2_dx
+                f2_ic_z0 = f2_z_first + t0 * (f2_z_last - f2_z_first)
+                f2_ic_z1 = f2_z_first + t1 * (f2_z_last - f2_z_first)
+                meshes.append(_stringer_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1))
+                meshes.append(_handrail_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **hr_kw))
+                meshes.append(_baserail_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **br_kw))
+                meshes.extend(_spindles_flight_x(f2_inner_y, c1_face_x, f2_ic_z0, c2_face_x, f2_ic_z1, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+                meshes.append(_handrail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **hr_kw))
+                meshes.append(_baserail_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **br_kw))
+                meshes.extend(_spindles_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last, **sp_kw))
+        else:
+            meshes.append(_stringer_flight_x(f2_inner_y, f2_x_first, f2_z_first, f2_x_last, f2_z_last))
+
+    if actual_winders2 > 0:
+        nzs = rise * nosing / going
+        # Flight 3 X positions
+        if turn1_dir == turn2_dir:
+            f3_outer_x = flight3_start_x + corner1_x
+            f3_inner_x = flight3_start_x + width - corner1_x
+        else:
+            f3_outer_x = flight3_start_x + width - corner1_x
+            f3_inner_x = flight3_start_x + corner1_x
+
+        # Flight 3 coordinates
+        f3_y_first = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+        f3_y_last = flight3_start_y - flight3_treads * going - nosing + riser_t / 2 + flight3_shift_y
+        f3_z_first = flight3_riser_start * rise + nzs
+        f3_z_last = (flight3_riser_start + flight3_treads) * rise + nzs
+        z_fl = riser_t * rise / (2 * going)
+        f3_y_last_fl = f3_y_last - riser_t / 2
+        f3_z_last_fl = f3_z_last + z_fl
+        top_face_y = top_post_y + hp
+        dy3h = f3_y_last - f3_y_first
+
+        if flight3_treads > 0:
+            if render_inner:
+                dy3s = f3_y_last_fl - f3_y_first
+                f3_y_end_c, f3_z_end_c = f3_y_last_fl, f3_z_last_fl
+                if abs(dy3s) > 1e-9 and top_face_y > f3_y_last_fl:
+                    t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3s))
+                    f3_y_end_c = f3_y_first + t_c * dy3s
+                    f3_z_end_c = f3_z_first + t_c * (f3_z_last_fl - f3_z_first)
+                f3_y_hr_c, f3_z_hr_c = f3_y_last, f3_z_last
+                if abs(dy3h) > 1e-9 and top_face_y > f3_y_last:
+                    t_c = max(0.0, min(1.0, (top_face_y - f3_y_first) / dy3h))
+                    f3_y_hr_c = f3_y_first + t_c * dy3h
+                    f3_z_hr_c = f3_z_first + t_c * (f3_z_last - f3_z_first)
+                # Trim start at corner2 newel face
+                c2_face_f3 = (corner2_y + c2_hp) if f3_y_first > corner2_y else (corner2_y - c2_hp)
+                dy3_full = f3_y_last - f3_y_first
+                if abs(dy3_full) > 1e-9:
+                    t_c2f = (c2_face_f3 - f3_y_first) / dy3_full
+                    f3_z_c2 = f3_z_first + t_c2f * (f3_z_last - f3_z_first)
+                else:
+                    f3_z_c2 = f3_z_first
+                if abs(dy3s) > 1e-9:
+                    t_c2fs = (c2_face_f3 - f3_y_first) / dy3s
+                    f3_z_c2s = f3_z_first + t_c2fs * (f3_z_last_fl - f3_z_first)
+                else:
+                    f3_z_c2s = f3_z_first
+                meshes.append(_stringer_flight_y(f3_inner_x, c2_face_f3, f3_z_c2s,
+                                                 f3_y_end_c, f3_z_end_c))
+                meshes.append(_handrail_flight_y(f3_inner_x, c2_face_f3, f3_z_c2,
+                                                 f3_y_hr_c, f3_z_hr_c, **hr_kw))
+                meshes.append(_baserail_flight_y(f3_inner_x, c2_face_f3, f3_z_c2s,
+                                                 f3_y_end_c, f3_z_end_c, **br_kw))
+                meshes.extend(_spindles_flight_y(f3_inner_x, c2_face_f3, f3_z_c2,
+                                                 f3_y_hr_c, f3_z_hr_c, **sp_kw))
+            else:
+                meshes.append(_stringer_flight_y_notched(f3_inner_x, f3_y_first, f3_z_first,
+                                                         f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+
+        # Turn 2 winder outer stringer geometry
+        if turn1_dir == "left":
+            f2_x_end = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x_end = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f2_z_end = (flight2_riser_start + flight2_treads) * rise + nzs
+        outer_corner_y2 = corner2_y + width
+        wx_len = abs(f3_outer_x - f2_x_end)
+        wy_len = abs(outer_corner_y2 - f3_y_first)
+        total_path = wx_len + wy_len
+        z_winder = f3_z_first - f2_z_end
+        z_corner = f2_z_end + z_winder * wx_len / total_path if total_path > 1e-9 else f2_z_end
+
+        if render_outer:
+            # Winder X-piece with balustrade (from pitch-change newel at f2 end to outer corner)
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dx_w2 = f3_outer_x - f2_x_end
+            x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            z_x_ext2 = z_corner - st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
+            if turn1_dir == "left":
+                pc_f2end_face_x = f2_x_end - hp  # -X face toward X-piece
+                oc2_face_x = f3_outer_x + hp  # +X face of outer corner newel
+            else:
+                pc_f2end_face_x = f2_x_end + hp
+                oc2_face_x = f3_outer_x - hp
+            if abs(dx_w2) > 1e-9:
+                t_pc2 = (pc_f2end_face_x - f2_x_end) / dx_w2
+                z_pc2 = f2_z_end + t_pc2 * (z_corner - f2_z_end)
+                t_oc2 = (oc2_face_x - f2_x_end) / dx_w2
+                z_oc2 = f2_z_end + t_oc2 * (z_corner - f2_z_end)
+            else:
+                z_pc2, z_oc2 = f2_z_end, z_corner
+            meshes.append(_handrail_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **hr_kw))
+            meshes.append(_baserail_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **br_kw))
+            meshes.extend(_spindles_flight_x(outer_corner_y2, pc_f2end_face_x, z_pc2, oc2_face_x, z_oc2, **sp_kw))
+            # Winder Y-piece with balustrade (from outer corner to pitch-change newel at f3 start)
+            # Extend stringer past corner by STRINGER_THICKNESS/2 to fill gap
+            dy_w2 = f3_y_first - outer_corner_y2
+            y_ext2 = outer_corner_y2 + st2
+            z_y_ext2 = z_x_ext2  # match X-piece end height so top surfaces align at corner
+            meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
+            oc2_face_y = outer_corner_y2 - hp  # -Y face of outer corner newel
+            pc_f3_face_y = f3_y_first + hp  # +Y face of pitch-change newel
+            if abs(dy_w2) > 1e-9:
+                t_pc3 = (pc_f3_face_y - outer_corner_y2) / dy_w2
+                z_pc3 = z_corner + t_pc3 * (f3_z_first - z_corner)
+            else:
+                z_pc3 = f3_z_first
+            meshes.append(_handrail_flight_y(f3_outer_x, oc2_face_y, z_corner, pc_f3_face_y, z_pc3, **hr_kw))
+            meshes.append(_baserail_flight_y(f3_outer_x, oc2_face_y, z_corner, pc_f3_face_y, z_pc3, **br_kw))
+            meshes.extend(_spindles_flight_y(f3_outer_x, oc2_face_y, z_corner, pc_f3_face_y, z_pc3, **sp_kw))
+            if flight3_treads > 0:
+                # Outer flight 3: from pitch-change newel face to top newel face
+                pc_face_f3 = f3_y_first - hp
+                top_face_y_out = top_post_y + hp
+                f3_y0_oc, f3_z0_oc = f3_y_first, f3_z_first
+                f3_y1_oc, f3_z1_oc = f3_y_last, f3_z_last
+                if abs(dy3h) > 1e-9:
+                    t_c0 = max(0.0, min(1.0, (pc_face_f3 - f3_y_first) / dy3h))
+                    f3_y0_oc = f3_y_first + t_c0 * dy3h
+                    f3_z0_oc = f3_z_first + t_c0 * (f3_z_last - f3_z_first)
+                    t_c1 = max(0.0, min(1.0, (top_face_y_out - f3_y_first) / dy3h))
+                    f3_y1_oc = f3_y_first + t_c1 * dy3h
+                    f3_z1_oc = f3_z_first + t_c1 * (f3_z_last - f3_z_first)
+                meshes.append(_stringer_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc))
+                meshes.append(_handrail_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **hr_kw))
+                meshes.append(_baserail_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **br_kw))
+                meshes.extend(_spindles_flight_y(f3_outer_x, f3_y0_oc, f3_z0_oc, f3_y1_oc, f3_z1_oc, **sp_kw))
+        else:
+            # Extend winder corner stringers by STRINGER_THICKNESS/2 to fill gap
+            st2 = STRINGER_THICKNESS / 2
+            dx_w2 = f3_outer_x - f2_x_end
+            x_ext2 = f3_outer_x + (-st2 if dx_w2 > 0 else st2) if abs(dx_w2) > 1e-9 else f3_outer_x
+            z_x_ext2 = z_corner - st2 * (z_corner - f2_z_end) / abs(dx_w2) if abs(dx_w2) > 1e-9 else z_corner
+            meshes.append(_stringer_flight_x(outer_corner_y2, f2_x_end, f2_z_end, x_ext2, z_x_ext2))
+            dy_w2 = f3_y_first - outer_corner_y2
+            y_ext2 = outer_corner_y2 + st2
+            z_y_ext2 = z_x_ext2  # match X-piece end height so top surfaces align at corner
+            if flight3_treads == 0:
+                # Merge Y-piece with threshold notch into one stringer
+                meshes.append(_stringer_flight_y_notched(f3_outer_x, y_ext2, z_y_ext2,
+                                                         f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+            else:
+                meshes.append(_stringer_flight_y(f3_outer_x, y_ext2, z_y_ext2, f3_y_first, f3_z_first))
+                meshes.append(_stringer_flight_y_notched(f3_outer_x, f3_y_first, f3_z_first,
+                                                         f3_y_last_fl, f3_z_last_fl, ftf, thresh_back_y, tread_t))
+
+    # --- Newel posts (top = 150mm above highest abutting handrail) ---
+    NEWEL_CAP = 150.0
+    hr_rise = p["handrail_rise"]
+    nzs_hr = rise * nosing / going
+
+    # Inner newel posts
+    if render_inner:
+        if flight1_treads > 0:
+            hr_bot = rise + nzs_hr + hr_rise
+            bot_h = hr_bot + NEWEL_CAP
+            meshes.append(_box_mesh(corner1_x, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+        hr_c1_f1 = (flight1_treads + 1) * rise + nzs_hr + hr_rise
+        hr_c1_f2 = flight2_riser_start * rise + nzs_hr + hr_rise
+        c1_h = max(hr_c1_f1, hr_c1_f2) + NEWEL_CAP
+        meshes.append(_box_mesh(corner1_x, corner1_y, c1_h / 2, c1_ns, c1_ns, c1_h, "#8B7355"))
+        hr_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr + hr_rise
+        hr_c2_f3 = flight3_riser_start * rise + nzs_hr + hr_rise
+        c2_h = max(hr_c2_f2, hr_c2_f3) + NEWEL_CAP
+        meshes.append(_box_mesh(corner2_x, corner2_y, c2_h / 2, c2_ns, c2_ns, c2_h, "#8B7355"))
+        if flight3_treads > 0:
+            # Top newel extends FROM cutting plane (150mm below stringer bottom) UPWARD
+            pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_hr
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(corner2_x, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
+    else:
+        # Wall condition on inner side: add stub newels at corners (no stringers)
+        # Corner 1: 50mm below F1 stringer bottom, 50mm above F2 stringer top
+        pitch_c1_f1 = (flight1_treads + 1) * rise + nzs_hr
+        pitch_c1_f2 = flight2_riser_start * rise + nzs_hr
+        f1_stringer_bottom_c1 = pitch_c1_f1 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        f2_stringer_top_c1    = pitch_c1_f2 + STRINGER_PITCH_OFFSET
+        stub_bottom_c1 = f1_stringer_bottom_c1 - 50.0
+        stub_top_c1    = f2_stringer_top_c1    + 50.0
+        stub_h_c1 = stub_top_c1 - stub_bottom_c1
+        stub_z_center_c1 = (stub_top_c1 + stub_bottom_c1) / 2
+        meshes.append(_box_mesh(corner1_x, corner1_y, stub_z_center_c1, ns, ns, stub_h_c1, "#8B7355"))
+        # Corner 2: 50mm below F2 stringer bottom, 50mm above F3 stringer top
+        pitch_c2_f2 = (flight2_riser_start + flight2_treads) * rise + nzs_hr
+        pitch_c2_f3 = flight3_riser_start * rise + nzs_hr
+        f2_stringer_bottom_c2 = pitch_c2_f2 - (STRINGER_HEIGHT - STRINGER_PITCH_OFFSET)
+        f3_stringer_top_c2    = pitch_c2_f3 + STRINGER_PITCH_OFFSET
+        stub_bottom_c2 = f2_stringer_bottom_c2 - 50.0
+        stub_top_c2    = f3_stringer_top_c2    + 50.0
+        stub_h_c2 = stub_top_c2 - stub_bottom_c2
+        stub_z_center_c2 = (stub_top_c2 + stub_bottom_c2) / 2
+        meshes.append(_box_mesh(corner2_x, corner2_y, stub_z_center_c2, ns, ns, stub_h_c2, "#8B7355"))
+        # Note: Stub stringers removed - they were causing green artifacts
+
+    # Outer newel posts
+    if render_outer:
+        nzs_w = rise * nosing / going
+        outer_x = width - corner1_x
+        outer_y_pos = corner1_y + width
+        if turn1_dir == turn2_dir:
+            f3_outer_x_val = flight3_start_x + corner1_x
+        else:
+            f3_outer_x_val = flight3_start_x + width - corner1_x
+        if turn1_dir == "left":
+            f2_x0_val = -winder_offset1 - nosing - riser_t / 2
+            f2_x_end_val = -(flight2_treads * going) - winder_offset1 - nosing - riser_t / 2
+        else:
+            f2_x0_val = width + winder_offset1 + nosing + riser_t / 2
+            f2_x_end_val = width + flight2_treads * going + winder_offset1 + nosing + riser_t / 2
+        f1_y1_val = flight1_treads * going + flight1_shift_y
+        f3_y_first_val = flight3_start_y - nosing + riser_t / 2 + flight3_shift_y
+
+        # Bottom newel
+        if flight1_treads > 0:
+            hr_bot = rise + nzs_w + hr_rise
+            bot_h = hr_bot + NEWEL_CAP
+            meshes.append(_box_mesh(outer_x, bottom_post_y, bot_h / 2, ns, ns, bot_h, "#8B7355"))
+
+        # Turn 1 pitch-change at flight 1 end
+        hr_pc1 = (flight1_treads + 1) * rise + nzs_w + hr_rise
+        pc1_h = hr_pc1 + NEWEL_CAP
+        meshes.append(_box_mesh(outer_x, f1_y1_val, pc1_h / 2, ns, ns, pc1_h, "#8B7355"))
+
+        if actual_winders1 > 0:
+            # Outer corner 1 - match stub newel pattern (no hr_rise, just pitch line)
+            oc1_pitch = max((flight1_treads + 1) * rise + nzs_w,
+                           flight2_riser_start * rise + nzs_w)
+            oc1_h = oc1_pitch + STRINGER_PITCH_OFFSET + hr_rise + NEWEL_CAP - 350.0
+            meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
+            # Pitch-change at flight 2 start
+            hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
+            pc_f2s_h = hr_pc_f2s + NEWEL_CAP
+            meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
+        else:
+            # Flat landing at turn 1 - match height of pitch-change newel (pc1)
+            oc1_h = pc1_h  # Same height as pitch-change newel at flight 1 end
+            meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
+            hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
+            pc_f2s_h = hr_pc_f2s + NEWEL_CAP
+            meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
+
+        if actual_winders2 > 0:
+            # Pitch-change at flight 2 end
+            hr_pc_f2e = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
+            pc_f2e_h = hr_pc_f2e + NEWEL_CAP
+            outer_corner_y2_val = corner2_y + width
+            meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_f2e_h / 2, ns, ns, pc_f2e_h, "#8B7355"))
+            # Outer corner 2 - match stub newel pattern
+            oc2_pitch = max((flight2_riser_start + flight2_treads) * rise + nzs_w,
+                           flight3_riser_start * rise + nzs_w)
+            oc2_h = oc2_pitch + STRINGER_PITCH_OFFSET + hr_rise + NEWEL_CAP - 350.0
+            meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
+            # Pitch-change at flight 3 start
+            hr_pc_f3s = flight3_riser_start * rise + nzs_w + hr_rise
+            pc_f3s_h = hr_pc_f3s + NEWEL_CAP
+            meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_f3s_h / 2, ns, ns, pc_f3s_h, "#8B7355"))
+        else:
+            # Flat landing at turn 2 - match height of pitch-change newel (pc_t2a)
+            outer_corner_y2_val = corner2_y + width
+            hr_pc_t2a = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
+            pc_t2a_h = hr_pc_t2a + NEWEL_CAP
+            meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
+            # Outer corner 2 - same height as pitch-change newel at flight 2 end
+            oc2_h = pc_t2a_h  # Match height of pc_t2a
+            meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))
+            # Pitch-change at flight 3 start
+            hr_pc_t2b = flight3_riser_start * rise + nzs_w + hr_rise
+            pc_t2b_h = hr_pc_t2b + NEWEL_CAP
+            meshes.append(_box_mesh(f3_outer_x_val, f3_y_first_val, pc_t2b_h / 2, ns, ns, pc_t2b_h, "#8B7355"))
+
+        # Top newel - extends FROM cutting plane (150mm below stringer bottom) UPWARD
+        if flight3_treads > 0:
+            pitch_line_top = (flight3_riser_start + flight3_treads) * rise + nzs_w
+            newel_bottom = pitch_line_top - 400.0
+            newel_top = pitch_line_top + hr_rise + NEWEL_CAP
+            top_h = newel_top - newel_bottom
+            top_z_center = (newel_bottom + newel_top) / 2
+            meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
+
+    return meshes
+
+
+
+
+"""
+Stair Preview Engine — balustrade primitive helpers.
+
+All stringer/handrail/baserail/spindle building blocks used by the flight
+builders.  These helpers return mesh dicts; they do not append to any list.
+"""
+
+import math
+
+from stair_constants import (
+    STRINGER_THICKNESS, STRINGER_HEIGHT, STRINGER_PITCH_OFFSET, STRINGER_DROP,
+    WALL_STRINGER_EXTENSION, STRINGER_COLOR,
+    HANDRAIL_WIDTH, HANDRAIL_HEIGHT, HANDRAIL_RISE, HANDRAIL_COLOR,
+    SPINDLE_SIZE, SPINDLE_MAX_GAP,
+)
+
+
+def _stringer_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Stringer", ifc_type="stringer", clip_z_min=None):
+    """Stringer along a flight that runs in the Y direction.
+
+    Returns a stringer mesh dict.  The profile is a parallelogram in the
+    Y-Z plane, extruded by STRINGER_THICKNESS in X centred on *x_pos*.
+
+    If *clip_z_min* is set the profile is clipped so nothing extends below
+    that Z value (e.g. ground-floor level = 0).
+    """
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    pts = [
+        [y_start, z_start - drop],
+        [y_end,   z_end - drop],
+        [y_end,   z_end + off],
+        [y_start, z_start + off],
+    ]
+    if clip_z_min is not None:
+        clipped = []
+        n = len(pts)
+        for i in range(n):
+            curr = pts[i]
+            nxt = pts[(i + 1) % n]
+            c_in = curr[1] >= clip_z_min
+            n_in = nxt[1] >= clip_z_min
+            if c_in:
+                clipped.append(curr)
+            if c_in != n_in:
+                dy = nxt[0] - curr[0]
+                dz = nxt[1] - curr[1]
+                if abs(dz) > 1e-9:
+                    t = (clip_z_min - curr[1]) / dz
+                    clipped.append([curr[0] + t * dy, clip_z_min])
+        if clipped:
+            pts = clipped
+    profile = pts
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _stringer_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Stringer", ifc_type="stringer"):
+    """Stringer along a flight that runs in the X direction.
+
+    Profile is in the X-Z plane, extruded by STRINGER_THICKNESS in Y
+    centred on *y_pos*.
+    """
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    profile = [
+        [x_start, z_start - drop],
+        [x_end,   z_end - drop],
+        [x_end,   z_end + off],
+        [x_start, z_start + off],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _stringer_landing_y(x_pos, y_start, y_end, z, name="Landing Stringer", ifc_type="stringer"):
+    """Flat (horizontal) stringer across a landing, running in Y.
+
+    The stringer top sits at base rail bottom (to support it properly).
+    """
+    z_top = z + STRINGER_DROP + STRINGER_PITCH_OFFSET
+    z_bot = z_top - STRINGER_HEIGHT
+    profile = [
+        [y_start, z_bot],
+        [y_end,   z_bot],
+        [y_end,   z_top],
+        [y_start, z_top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _stringer_landing_x(y_pos, x_start, x_end, z, name="Landing Stringer", ifc_type="stringer"):
+    """Flat (horizontal) stringer across a landing, running in X.
+
+    The stringer top sits at base rail bottom (to support it properly).
+    """
+    z_top = z + STRINGER_DROP + STRINGER_PITCH_OFFSET
+    z_bot = z_top - STRINGER_HEIGHT
+    profile = [
+        [x_start, z_bot],
+        [x_end,   z_bot],
+        [x_end,   z_top],
+        [x_start, z_top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _handrail_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Handrail", **kw):
+    """Pitched handrail along Y.  z_start/z_end are nosing pitch-line z values."""
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    profile = [
+        [y_start, z_start + r - h],
+        [y_end,   z_end + r - h],
+        [y_end,   z_end + r],
+        [y_start, z_start + r],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _handrail_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Handrail", **kw):
+    """Pitched handrail along X.  z_start/z_end are nosing pitch-line z values."""
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    profile = [
+        [x_start, z_start + r - h],
+        [x_end,   z_end + r - h],
+        [x_end,   z_end + r],
+        [x_start, z_start + r],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _baserail_flight_y(x_pos, y_start, z_start, y_end, z_end, name="Baserail", **kw):
+    """Base rail along Y sitting on top of the inner stringer."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [y_start, z_start + bot],
+        [y_end,   z_end + bot],
+        [y_end,   z_end + top],
+        [y_start, z_start + top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
+def _baserail_flight_x(y_pos, x_start, z_start, x_end, z_end, name="Baserail", **kw):
+    """Base rail along X sitting on top of the inner stringer."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [x_start, z_start + bot],
+        [x_end,   z_end + bot],
+        [x_end,   z_end + top],
+        [x_start, z_start + top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
+def _handrail_landing_y(x_pos, y_start, y_end, z, name="Landing Handrail", **kw):
+    """Flat (horizontal) handrail across a landing, running in Y.
+
+    z is the landing tread plane height.
+    Handrail sits at landing_stringer_top + handrail_rise.
+    """
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    # Landing stringer top is at z + STRINGER_DROP
+    z_hr_bot = z + STRINGER_DROP + r - h
+    z_hr_top = z + STRINGER_DROP + r
+    profile = [
+        [y_start, z_hr_bot],
+        [y_end, z_hr_bot],
+        [y_end, z_hr_top],
+        [y_start, z_hr_top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _handrail_landing_x(y_pos, x_start, x_end, z, name="Landing Handrail", **kw):
+    """Flat (horizontal) handrail across a landing, running in X.
+
+    z is the landing tread plane height.
+    Handrail sits at landing_stringer_top + handrail_rise.
+    """
+    w = kw.get("hr_width", HANDRAIL_WIDTH)
+    h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    r = kw.get("hr_rise", HANDRAIL_RISE)
+    # Landing stringer top is at z + STRINGER_DROP
+    z_hr_bot = z + STRINGER_DROP + r - h
+    z_hr_top = z + STRINGER_DROP + r
+    profile = [
+        [x_start, z_hr_bot],
+        [x_end, z_hr_bot],
+        [x_end, z_hr_top],
+        [x_start, z_hr_top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "handrail",
+    }
+
+
+def _baserail_landing_y(x_pos, y_start, y_end, z, name="Landing Baserail", **kw):
+    """Flat (horizontal) baserail across a landing, running in Y."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    z_top = z + STRINGER_DROP
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [y_start, z_top + bot],
+        [y_end, z_top + bot],
+        [y_end, z_top + top],
+        [y_start, z_top + top],
+    ]
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
+def _baserail_landing_x(y_pos, x_start, x_end, z, name="Landing Baserail", **kw):
+    """Flat (horizontal) baserail across a landing, running in X."""
+    w = kw.get("br_width", HANDRAIL_WIDTH)
+    h = kw.get("br_height", HANDRAIL_HEIGHT)
+    z_top = z + STRINGER_DROP
+    bot = STRINGER_PITCH_OFFSET
+    top = STRINGER_PITCH_OFFSET + h
+    profile = [
+        [x_start, z_top + bot],
+        [x_end, z_top + bot],
+        [x_end, z_top + top],
+        [x_start, z_top + top],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - w / 2,
+        "thickness": w,
+        "color": HANDRAIL_COLOR,
+        "name": name,
+        "ifc_type": "baserail",
+    }
+
+
+def _spindles_flight_y(x_pos, y_start, z_start, y_end, z_end, name_prefix="Spindle", **kw):
+    """Spindles along a Y-direction flight with pitched top/bottom surfaces.
+
+    Gaps between spindles (and between spindles and newel post faces at each
+    end) are all equal and as close to 99 mm as possible without exceeding it.
+    Each spindle is a parallelogram in the Y-Z plane (sloped to match pitch),
+    extruded by spindle_size in X.
+    """
+    meshes = []
+    sp = kw.get("spindle_size", SPINDLE_SIZE)
+    br_h = kw.get("br_height", HANDRAIL_HEIGHT)
+    hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    hr_r = kw.get("hr_rise", HANDRAIL_RISE)
+    br_top_off = STRINGER_PITCH_OFFSET + br_h
+    hr_bot_off = hr_r - hr_h
+    dy = y_end - y_start
+    length = abs(dy)
+    if length < 1e-9:
+        return meshes
+    # k spindles produce k+1 equal gaps: gap = (L - k*sp) / (k+1)
+    # We need gap <= 99, so k >= ceil((L - 99) / (99 + sp))
+    k = max(0, math.ceil((length - SPINDLE_MAX_GAP) / (SPINDLE_MAX_GAP + sp)))
+    if k == 0:
+        return meshes
+    gap = (length - k * sp) / (k + 1)
+    first_centre = gap + sp / 2
+    centre_step = gap + sp
+    slope = (z_end - z_start) / dy  # dz/dy — pitch slope
+    dz_half = slope * sp / 2
+    for i in range(k):
+        pos = first_centre + i * centre_step
+        t = pos / length
+        y = y_start + t * dy
+        z = z_start + t * (z_end - z_start)
+        z_bot = z + br_top_off
+        z_top = z + hr_bot_off
+        if z_top - z_bot > sp:
+            meshes.append({
+                "type": "stringer",
+                "profile": [
+                    [y - sp / 2, z_bot - dz_half],
+                    [y + sp / 2, z_bot + dz_half],
+                    [y + sp / 2, z_top + dz_half],
+                    [y - sp / 2, z_top - dz_half],
+                ],
+                "x": x_pos - sp / 2,
+                "thickness": sp,
+                "color": HANDRAIL_COLOR,
+                "name": f"{name_prefix} {i+1}",
+                "ifc_type": "spindle",
+            })
+    return meshes
+
+
+def _spindles_flight_x(y_pos, x_start, z_start, x_end, z_end, name_prefix="Spindle", **kw):
+    """Spindles along an X-direction flight with pitched top/bottom surfaces."""
+    meshes = []
+    sp = kw.get("spindle_size", SPINDLE_SIZE)
+    br_h = kw.get("br_height", HANDRAIL_HEIGHT)
+    hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    hr_r = kw.get("hr_rise", HANDRAIL_RISE)
+    br_top_off = STRINGER_PITCH_OFFSET + br_h
+    hr_bot_off = hr_r - hr_h
+    dx = x_end - x_start
+    length = abs(dx)
+    if length < 1e-9:
+        return meshes
+    k = max(0, math.ceil((length - SPINDLE_MAX_GAP) / (SPINDLE_MAX_GAP + sp)))
+    if k == 0:
+        return meshes
+    gap = (length - k * sp) / (k + 1)
+    first_centre = gap + sp / 2
+    centre_step = gap + sp
+    slope = (z_end - z_start) / dx  # dz/dx — pitch slope
+    dz_half = slope * sp / 2
+    for i in range(k):
+        pos = first_centre + i * centre_step
+        t = pos / length
+        x = x_start + t * dx
+        z = z_start + t * (z_end - z_start)
+        z_bot = z + br_top_off
+        z_top = z + hr_bot_off
+        if z_top - z_bot > sp:
+            meshes.append({
+                "type": "stringer",
+                "profile": [
+                    [x - sp / 2, z_bot - dz_half],
+                    [x + sp / 2, z_bot + dz_half],
+                    [x + sp / 2, z_top + dz_half],
+                    [x - sp / 2, z_top - dz_half],
+                ],
+                "y": y_pos - sp / 2,
+                "thickness": sp,
+                "axis": "y",
+                "color": HANDRAIL_COLOR,
+                "name": f"{name_prefix} {i+1}",
+                "ifc_type": "spindle",
+            })
+    return meshes
+
+
+def _spindles_landing_y(x_pos, y_start, y_end, z, name_prefix="Landing Spindle", **kw):
+    """Vertical spindles along a Y-direction landing (flat/horizontal).
+
+    Spindles run from base rail top to handrail bottom.
+    z is the landing tread plane height.
+    """
+    meshes = []
+    sp = kw.get("spindle_size", SPINDLE_SIZE)
+    br_h = kw.get("br_height", HANDRAIL_HEIGHT)
+    hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    hr_r = kw.get("hr_rise", HANDRAIL_RISE)
+
+    # Baserail and handrail use z + STRINGER_DROP as reference
+    z_ref = z + STRINGER_DROP
+    # Spindle bottom overlaps baserail top by 1mm to ensure proper connection
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h - 1.0  # base rail top with 1mm overlap
+    z_top = z_ref + hr_r - hr_h  # handrail bottom
+
+    dy = y_end - y_start
+    length = abs(dy)
+    if length < 1e-9 or z_top - z_bot < sp:
+        return meshes
+
+    # Calculate number of spindles to keep gaps <= 99mm
+    k = max(0, math.ceil((length - SPINDLE_MAX_GAP) / (SPINDLE_MAX_GAP + sp)))
+    if k == 0:
+        return meshes
+
+    gap = (length - k * sp) / (k + 1)
+    first_centre = gap + sp / 2
+    centre_step = gap + sp
+
+    for i in range(k):
+        pos = first_centre + i * centre_step
+        if dy >= 0:
+            y = y_start + pos
+        else:
+            y = y_start - pos
+
+        meshes.append({
+            "type": "stringer",
+            "profile": [
+                [y - sp / 2, z_bot],
+                [y + sp / 2, z_bot],
+                [y + sp / 2, z_top],
+                [y - sp / 2, z_top],
+            ],
+            "x": x_pos - sp / 2,
+            "thickness": sp,
+            "color": HANDRAIL_COLOR,
+            "name": f"{name_prefix} {i+1}",
+            "ifc_type": "spindle",
+        })
+    return meshes
+
+
+def _spindles_landing_x(y_pos, x_start, x_end, z, name_prefix="Landing Spindle", **kw):
+    """Vertical spindles along an X-direction landing (flat/horizontal).
+
+    Spindles run from base rail top to handrail bottom.
+    z is the landing tread plane height.
+    """
+    meshes = []
+    sp = kw.get("spindle_size", SPINDLE_SIZE)
+    br_h = kw.get("br_height", HANDRAIL_HEIGHT)
+    hr_h = kw.get("hr_height", HANDRAIL_HEIGHT)
+    hr_r = kw.get("hr_rise", HANDRAIL_RISE)
+
+    # Baserail and handrail use z + STRINGER_DROP as reference
+    z_ref = z + STRINGER_DROP
+    # Spindle bottom overlaps baserail top by 1mm to ensure proper connection
+    z_bot = z_ref + STRINGER_PITCH_OFFSET + br_h - 1.0  # base rail top with 1mm overlap
+    z_top = z_ref + hr_r - hr_h  # handrail bottom
+
+    dx = x_end - x_start
+    length = abs(dx)
+    if length < 1e-9 or z_top - z_bot < sp:
+        return meshes
+
+    # Calculate number of spindles to keep gaps <= 99mm
+    k = max(0, math.ceil((length - SPINDLE_MAX_GAP) / (SPINDLE_MAX_GAP + sp)))
+    if k == 0:
+        return meshes
+
+    gap = (length - k * sp) / (k + 1)
+    first_centre = gap + sp / 2
+    centre_step = gap + sp
+
+    for i in range(k):
+        pos = first_centre + i * centre_step
+        if dx >= 0:
+            x = x_start + pos
+        else:
+            x = x_start - pos
+
+        meshes.append({
+            "type": "stringer",
+            "axis": "y",
+            "profile": [
+                [x - sp / 2, z_bot],
+                [x + sp / 2, z_bot],
+                [x + sp / 2, z_top],
+                [x - sp / 2, z_top],
+            ],
+            "y": y_pos - sp / 2,
+            "thickness": sp,
+            "color": HANDRAIL_COLOR,
+            "name": f"{name_prefix} {i+1}",
+            "ifc_type": "spindle",
+        })
+    return meshes
+
+
+def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back, tread_t,
+                               name="Stringer", ifc_type="stringer", clip_z_min=None):
+    """Pitched stringer along Y with a notch at the top for landing threshold.
+
+    The stringer bottom continues at pitch to y_end (riser back face), then a
+    vertical cut rises to ftf - tread_t (threshold underside).  The overrun
+    extends to y_back with its top flush with the pitched stringer surface.
+
+    If *clip_z_min* is set the profile is clipped so nothing extends below
+    that Z value (e.g. ground-floor level = 0).
+    """
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    overrun_bot = ftf - tread_t
+    # Extend pitch line to y_back so overrun top is flush with stringer surface
+    dy = y_end - y_start
+    slope = (z_end - z_start) / dy if dy != 0 else 0
+    z_back_top = z_end + off + slope * (y_back - y_end)
+    profile = [
+        [y_start, z_start - drop],      # 0  bottom at start
+        [y_end,   z_end - drop],         # 1  bottom at riser back
+        [y_end,   overrun_bot],          # 2  vertical cut to threshold underside
+        [y_back,  overrun_bot],          # 3  horizontal to threshold back
+        [y_back,  z_back_top],           # 4  up to pitch line at threshold back
+        [y_start, z_start + off],        # 5  pitch line back to start
+    ]
+    if clip_z_min is not None:
+        clipped = []
+        n = len(profile)
+        for i in range(n):
+            curr = profile[i]
+            nxt = profile[(i + 1) % n]
+            c_in = curr[1] >= clip_z_min
+            n_in = nxt[1] >= clip_z_min
+            if c_in:
+                clipped.append(curr)
+            if c_in != n_in:
+                _dy = nxt[0] - curr[0]
+                _dz = nxt[1] - curr[1]
+                if abs(_dz) > 1e-9:
+                    t = (clip_z_min - curr[1]) / _dz
+                    clipped.append([curr[0] + t * _dy, clip_z_min])
+        if clipped:
+            profile = clipped
+    return {
+        "type": "stringer",
+        "profile": profile,
+        "x": x_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+
+
+def _stringer_flight_x_notched(y_pos, x_start, z_start, x_end, z_end, ftf, x_back, tread_t,
+                               name="Stringer", ifc_type="stringer"):
+    """Pitched stringer along X with a notch at the top for landing threshold."""
+    off = STRINGER_PITCH_OFFSET
+    drop = STRINGER_HEIGHT - off
+    overrun_bot = ftf - tread_t
+    dx = x_end - x_start
+    slope = (z_end - z_start) / dx if dx != 0 else 0
+    z_back_top = z_end + off + slope * (x_back - x_end)
+    profile = [
+        [x_start, z_start - drop],
+        [x_end,   z_end - drop],
+        [x_end,   overrun_bot],
+        [x_back,  overrun_bot],
+        [x_back,  z_back_top],
+        [x_start, z_start + off],
+    ]
+    return {
+        "type": "stringer",
+        "axis": "y",
+        "profile": profile,
+        "y": y_pos - STRINGER_THICKNESS / 2,
+        "thickness": STRINGER_THICKNESS,
+        "color": STRINGER_COLOR,
+        "name": name,
+        "ifc_type": ifc_type,
+    }
+"""
+Stair Preview Engine — thin facade module for Pyodide.
+
+Imports all sub-modules and exposes the two public entry points:
+  generate_preview_geometry(params) -> list[mesh]
+  check_building_regs(params)       -> list[check]
+"""
+
+from stair_constants import _parse, _box_mesh, _BOX_COLOR_TO_IFC
+from stair_winder_geometry import compute_winder_geometry
+from stair_flights import (
+    _preview_straight,
+    _preview_single_winder,
+    _preview_double_winder,
+    _preview_y_shaped,
+)
+
+def generate_preview_geometry(params):
+    """
+    Generate Three.js-compatible geometry data for live preview.
+    Returns lists of meshes with vertices and faces.
+    """
+    p = _parse(params)
+
+    stair_type = p["staircase_type"]
+
+    if stair_type == "straight":
+        return _preview_straight(p)
+    elif stair_type == "single_winder":
+        return _preview_single_winder(p)
+    elif stair_type == "double_winder":
+        return _preview_double_winder(p)
+    elif stair_type == "y_shaped":
+        return _preview_y_shaped(p)
+
+    return []
+"""
+IFC Staircase Generator
+
+Generates valid IFC 2x3 files for straight, single-winder (L-shaped),
+and double-winder (U-shaped) staircases using IfcOpenShell.
+"""
+
+import ifcopenshell
+import ifcopenshell.api
+import ifcopenshell.api.owner.settings
+import math
+import tempfile
+import os
+
+
+def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, position_xyz,
+                           direction=(0.0, 0.0, 1.0), axis=None, ref_direction=None):
+    """
+    Create an IfcExtrudedAreaSolid from a list of 2D profile coordinates,
+    extruded along a direction.
+
+    axis/ref_direction: optional orientation for the placement's local
+    coordinate system.  The 2D profile lives in the local XY plane defined by
+    (ref_direction, axis × ref_direction).  *direction* is expressed in this
+    local frame.
+    """
+    # Create cartesian points for the profile
+    points = [ifc.createIfcCartesianPoint(coord) for coord in profile_coords]
+    points.append(points[0])  # close the loop
+
+    polyline = ifc.createIfcPolyline(points)
+    profile = ifc.createIfcArbitraryClosedProfileDef("AREA", None, polyline)
+
+    # Position of the extrusion
+    location = ifc.createIfcCartesianPoint(position_xyz)
+    axis_ifc = ifc.createIfcDirection(axis) if axis else None
+    ref_ifc = ifc.createIfcDirection(ref_direction) if ref_direction else None
+    axis2 = ifc.createIfcAxis2Placement3D(location, axis_ifc, ref_ifc)
+
+    direction_ifc = ifc.createIfcDirection(direction)
+
+    solid = ifc.createIfcExtrudedAreaSolid(profile, axis2, direction_ifc, extrusion_depth)
+
+    return solid
+
+
+def _create_element_with_geometry(ifc, context, ifc_class, name, solid, placement_xyz=(0.0, 0.0, 0.0),
+                                   rotation=None):
+    """Create an IFC element with geometry representation and local placement."""
+    element = ifcopenshell.api.run("root.create_entity", ifc, ifc_class=ifc_class, name=name)
+
+    # Create shape representation
+    rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
+    prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+    element.Representation = prod_rep
+
+    # Create local placement
+    origin = ifc.createIfcCartesianPoint(placement_xyz)
+    if rotation is not None:
+        axis = ifc.createIfcDirection((0.0, 0.0, 1.0))
+        ref_dir = ifc.createIfcDirection((math.cos(rotation), math.sin(rotation), 0.0))
+        placement = ifc.createIfcAxis2Placement3D(origin, axis, ref_dir)
+    else:
+        placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+
+    local_placement = ifc.createIfcLocalPlacement(None, placement)
+    element.ObjectPlacement = local_placement
+
+    return element
+
+
+def _create_pitched_profile_element_y(ifc, context, name, ifc_class, profile_yz, x_pos, thickness):
+    """Create an IFC element from a Y-Z profile extruded in X direction.
+
+    profile_yz: list of (y, z) points defining the 2D profile.
+    x_pos: X position of the profile start (extrusion starts here).
+    thickness: extrusion depth in X.
+    """
+    # Orient the local CS so the 2D profile maps to the YZ plane:
+    #   local X (RefDir)  = global Y  →  profile u = IFC Y
+    #   local Y (Axis×Ref)= global Z  →  profile v = IFC Z (height)
+    #   local Z (Axis)    = global X  →  extrusion along IFC X
+    profile_coords = [(pt[0], pt[1]) for pt in profile_yz]
+    solid = _create_extruded_solid(
+        ifc, context, profile_coords, thickness,
+        (x_pos, 0.0, 0.0),
+        direction=(0.0, 0.0, 1.0),
+        axis=(1.0, 0.0, 0.0),
+        ref_direction=(0.0, 1.0, 0.0),
+    )
+    return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
+
+
+def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz, y_pos, thickness):
+    """Create an IFC element from an X-Z profile extruded in Y direction.
+
+    profile_xz: list of (x, z) points defining the 2D profile.
+    y_pos: Y position of the profile start (extrusion starts here).
+    thickness: extrusion depth in Y.
+    """
+    # Orient the local CS so the 2D profile maps to the XZ plane:
+    #   local X (RefDir)  = global X   →  profile u = IFC X
+    #   local Y (Axis×Ref)= global Z   →  profile v = IFC Z (height)
+    #   local Z (Axis)    = global -Y   →  extrusion direction (0,0,-1)
+    #                                      in local = global +Y
+    profile_coords = [(pt[0], pt[1]) for pt in profile_xz]
+    solid = _create_extruded_solid(
+        ifc, context, profile_coords, thickness,
+        (0.0, y_pos, 0.0),
+        direction=(0.0, 0.0, -1.0),
+        axis=(0.0, -1.0, 0.0),
+        ref_direction=(1.0, 0.0, 0.0),
+    )
+    return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
+
+
+_IFC_TYPE_MAP = {
+    "tread":        "IfcSlab",
+    "riser":        "IfcPlate",
+    "winder_tread": "IfcSlab",
+    "winder_riser": "IfcPlate",
+    "landing":      "IfcSlab",
+    "threshold":    "IfcSlab",
+    "newel":        "IfcColumn",
+    "stringer":     "IfcMember",
+    "handrail":     "IfcRailing",
+    "baserail":     "IfcRailing",
+    "spindle":      "IfcMember",
+}
+
+
+def meshes_to_ifc(meshes):
+    """Convert a list of preview mesh dicts into a valid IFC 2x3 file.
+
+    This is the single conversion point — whatever the preview generates,
+    the IFC file will contain exactly the same geometry.
+
+    Args:
+        meshes: list of mesh dicts from generate_preview_geometry()
+    Returns:
+        str: path to the generated .ifc file
+    """
+    ifc = ifcopenshell.api.run("project.create_file", version="IFC2X3")
+
+    # Owner history
+    person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
+    org = ifcopenshell.api.run("owner.add_organisation", ifc,
+                               identification="IFC-STAIR",
+                               name="IFC Staircase Generator")
+    ifcopenshell.api.run("owner.add_person_and_organisation", ifc,
+                         person=person, organisation=org)
+    app = ifcopenshell.api.run("owner.add_application", ifc,
+                               application_developer=org,
+                               version="1.0",
+                               application_full_name="IFC Staircase Generator",
+                               application_identifier="ifc-stair-gen")
+    ifcopenshell.api.owner.settings.get_user = lambda f: f.by_type("IfcPersonAndOrganization")[0]
+    ifcopenshell.api.owner.settings.get_application = lambda f: f.by_type("IfcApplication")[0]
+
+    # Units (millimetres)
+    project = ifcopenshell.api.run("root.create_entity", ifc,
+                                   ifc_class="IfcProject", name="Staircase Project")
+    ifcopenshell.api.run("unit.assign_unit", ifc,
+                         length={"is_metric": True, "raw": "MILLIMETERS"})
+
+    # Geometry context
+    ctx = ifcopenshell.api.run("context.add_context", ifc, context_type="Model")
+    body = ifcopenshell.api.run("context.add_context", ifc,
+                                context_type="Model",
+                                context_identifier="Body",
+                                target_view="MODEL_VIEW",
+                                parent=ctx)
+
+    # Spatial hierarchy
+    site = ifcopenshell.api.run("root.create_entity", ifc,
+                                ifc_class="IfcSite", name="Default Site")
+    building = ifcopenshell.api.run("root.create_entity", ifc,
+                                    ifc_class="IfcBuilding", name="Default Building")
+    storey = ifcopenshell.api.run("root.create_entity", ifc,
+                                  ifc_class="IfcBuildingStorey", name="Ground Floor")
+    ifcopenshell.api.run("aggregate.assign_object", ifc,
+                         relating_object=project, products=[site])
+    ifcopenshell.api.run("aggregate.assign_object", ifc,
+                         relating_object=site, products=[building])
+    ifcopenshell.api.run("aggregate.assign_object", ifc,
+                         relating_object=building, products=[storey])
+
+    # Stair container
+    stair = ifcopenshell.api.run("root.create_entity", ifc,
+                                 ifc_class="IfcStair", name="Staircase")
+    ifcopenshell.api.run("spatial.assign_container", ifc,
+                         relating_structure=storey, products=[stair])
+
+    # Convert each mesh to an IFC element
+    elements = []
+    counter = {}  # for auto-naming: {ifc_type: count}
+
+    for mesh in meshes:
+        ifc_type = mesh.get("ifc_type", "")
+        mesh_type = mesh.get("type", "")
+        name = mesh.get("name", "")
+
+        # Auto-generate name if not provided
+        if not name:
+            counter[ifc_type] = counter.get(ifc_type, 0) + 1
+            ifc_class = _IFC_TYPE_MAP.get(ifc_type, "IfcBuildingElementProxy")
+            name = f"{ifc_type.replace('_', ' ').title()} {counter[ifc_type]}"
+
+        ifc_class = _IFC_TYPE_MAP.get(ifc_type, "IfcBuildingElementProxy")
+
+        elem = None
+        if mesh_type == "box":
+            elem = _convert_box_mesh(ifc, body, mesh, ifc_class, name)
+        elif mesh_type == "stringer":
+            elem = _convert_stringer_mesh(ifc, body, mesh, ifc_class, name)
+        elif mesh_type == "winder_polygon":
+            elem = _convert_polygon_mesh(ifc, body, mesh, ifc_class, name)
+
+        if elem:
+            elements.append(elem)
+
+    # Aggregate under stair
+    if elements:
+        ifcopenshell.api.run("aggregate.assign_object", ifc,
+                             relating_object=stair, products=elements)
+
+    # Write to temp file
+    tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
+    ifc.write(tmp.name)
+    return tmp.name
+
+
+def _convert_box_mesh(ifc, context, mesh, ifc_class, name):
+    """Convert a box mesh dict to an IFC element.
+
+    Uses ifc_center/ifc_size (IFC Z-up native coords) to create an
+    extruded rectangular profile.
+    """
+    cx, cy, cz = mesh["ifc_center"]
+    w, d, h = mesh["ifc_size"]  # width_x, depth_y, height_z
+
+    # Rectangular profile in XY plane, extruded in Z
+    x0 = cx - w / 2.0
+    y0 = cy - d / 2.0
+    profile = [
+        (x0, y0),
+        (x0 + w, y0),
+        (x0 + w, y0 + d),
+        (x0, y0 + d),
+    ]
+    z_base = cz - h / 2.0
+
+    solid = _create_extruded_solid(ifc, context, profile, h, (0.0, 0.0, z_base))
+
+    element = ifcopenshell.api.run("root.create_entity", ifc,
+                                   ifc_class=ifc_class, name=name)
+    rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
+    prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+    element.Representation = prod_rep
+
+    origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+    placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+    local_placement = ifc.createIfcLocalPlacement(None, placement)
+    element.ObjectPlacement = local_placement
+
+    return element
+
+
+def _convert_stringer_mesh(ifc, context, mesh, ifc_class, name):
+    """Convert a stringer-type mesh dict to an IFC element.
+
+    Stringer meshes have a 2D profile extruded along one axis:
+    - No 'axis' key: profile in Y-Z plane, extruded in X (use x, thickness)
+    - axis='y': profile in X-Z plane, extruded in Y (use y, thickness)
+    """
+    profile = [(float(pt[0]), float(pt[1])) for pt in mesh["profile"]]
+    thickness = float(mesh["thickness"])
+
+    if mesh.get("axis") == "y":
+        # X-Z profile extruded in Y
+        y_pos = float(mesh["y"])
+        return _create_pitched_profile_element_x(
+            ifc, context, name, ifc_class, profile, y_pos, thickness)
+    else:
+        # Y-Z profile extruded in X
+        x_pos = float(mesh["x"])
+        return _create_pitched_profile_element_y(
+            ifc, context, name, ifc_class, profile, x_pos, thickness)
+
+
+def _convert_polygon_mesh(ifc, context, mesh, ifc_class, name):
+    """Convert a winder_polygon mesh dict to an IFC element.
+
+    Profile is in the X-Y plane, extruded in Z from z_base.
+    """
+    profile = [(float(pt[0]), float(pt[1])) for pt in mesh["profile"]]
+    z_base = float(mesh["z"])
+    thickness = float(mesh["thickness"])
+
+    solid = _create_extruded_solid(ifc, context, profile, thickness,
+                                   (0.0, 0.0, z_base))
+
+    element = ifcopenshell.api.run("root.create_entity", ifc,
+                                   ifc_class=ifc_class, name=name)
+    rep = ifc.createIfcShapeRepresentation(context, "Body", "SweptSolid", [solid])
+    prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+    element.Representation = prod_rep
+
+    origin = ifc.createIfcCartesianPoint((0.0, 0.0, 0.0))
+    placement = ifc.createIfcAxis2Placement3D(origin, None, None)
+    local_placement = ifc.createIfcLocalPlacement(None, placement)
+    element.ObjectPlacement = local_placement
+
+    return element
+
