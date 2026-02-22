@@ -1377,7 +1377,8 @@ def _preview_double_winder(p):
         corner2_x = -(flight2_treads * going) - winder_offset1 - winder_offset2
     else:
         corner2_x = width + flight2_treads * going + winder_offset1 + winder_offset2
-    corner2_y = corner1_y
+    # Corner 2 Y position matches landing1_y to maintain alignment when corner 1 is a flat landing
+    corner2_y = landing1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
     turn2_rotation = 90 if turn1_dir == "left" else -90
