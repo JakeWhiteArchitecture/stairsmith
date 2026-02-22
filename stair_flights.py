@@ -278,11 +278,14 @@ def _preview_single_winder(p):
     # Landing tread when winders are off
     if actual_winders == 0:
         landing_z = winder_start_riser * rise - tread_t
-        # Landing width matches flight 1 tread width to avoid showing through stringer
-        # Landing depth extends with nosing to go under first riser of flight 2
+        # Landing extends asymmetrically to reach back face of flight 2's first riser
+        # Extends by nosing + riser_t on the wall side only
         hp = ns / 2
-        landing_w = width
-        landing_cx = width / 2
+        landing_w = width + nosing + riser_t
+        if turn_dir == "right":
+            landing_cx = (width + nosing + riser_t) / 2
+        else:  # left turn
+            landing_cx = (width - nosing - riser_t) / 2
         landing_depth = width + nosing
         landing_cy = landing_y + landing_depth / 2
         meshes.append(_box_mesh(
@@ -1325,11 +1328,14 @@ def _preview_double_winder(p):
     # Turn 1 landing tread when winders are off
     if actual_winders1 == 0:
         landing1_z = turn1_winder_start * rise - tread_t
-        # Landing width matches flight 1 tread width to avoid showing through stringer
-        # Landing depth extends with nosing to go under first riser of flight 2
+        # Landing extends asymmetrically to reach back face of flight 2's first riser
+        # Extends by nosing + riser_t on the wall side only
         hp = ns / 2
-        landing1_w = width
-        landing1_cx = width / 2
+        landing1_w = width + nosing + riser_t
+        if turn1_dir == "right":
+            landing1_cx = (width + nosing + riser_t) / 2
+        else:  # left turn
+            landing1_cx = (width - nosing - riser_t) / 2
         landing1_depth = width + nosing
         landing1_cy = landing1_y + landing1_depth / 2
         meshes.append(_box_mesh(
@@ -1443,11 +1449,11 @@ def _preview_double_winder(p):
     if actual_winders2 == 0:
         landing2_z = turn2_winder_start * rise - tread_t
         hp = ns / 2
-        # Landing width matches flight tread widths to avoid showing through stringer
-        # Landing depth extends with nosing to go under first riser of flight 3
+        # Landing extends asymmetrically to reach back face of flight 3's first riser
+        # Extends by nosing + riser_t on the wall side only (in -Y direction for flight 3)
         landing2_cx = flight3_start_x + width / 2
-        landing2_depth = width + nosing
-        landing2_cy = corner2_y + landing2_depth / 2
+        landing2_depth = width + 2 * nosing + riser_t
+        landing2_cy = corner2_y + (width - riser_t) / 2
         meshes.append(_box_mesh(
             landing2_cx,
             landing2_cy,
