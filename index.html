@@ -643,9 +643,9 @@
             <h2>Staircase Type</h2>
             <div class="field">
                 <select id="staircase_type" onchange="onTypeChange(); updatePreview();">
-                    <option value="straight">Straight Flight</option>
+                    <option value="straight" selected>Straight Flight</option>
                     <option value="single_winder">Single Winder (L-shape)</option>
-                    <option value="double_winder" selected>Double Winder (U-shape)</option>
+                    <option value="double_winder">Double Winder (U-shape)</option>
                     <!-- Y-shaped Stair hidden pending further development -->
                     <!-- <option value="y_shaped">Y-shaped Stair</option> -->
                 </select>
@@ -1110,6 +1110,7 @@
 
             // Calculate dynamic minimums based on flat landing mode
             // isTurnWinder returns true for winder treads, false for flat landing
+            // Flight 1 (bottom) can always be 0, but flight 2 and 3 need minimum 1 when adjacent to flat landing
             let minF1 = 0;
             let minF2 = 0;
             let minF3 = 0;
@@ -1119,17 +1120,15 @@
                 minF2 = 1;
             } else if (type === 'single_winder') {
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF1 = 1;
-                    minF2 = 1;
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn1 is flat landing
                 }
             } else if (type === 'double_winder') {
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF1 = 1;
-                    minF2 = 1;
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn1 is flat landing
                 }
                 if (!isTurnWinder('turn2-toggle')) {
-                    minF2 = 1;
-                    minF3 = 1;
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn2 is flat landing
+                    minF3 = 1;  // Flight 3 needs minimum 1 when turn2 is flat landing
                 }
             }
 
@@ -1164,6 +1163,7 @@
 
             // Calculate dynamic minimums based on flat landing mode
             // isTurnWinder returns true for winder treads, false for flat landing
+            // Flight 1 (bottom) can always be 0, but flight 2 and 3 need minimum 1 when adjacent to flat landing
             let minF1 = 0;
             let minF2 = 0;
             let minF3 = 0;
@@ -1172,18 +1172,16 @@
                 minF1 = 1;
                 minF2 = 1;
             } else if (type === 'single_winder') {
-                // If turn1 uses flat landing, both flights need minimum 1 step
+                // If turn1 uses flat landing, flight 2 needs minimum 1 step
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF1 = 1;
                     minF2 = 1;
                 }
             } else if (type === 'double_winder') {
-                // If turn1 uses flat landing, flight1 and flight2 need minimum 1 step
+                // If turn1 uses flat landing, flight 2 needs minimum 1 step
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF1 = 1;
                     minF2 = 1;
                 }
-                // If turn2 uses flat landing, flight2 and flight3 need minimum 1 step
+                // If turn2 uses flat landing, flight 2 and flight 3 need minimum 1 step
                 if (!isTurnWinder('turn2-toggle')) {
                     minF2 = 1;
                     minF3 = 1;
