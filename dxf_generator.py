@@ -25,6 +25,7 @@ Public entry points
 
 import tempfile
 from shapely.geometry import Polygon, LineString
+from shapely.ops import unary_union
 
 
 # ── Layer definitions ────────────────────────────────────────────
@@ -218,7 +219,8 @@ def _riser_front_back(mesh):
     """Return the front and back face lines of a riser as ((x1,y1),(x2,y2)) pairs.
 
     Box risers project to a rectangle in plan; the front and back faces are
-    the two width-spanning (long) edges.
+    the two width-spanning (long) edges.  Flight orientation is detected by
+    comparing sx vs sy — the thin dimension is the riser thickness.
     Winder-polygon risers have 4 vertices [inner_back, outer_back,
     outer_front, inner_front]; front = edge 2→3, back = edge 0→1.
     """
@@ -231,8 +233,14 @@ def _riser_front_back(mesh):
         cx, cy, cz = center
         sx, sy, sz = size
         hx, hy = sx / 2.0, sy / 2.0
-        front = ((cx - hx, cy - hy), (cx + hx, cy - hy))
-        back = ((cx - hx, cy + hy), (cx + hx, cy + hy))
+        if sx >= sy:
+            # Riser spans X (flight travels along Y) — horizontal lines.
+            front = ((cx - hx, cy - hy), (cx + hx, cy - hy))
+            back = ((cx - hx, cy + hy), (cx + hx, cy + hy))
+        else:
+            # Riser spans Y (flight travels along X) — vertical lines.
+            front = ((cx - hx, cy - hy), (cx - hx, cy + hy))
+            back = ((cx + hx, cy - hy), (cx + hx, cy + hy))
         return [front, back]
     if mtype == "winder_polygon":
         profile = mesh.get("profile")
@@ -243,6 +251,95 @@ def _riser_front_back(mesh):
         front = (pts[2], pts[3])
         return [front, back]
     return []
+
+
+def _collect_points(geom):
+    """Recursively extract (x, y) tuples from a Shapely geometry."""
+    pts = []
+    gt = geom.geom_type
+    if gt == "Point":
+        pts.append((geom.x, geom.y))
+    elif gt == "MultiPoint":
+        for pt in geom.geoms:
+            pts.append((pt.x, pt.y))
+    elif gt == "LineString":
+        for c in geom.coords:
+            pts.append((c[0], c[1]))
+    elif gt in ("MultiLineString", "GeometryCollection"):
+        for g in geom.geoms:
+            pts.extend(_collect_points(g))
+    return pts
+
+
+def _trim_riser_line(start, end, boundary):
+    """Return (trimmed_start, trimmed_end) by extending the riser line and
+    clipping each end to the first boundary intersection beyond each
+    original endpoint.
+
+    From each end of the riser, we look outward and pick the *first*
+    (nearest) boundary crossing.  This extends risers to the stringer,
+    handrail, or newel-post edge on each side while preventing the line
+    from accidentally spanning across into a different flight at turns.
+
+    *boundary* is a Shapely geometry representing the outlines of all
+    non-riser shapes (the stair footprint boundary).
+    """
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = (dx ** 2 + dy ** 2) ** 0.5
+    if length < _MIN_LENGTH:
+        return None
+    nx, ny = dx / length, dy / length
+    mid_x = (start[0] + end[0]) / 2.0
+    mid_y = (start[1] + end[1]) / 2.0
+
+    # Extend the line far in both directions so it definitely crosses
+    # any boundary elements flanking the riser.
+    ext_start = (mid_x - nx * 50000, mid_y - ny * 50000)
+    ext_end = (mid_x + nx * 50000, mid_y + ny * 50000)
+    extended = LineString([ext_start, ext_end])
+
+    hits = extended.intersection(boundary)
+    if hits.is_empty:
+        return (start, end)
+
+    points = _collect_points(hits)
+    if len(points) < 2:
+        return (start, end)
+
+    # Project each intersection onto the line direction.
+    proj_start = -length / 2.0  # projection of original start
+    proj_end = length / 2.0     # projection of original end
+    tol = 0.5       # half-mm tolerance to skip coincident edges
+    max_ext = 150   # max mm to extend beyond the original endpoint
+                    # (enough for newel posts, prevents spanning across flights)
+
+    projections = []
+    for px, py in points:
+        proj = (px - mid_x) * nx + (py - mid_y) * ny
+        projections.append((proj, px, py))
+
+    # From the start end, look outward (more negative) for first hit.
+    left_outer = [p for p in projections
+                  if proj_start - max_ext < p[0] < proj_start - tol]
+    if left_outer:
+        best_start = max(left_outer, key=lambda p: p[0])  # nearest outward
+    else:
+        best_start = (proj_start, start[0], start[1])
+
+    # From the end, look outward (more positive) for first hit.
+    right_outer = [p for p in projections
+                   if proj_end + tol < p[0] < proj_end + max_ext]
+    if right_outer:
+        best_end = min(right_outer, key=lambda p: p[0])  # nearest outward
+    else:
+        best_end = (proj_end, end[0], end[1])
+
+    if best_start[0] >= best_end[0]:
+        return (start, end)
+
+    return ((best_start[1], best_start[2]),
+            (best_end[1], best_end[2]))
 
 
 def _emit_geometry(dxf, geom, layer):
@@ -315,11 +412,20 @@ def meshes_to_dxf_string(meshes, params):
         # Expand the opaque coverage mask.
         coverage = poly if coverage.is_empty else coverage.union(poly)
 
-    # Step 4 — dashed riser front/back lines (hidden detail beneath treads).
+    # Step 4 — dashed riser front/back lines trimmed to the stair footprint.
+    # Build boundary from all non-riser polygon outlines.
+    outlines = [poly.exterior for _z, poly in items]
+    boundary = unary_union(outlines) if outlines else None
+
     for mesh in meshes:
         if mesh.get("ifc_type", "") not in _RISER_IFC_TYPES:
             continue
         for start, end in _riser_front_back(mesh):
+            if boundary is not None:
+                result = _trim_riser_line(start, end, boundary)
+                if result is None:
+                    continue
+                start, end = result
             dxf.add_line(start, end, layer="STAIR_RISERS")
 
     return dxf.to_string()
