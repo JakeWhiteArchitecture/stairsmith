@@ -624,9 +624,194 @@
         .share-btn-x     { background: #000; color: #fff; }
         .share-btn-fb    { background: #1877f2; color: #fff; }
         .share-btn-li    { background: #0a66c2; color: #fff; }
+
+        /* ─── LOGO ─── */
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .logo-icon {
+            flex-shrink: 0;
+        }
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+        }
+        .logo-text .logo-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #e94560;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+        .logo-text .logo-tagline {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-top: 2px;
+        }
+
+        /* ─── TERMS MODAL ─── */
+        #terms-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(6px);
+        }
+        #terms-modal.open { display: flex; }
+
+        .terms-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 520px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+        }
+        .terms-logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .terms-logo .terms-logo-title {
+            font-size: 26px;
+            font-weight: 700;
+            color: #e94560;
+            letter-spacing: 0.04em;
+        }
+        .terms-logo .terms-logo-tagline {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-top: 2px;
+        }
+        .terms-heading {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .terms-content {
+            width: 100%;
+            max-height: 260px;
+            overflow-y: auto;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 12px;
+            color: #bbb;
+            line-height: 1.7;
+        }
+        .terms-content h4 {
+            color: #e94560;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 12px 0 4px 0;
+        }
+        .terms-content h4:first-child {
+            margin-top: 0;
+        }
+        .terms-content p {
+            margin-bottom: 8px;
+        }
+        .terms-actions {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+        .terms-btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .terms-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .terms-btn:active { transform: translateY(0); }
+        .terms-btn-accept {
+            background: #e94560;
+            color: #fff;
+        }
+        .terms-btn-decline {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4a80;
+        }
     </style>
 </head>
 <body>
+    <!-- Terms of Use Modal -->
+    <div id="terms-modal" role="dialog" aria-modal="true" aria-label="Terms of Use">
+        <div class="terms-dialog">
+            <div class="terms-logo">
+                <svg width="52" height="52" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="44" height="44" rx="10" fill="#0d1b40"/>
+                    <path d="M8 36 L8 28 L16 28 L16 20 L24 20 L24 12 L32 12 L32 8 L36 8 L36 12 L32 12 L32 20 L24 20 L24 28 L16 28 L16 36 Z" fill="#e94560" opacity="0.85"/>
+                    <path d="M8 36 L16 36 L16 28 L24 28 L24 20 L32 20 L32 12 L36 12" stroke="#e94560" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <circle cx="36" cy="12" r="2.5" fill="#e0e0e0"/>
+                </svg>
+                <div>
+                    <div class="terms-logo-title">StairSmith</div>
+                    <div class="terms-logo-tagline">Parametric IFC 2x3 for BIM</div>
+                </div>
+            </div>
+            <div class="terms-heading">Terms of Use</div>
+            <div class="terms-content">
+                <h4>1. Acceptance</h4>
+                <p>By using StairSmith ("the Tool"), you agree to these Terms of Use. If you do not agree, please do not use the Tool.</p>
+
+                <h4>2. Purpose</h4>
+                <p>StairSmith is a parametric staircase generator that produces IFC 2x3 geometry for Building Information Modelling (BIM) workflows. It is intended as a design aid and visualisation tool only.</p>
+
+                <h4>3. No Professional Guarantee</h4>
+                <p>The geometry, dimensions and IFC output generated by this Tool are provided "as-is" for reference purposes. They do not constitute professional architectural, structural or engineering advice. All outputs must be independently verified by a qualified professional before use in any construction project.</p>
+
+                <h4>4. Building Regulations</h4>
+                <p>While the Tool provides parameters that may align with common building regulations, compliance with local building codes, standards and regulations is solely the responsibility of the user and their appointed professionals.</p>
+
+                <h4>5. Limitation of Liability</h4>
+                <p>The creators and maintainers of StairSmith shall not be liable for any direct, indirect, incidental or consequential damages arising from the use of this Tool or its outputs, including but not limited to errors in generated geometry, non-compliance with regulations, or integration issues with third-party BIM software.</p>
+
+                <h4>6. Intellectual Property</h4>
+                <p>Staircase designs you create using the Tool are your own. The Tool itself, including its source code, user interface and branding, remains the intellectual property of its creators.</p>
+
+                <h4>7. Data &amp; Privacy</h4>
+                <p>StairSmith does not collect personal data. Staircase parameters are processed in your browser and are not stored on any server. IFC file generation may use server-side processing but no design data is retained.</p>
+
+                <h4>8. Changes to Terms</h4>
+                <p>These terms may be updated from time to time. Continued use of the Tool constitutes acceptance of any revised terms.</p>
+            </div>
+            <div class="terms-actions">
+                <button class="terms-btn terms-btn-decline" onclick="declineTerms()">Decline</button>
+                <button class="terms-btn terms-btn-accept" onclick="acceptTerms()">I Accept</button>
+            </div>
+        </div>
+    </div>
+
     <div class="loading-overlay" id="loading-overlay">
         <div class="loading-spinner"></div>
         <div class="loading-text">Loading Staircase Generator</div>
@@ -635,6 +820,20 @@
     <div class="panel">
       <div class="panel-scroll">
         <div class="panel-top">
+        <!-- Logo -->
+        <div class="logo-container">
+            <svg class="logo-icon" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="44" height="44" rx="10" fill="#0d1b40"/>
+                <path d="M8 36 L8 28 L16 28 L16 20 L24 20 L24 12 L32 12 L32 8 L36 8 L36 12 L32 12 L32 20 L24 20 L24 28 L16 28 L16 36 Z" fill="#e94560" opacity="0.85"/>
+                <path d="M8 36 L16 36 L16 28 L24 28 L24 20 L32 20 L32 12 L36 12" stroke="#e94560" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                <circle cx="36" cy="12" r="2.5" fill="#e0e0e0"/>
+            </svg>
+            <div class="logo-text">
+                <span class="logo-title">StairSmith</span>
+                <span class="logo-tagline">Parametric IFC 2x3 for BIM</span>
+            </div>
+        </div>
+
         <h1>IFC Staircase Generator</h1>
         <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
 
@@ -893,6 +1092,26 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
+        // ─── TERMS OF USE ───
+        function showTermsModal() {
+            if (!localStorage.getItem('stairsmith-terms-accepted')) {
+                document.getElementById('terms-modal').classList.add('open');
+            }
+        }
+
+        function acceptTerms() {
+            localStorage.setItem('stairsmith-terms-accepted', 'true');
+            document.getElementById('terms-modal').classList.remove('open');
+        }
+
+        function declineTerms() {
+            document.getElementById('terms-modal').classList.remove('open');
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use to use StairSmith.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
+        }
+
+        // Show terms on page load
+        document.addEventListener('DOMContentLoaded', showTermsModal);
+
         // ─── THREE.JS SETUP ───
         let scene, camera, renderer, controls;
         let staircaseGroup = null;
