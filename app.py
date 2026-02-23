@@ -141,6 +141,8 @@ def download_dxf():
             mimetype="application/dxf",
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 400
 
 

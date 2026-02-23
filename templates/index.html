@@ -1812,7 +1812,7 @@
                 body: JSON.stringify(params),
             })
             .then(response => {
-                if (!response.ok) throw new Error('Generation failed');
+                if (!response.ok) return response.json().then(d => { throw new Error(d.error || 'Generation failed'); });
                 return response.blob();
             })
             .then(blob => {
