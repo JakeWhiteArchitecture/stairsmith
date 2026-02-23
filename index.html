@@ -1109,6 +1109,7 @@
             const type = document.getElementById('staircase_type').value;
 
             // Calculate dynamic minimums based on flat landing mode
+            // isTurnWinder returns true for winder treads, false for flat landing
             let minF1 = 0;
             let minF2 = 0;
             let minF3 = 0;
@@ -1117,16 +1118,16 @@
                 minF1 = 1;
                 minF2 = 1;
             } else if (type === 'single_winder') {
-                if (isFlatLanding('turn1-toggle')) {
+                if (!isTurnWinder('turn1-toggle')) {
                     minF1 = 1;
                     minF2 = 1;
                 }
             } else if (type === 'double_winder') {
-                if (isFlatLanding('turn1-toggle')) {
+                if (!isTurnWinder('turn1-toggle')) {
                     minF1 = 1;
                     minF2 = 1;
                 }
-                if (isFlatLanding('turn2-toggle')) {
+                if (!isTurnWinder('turn2-toggle')) {
                     minF2 = 1;
                     minF3 = 1;
                 }
@@ -1162,6 +1163,7 @@
             document.getElementById('dist-f3').textContent = flightDist.f3;
 
             // Calculate dynamic minimums based on flat landing mode
+            // isTurnWinder returns true for winder treads, false for flat landing
             let minF1 = 0;
             let minF2 = 0;
             let minF3 = 0;
@@ -1171,18 +1173,18 @@
                 minF2 = 1;
             } else if (type === 'single_winder') {
                 // If turn1 uses flat landing, both flights need minimum 1 step
-                if (isFlatLanding('turn1-toggle')) {
+                if (!isTurnWinder('turn1-toggle')) {
                     minF1 = 1;
                     minF2 = 1;
                 }
             } else if (type === 'double_winder') {
                 // If turn1 uses flat landing, flight1 and flight2 need minimum 1 step
-                if (isFlatLanding('turn1-toggle')) {
+                if (!isTurnWinder('turn1-toggle')) {
                     minF1 = 1;
                     minF2 = 1;
                 }
                 // If turn2 uses flat landing, flight2 and flight3 need minimum 1 step
-                if (isFlatLanding('turn2-toggle')) {
+                if (!isTurnWinder('turn2-toggle')) {
                     minF2 = 1;
                     minF3 = 1;
                 }
@@ -1313,12 +1315,6 @@
             const group = document.getElementById(groupId);
             const active = group.querySelector('.turn-btn.active');
             return !active || active.dataset.value === 'winder';
-        }
-
-        function isFlatLanding(groupId) {
-            const group = document.getElementById(groupId);
-            const active = group.querySelector('.turn-btn.active');
-            return active && active.dataset.value === 'landing';
         }
 
         function getSideCondition(groupId) {
