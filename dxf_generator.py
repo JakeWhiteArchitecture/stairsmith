@@ -1,45 +1,48 @@
 """
-DXF Plan View Generator — produces a 2D DXF plan-view drawing from stair meshes.
+DXF Plan View Generator — solid-occlusion approach.
 
-Pure-Python implementation (no external dependencies) so it runs in Pyodide.
-Generates DXF R12 (AC1009) output — the most universally compatible format,
-opens correctly in AutoCAD, BricsCAD, LibreCAD, and all other DXF viewers.
+Generates a DXF R12 (AC1009) plan view that shows what you would see looking
+straight down at a SOLID staircase — not a wireframe.
 
-Public entry point:
-    meshes_to_dxf_string(meshes, params) -> str   # returns DXF file content
+Algorithm
+---------
+1. Each tread, newel post, and stringer is converted to a 2D polygon (XY at Z=0)
+   together with its top-Z height.
+2. Polygons are processed from HIGHEST Z to LOWEST (top of stair first).
+3. A running *coverage* polygon accumulates the opaque area already drawn.
+   For each shape its boundary segments are clipped against the coverage so
+   that only the portions visible from above survive.
+4. Only those surviving LINE segments are emitted into the DXF on the
+   STAIR_TREADS layer with continuous linetype.
+
+No dashed lines, no risers, no hidden detail.
+
+Public entry points
+-------------------
+    meshes_to_dxf_string(meshes, params) -> str   # DXF file content
+    meshes_to_dxf(meshes, params) -> str           # path to temp DXF file
 """
 
-from stair_constants import _parse, STRINGER_THICKNESS
+import tempfile
+from shapely.geometry import Polygon, LineString
 
 
-# ── Layer definitions: (name, colour-index, linetype) ──────────────
+# ── Layer definitions ────────────────────────────────────────────
 LAYERS = {
-    "STAIR_TREADS":    {"color": 7, "linetype": "CONTINUOUS"},
-    "STAIR_RISERS":    {"color": 9, "linetype": "DASHED"},
-    "STAIR_STRINGERS": {"color": 7, "linetype": "CONTINUOUS"},
-    "STAIR_HANDRAIL":  {"color": 7, "linetype": "CONTINUOUS"},
+    "STAIR_TREADS": {"color": 7, "linetype": "CONTINUOUS"},
 }
 
-# Map ifc_type to layer name
-IFC_TYPE_TO_LAYER = {
-    "tread":        "STAIR_TREADS",
-    "riser":        "STAIR_RISERS",
-    "threshold":    "STAIR_TREADS",
-    "landing":      "STAIR_TREADS",
-    "newel":        "STAIR_HANDRAIL",
-    "winder_tread": "STAIR_TREADS",
-    "winder_riser": "STAIR_RISERS",
-    "stringer":     "STAIR_STRINGERS",
-    "handrail":     "STAIR_HANDRAIL",
-    "baserail":     "STAIR_HANDRAIL",
-    "spindle":      "STAIR_HANDRAIL",
-}
+# IFC types excluded from the plan view (not visible looking straight down).
+_EXCLUDED_IFC_TYPES = frozenset({"riser", "winder_riser"})
+
+# Segments shorter than this (mm) are discarded (floating-point noise).
+_MIN_LENGTH = 0.01
 
 
-# ── Minimal DXF R12 writer ────────────────────────────────────────
+# ── Minimal DXF R12 writer ──────────────────────────────────────
 
 class _DxfWriter:
-    """Builds a DXF R12 (AC1009) string using POLYLINE/VERTEX and LINE.
+    """Builds a DXF R12 (AC1009) string from LINE entities.
 
     R12 is the simplest DXF format — no handles, no ownership, no BLOCKS
     or OBJECTS sections required.  Universally compatible.
@@ -48,25 +51,20 @@ class _DxfWriter:
     def __init__(self):
         self._entities = []
         self._layers = {}
-        self._linetypes = {}
-
-    def add_linetype(self, name, pattern):
-        self._linetypes[name] = pattern
 
     def add_layer(self, name, color=7, linetype="CONTINUOUS"):
         self._layers[name] = {"color": color, "linetype": linetype}
 
-    def add_polyline(self, points, close=True, layer="0"):
-        self._entities.append(("POLYLINE", points, close, layer))
-
     def add_line(self, start, end, layer="0"):
-        self._entities.append(("LINE", start, end, layer))
+        self._entities.append((start, end, layer))
+
+    # ── serialisation ──
 
     def to_string(self):
         lines = []
         a = lines.append
 
-        # ── HEADER ──
+        # HEADER
         a("  0"); a("SECTION")
         a("  2"); a("HEADER")
         a("  9"); a("$ACADVER")
@@ -75,16 +73,14 @@ class _DxfWriter:
         a(" 70"); a("     1")
         a("  0"); a("ENDSEC")
 
-        # ── TABLES ──
+        # TABLES
         a("  0"); a("SECTION")
         a("  2"); a("TABLES")
 
-        # LTYPE table
+        # LTYPE table — CONTINUOUS only
         a("  0"); a("TABLE")
         a("  2"); a("LTYPE")
-        a(" 70"); a("     %d" % (len(self._linetypes) + 1))
-
-        # Continuous (always present)
+        a(" 70"); a("     1")
         a("  0"); a("LTYPE")
         a("  2"); a("CONTINUOUS")
         a(" 70"); a("     0")
@@ -92,201 +88,192 @@ class _DxfWriter:
         a(" 72"); a("    65")
         a(" 73"); a("     0")
         a(" 40"); a("0.0")
-
-        # Custom linetypes
-        for lt_name, pattern in self._linetypes.items():
-            a("  0"); a("LTYPE")
-            a("  2"); a(lt_name)
-            a(" 70"); a("     0")
-            a("  3"); a("")
-            a(" 72"); a("    65")
-            a(" 73"); a("     %d" % (len(pattern) - 1))
-            a(" 40"); a("%.4f" % pattern[0])
-            for val in pattern[1:]:
-                a(" 49"); a("%.4f" % val)
-
         a("  0"); a("ENDTAB")
 
         # LAYER table
         a("  0"); a("TABLE")
         a("  2"); a("LAYER")
         a(" 70"); a("     %d" % (len(self._layers) + 1))
-
         # Default layer 0
         a("  0"); a("LAYER")
         a("  2"); a("0")
         a(" 70"); a("     0")
         a(" 62"); a("     7")
         a("  6"); a("CONTINUOUS")
-
         for lname, lprops in self._layers.items():
             a("  0"); a("LAYER")
             a("  2"); a(lname)
             a(" 70"); a("     0")
             a(" 62"); a("     %d" % lprops["color"])
             a("  6"); a(lprops["linetype"])
-
         a("  0"); a("ENDTAB")
 
         a("  0"); a("ENDSEC")
 
-        # ── ENTITIES ──
+        # ENTITIES
         a("  0"); a("SECTION")
         a("  2"); a("ENTITIES")
-
-        for ent in self._entities:
-            if ent[0] == "POLYLINE":
-                _, points, close, layer = ent
-                # POLYLINE header
-                a("  0"); a("POLYLINE")
-                a("  8"); a(layer)
-                a(" 66"); a("     1")
-                a(" 70"); a("     %d" % (1 if close else 0))
-                # Vertices
-                for x, y in points:
-                    a("  0"); a("VERTEX")
-                    a("  8"); a(layer)
-                    a(" 10"); a("%.6f" % x)
-                    a(" 20"); a("%.6f" % y)
-                    a(" 30"); a("0.0")
-                # SEQEND
-                a("  0"); a("SEQEND")
-                a("  8"); a(layer)
-
-            elif ent[0] == "LINE":
-                _, start, end, layer = ent
-                a("  0"); a("LINE")
-                a("  8"); a(layer)
-                a(" 10"); a("%.6f" % start[0])
-                a(" 20"); a("%.6f" % start[1])
-                a(" 30"); a("0.0")
-                a(" 11"); a("%.6f" % end[0])
-                a(" 21"); a("%.6f" % end[1])
-                a(" 31"); a("0.0")
-
+        for start, end, layer in self._entities:
+            a("  0"); a("LINE")
+            a("  8"); a(layer)
+            a(" 10"); a("%.6f" % start[0])
+            a(" 20"); a("%.6f" % start[1])
+            a(" 30"); a("0.0")
+            a(" 11"); a("%.6f" % end[0])
+            a(" 21"); a("%.6f" % end[1])
+            a(" 31"); a("0.0")
         a("  0"); a("ENDSEC")
 
-        # ── EOF ──
+        # EOF
         a("  0"); a("EOF")
-
         return "\r\n".join(lines) + "\r\n"
 
 
-# ── Geometry helpers ──────────────────────────────────────────────
+# ── Geometry helpers ─────────────────────────────────────────────
 
-def _layer_for(mesh):
-    ifc_type = mesh.get("ifc_type", "")
-    return IFC_TYPE_TO_LAYER.get(ifc_type, "0")
+def _mesh_to_poly_and_z(mesh):
+    """Return *(Polygon, top_z)* for *mesh*, or *(None, None)*.
 
+    The polygon is the 2D XY footprint; top_z is the highest Z coordinate
+    (used to sort elements from top to bottom).
+    """
+    mtype = mesh.get("type", "")
 
-def _add_box_plan(dxf, mesh):
-    center = mesh.get("ifc_center")
-    size = mesh.get("ifc_size")
-    if not center or not size:
-        return
-    cx, cy, cz = center
-    sx, sy, sz = size
-    hx = sx / 2.0
-    hy = sy / 2.0
-    points = [
-        (cx - hx, cy - hy),
-        (cx + hx, cy - hy),
-        (cx + hx, cy + hy),
-        (cx - hx, cy + hy),
-    ]
-    dxf.add_polyline(points, close=True, layer=_layer_for(mesh))
-
-
-def _add_winder_polygon_plan(dxf, mesh):
-    profile = mesh.get("profile")
-    if not profile or len(profile) < 3:
-        return
-    points = [(p[0], p[1]) for p in profile]
-    dxf.add_polyline(points, close=True, layer=_layer_for(mesh))
-
-
-def _add_stringer_plan(dxf, mesh):
-    profile = mesh.get("profile")
-    thickness = mesh.get("thickness", 0)
-    if not profile or thickness == 0:
-        return
-    layer = _layer_for(mesh)
-    axis = mesh.get("axis")
-    if axis == "y":
-        xs = [p[0] for p in profile]
-        y_start = mesh.get("y", 0)
-        min_x, max_x = min(xs), max(xs)
-        points = [
-            (min_x, y_start),
-            (max_x, y_start),
-            (max_x, y_start + thickness),
-            (min_x, y_start + thickness),
+    if mtype == "box":
+        center = mesh.get("ifc_center")
+        size = mesh.get("ifc_size")
+        if not center or not size:
+            return None, None
+        cx, cy, cz = center
+        sx, sy, sz = size
+        hx, hy = sx / 2.0, sy / 2.0
+        coords = [
+            (cx - hx, cy - hy),
+            (cx + hx, cy - hy),
+            (cx + hx, cy + hy),
+            (cx - hx, cy + hy),
         ]
-    else:
-        ys = [p[0] for p in profile]
-        x_start = mesh.get("x", 0)
-        min_y, max_y = min(ys), max(ys)
-        points = [
-            (x_start, min_y),
-            (x_start + thickness, min_y),
-            (x_start + thickness, max_y),
-            (x_start, max_y),
-        ]
-    dxf.add_polyline(points, close=True, layer=layer)
+        return Polygon(coords), cz + sz / 2.0
+
+    if mtype == "winder_polygon":
+        profile = mesh.get("profile")
+        if not profile or len(profile) < 3:
+            return None, None
+        coords = [(p[0], p[1]) for p in profile]
+        z = mesh.get("z", 0)
+        thickness = mesh.get("thickness", 0)
+        return Polygon(coords), z + thickness
+
+    if mtype == "stringer":
+        profile = mesh.get("profile")
+        thickness = mesh.get("thickness", 0)
+        if not profile or thickness == 0:
+            return None, None
+        axis = mesh.get("axis")
+        if axis == "y":
+            xs = [p[0] for p in profile]
+            y0 = mesh.get("y", 0)
+            coords = [
+                (min(xs), y0),
+                (max(xs), y0),
+                (max(xs), y0 + thickness),
+                (min(xs), y0 + thickness),
+            ]
+        else:
+            ys = [p[0] for p in profile]
+            x0 = mesh.get("x", 0)
+            coords = [
+                (x0, min(ys)),
+                (x0 + thickness, min(ys)),
+                (x0 + thickness, max(ys)),
+                (x0, max(ys)),
+            ]
+        top_z = max(p[1] for p in profile)
+        return Polygon(coords), top_z
+
+    return None, None
 
 
-def _draw_straight_tread_nosings(dxf, p):
-    width = p["stair_width"] - STRINGER_THICKNESS
-    going = p["going"]
-    nosing = p["nosing"]
-    riser_t = p["riser_thickness"]
-    num_treads = p["num_treads"]
-    tread_depth = going + nosing + riser_t
-    layer = "STAIR_TREADS"
-    for i in range(num_treads):
-        front_y = i * going - nosing
-        dxf.add_line((0, front_y), (width, front_y), layer=layer)
-        if i == num_treads - 1:
-            back_y = front_y + tread_depth
-            dxf.add_line((0, back_y), (width, back_y), layer=layer)
+def _emit_geometry(dxf, geom, layer):
+    """Draw a shapely geometry as DXF LINE entities.
+
+    Handles LineString, MultiLineString, and GeometryCollection.
+    """
+    if geom.is_empty:
+        return
+    gt = geom.geom_type
+    if gt == "LineString":
+        coords = list(geom.coords)
+        for i in range(len(coords) - 1):
+            dxf.add_line(coords[i][:2], coords[i + 1][:2], layer=layer)
+    elif gt in ("MultiLineString", "GeometryCollection"):
+        for g in geom.geoms:
+            _emit_geometry(dxf, g, layer)
 
 
-# ── Public entry point ────────────────────────────────────────────
+# ── Public entry points ─────────────────────────────────────────
 
 def meshes_to_dxf_string(meshes, params):
-    """Generate a DXF plan-view string from stair preview meshes.
+    """Generate a DXF plan-view string using solid-occlusion.
+
+    *meshes* — list of stair preview mesh dicts.
+    *params* — the raw parameter dict (kept for API compat; not used here).
 
     Returns:
-        str: DXF file content (ready to save or convert to blob)
+        str: complete DXF file content.
     """
     dxf = _DxfWriter()
-
-    # Set up linetypes
-    dxf.add_linetype("DASHED", [10.0, 6.35, -3.175])
-
-    # Set up layers
     for name, props in LAYERS.items():
         dxf.add_layer(name, color=props["color"], linetype=props["linetype"])
+    layer = "STAIR_TREADS"
 
-    p = _parse(params)
-    stair_type = p["staircase_type"]
-
-    # ── Tread nosing lines for straight stairs (from params) ──
-    if stair_type == "straight":
-        _draw_straight_tread_nosings(dxf, p)
-
-    # ── Generic mesh loop ──
+    # Step 1 — convert each non-riser mesh to (top_z, polygon).
+    items = []
     for mesh in meshes:
-        ifc_type = mesh.get("ifc_type", "")
-        # For straight stairs, treads are drawn explicitly above
-        if stair_type == "straight" and ifc_type in ("tread", "threshold"):
+        if mesh.get("ifc_type", "") in _EXCLUDED_IFC_TYPES:
             continue
-        mtype = mesh.get("type", "")
-        if mtype == "box":
-            _add_box_plan(dxf, mesh)
-        elif mtype == "winder_polygon":
-            _add_winder_polygon_plan(dxf, mesh)
-        elif mtype == "stringer":
-            _add_stringer_plan(dxf, mesh)
+        poly, top_z = _mesh_to_poly_and_z(mesh)
+        if poly is None or not poly.is_valid or poly.is_empty:
+            continue
+        items.append((top_z, poly))
+
+    # Step 2 — sort highest-first (top of stair drawn first).
+    items.sort(key=lambda t: -t[0])
+
+    # Step 3 — draw visible edges with coverage tracking.
+    coverage = Polygon()  # starts empty
+
+    for _z, poly in items:
+        exterior = list(poly.exterior.coords)
+        for i in range(len(exterior) - 1):
+            seg = LineString([exterior[i], exterior[i + 1]])
+            if seg.length < _MIN_LENGTH:
+                continue
+
+            # Clip: remove the portion already covered by higher geometry.
+            visible = seg if coverage.is_empty else seg.difference(coverage)
+
+            if visible.is_empty:
+                continue
+            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
+                continue
+
+            _emit_geometry(dxf, visible, layer)
+
+        # Expand the opaque coverage mask.
+        coverage = poly if coverage.is_empty else coverage.union(poly)
 
     return dxf.to_string()
+
+
+def meshes_to_dxf(meshes, params):
+    """Generate a DXF plan-view file and return its path.
+
+    Thin wrapper around :func:`meshes_to_dxf_string` for the Flask route
+    which needs a file path to pass to ``send_file``.
+    """
+    content = meshes_to_dxf_string(meshes, params)
+    tmp = tempfile.NamedTemporaryFile(suffix=".dxf", delete=False)
+    tmp.write(content.encode("utf-8"))
+    tmp.close()
+    return tmp.name

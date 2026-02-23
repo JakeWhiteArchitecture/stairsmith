@@ -2,3 +2,4 @@ flask==3.0.0
 ifcopenshell
 gunicorn==21.2.0
 ezdxf
+shapely
