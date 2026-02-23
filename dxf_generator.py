@@ -30,10 +30,14 @@ from shapely.geometry import Polygon, LineString
 # ── Layer definitions ────────────────────────────────────────────
 LAYERS = {
     "STAIR_TREADS": {"color": 7, "linetype": "CONTINUOUS"},
+    "STAIR_RISERS": {"color": 8, "linetype": "DASHED"},
 }
 
-# IFC types excluded from the plan view (not visible looking straight down).
-_EXCLUDED_IFC_TYPES = frozenset({"riser", "winder_riser"})
+# IFC types that participate in solid-occlusion (not risers).
+_SOLID_IFC_TYPES_EXCLUDED = frozenset({"riser", "winder_riser"})
+
+# IFC types whose front/back faces are drawn as dashed hidden lines.
+_RISER_IFC_TYPES = frozenset({"riser", "winder_riser"})
 
 # Segments shorter than this (mm) are discarded (floating-point noise).
 _MIN_LENGTH = 0.01
@@ -51,6 +55,10 @@ class _DxfWriter:
     def __init__(self):
         self._entities = []
         self._layers = {}
+        self._linetypes = {}
+
+    def add_linetype(self, name, pattern):
+        self._linetypes[name] = pattern
 
     def add_layer(self, name, color=7, linetype="CONTINUOUS"):
         self._layers[name] = {"color": color, "linetype": linetype}
@@ -77,10 +85,11 @@ class _DxfWriter:
         a("  0"); a("SECTION")
         a("  2"); a("TABLES")
 
-        # LTYPE table — CONTINUOUS only
+        # LTYPE table
         a("  0"); a("TABLE")
         a("  2"); a("LTYPE")
-        a(" 70"); a("     1")
+        a(" 70"); a("     %d" % (len(self._linetypes) + 1))
+        # CONTINUOUS (always present)
         a("  0"); a("LTYPE")
         a("  2"); a("CONTINUOUS")
         a(" 70"); a("     0")
@@ -88,6 +97,17 @@ class _DxfWriter:
         a(" 72"); a("    65")
         a(" 73"); a("     0")
         a(" 40"); a("0.0")
+        # Custom linetypes
+        for lt_name, pattern in self._linetypes.items():
+            a("  0"); a("LTYPE")
+            a("  2"); a(lt_name)
+            a(" 70"); a("     0")
+            a("  3"); a("")
+            a(" 72"); a("    65")
+            a(" 73"); a("     %d" % (len(pattern) - 1))
+            a(" 40"); a("%.4f" % pattern[0])
+            for val in pattern[1:]:
+                a(" 49"); a("%.4f" % val)
         a("  0"); a("ENDTAB")
 
         # LAYER table
@@ -194,6 +214,37 @@ def _mesh_to_poly_and_z(mesh):
     return None, None
 
 
+def _riser_front_back(mesh):
+    """Return the front and back face lines of a riser as ((x1,y1),(x2,y2)) pairs.
+
+    Box risers project to a rectangle in plan; the front and back faces are
+    the two width-spanning (long) edges.
+    Winder-polygon risers have 4 vertices [inner_back, outer_back,
+    outer_front, inner_front]; front = edge 2→3, back = edge 0→1.
+    """
+    mtype = mesh.get("type", "")
+    if mtype == "box":
+        center = mesh.get("ifc_center")
+        size = mesh.get("ifc_size")
+        if not center or not size:
+            return []
+        cx, cy, cz = center
+        sx, sy, sz = size
+        hx, hy = sx / 2.0, sy / 2.0
+        front = ((cx - hx, cy - hy), (cx + hx, cy - hy))
+        back = ((cx - hx, cy + hy), (cx + hx, cy + hy))
+        return [front, back]
+    if mtype == "winder_polygon":
+        profile = mesh.get("profile")
+        if not profile or len(profile) < 4:
+            return []
+        pts = [(p[0], p[1]) for p in profile]
+        back = (pts[0], pts[1])
+        front = (pts[2], pts[3])
+        return [front, back]
+    return []
+
+
 def _emit_geometry(dxf, geom, layer):
     """Draw a shapely geometry as DXF LINE entities.
 
@@ -223,6 +274,7 @@ def meshes_to_dxf_string(meshes, params):
         str: complete DXF file content.
     """
     dxf = _DxfWriter()
+    dxf.add_linetype("DASHED", [10.0, 6.35, -3.175])
     for name, props in LAYERS.items():
         dxf.add_layer(name, color=props["color"], linetype=props["linetype"])
     layer = "STAIR_TREADS"
@@ -230,7 +282,7 @@ def meshes_to_dxf_string(meshes, params):
     # Step 1 — convert each non-riser mesh to (top_z, polygon).
     items = []
     for mesh in meshes:
-        if mesh.get("ifc_type", "") in _EXCLUDED_IFC_TYPES:
+        if mesh.get("ifc_type", "") in _SOLID_IFC_TYPES_EXCLUDED:
             continue
         poly, top_z = _mesh_to_poly_and_z(mesh)
         if poly is None or not poly.is_valid or poly.is_empty:
@@ -262,6 +314,13 @@ def meshes_to_dxf_string(meshes, params):
 
         # Expand the opaque coverage mask.
         coverage = poly if coverage.is_empty else coverage.union(poly)
+
+    # Step 4 — dashed riser front/back lines (hidden detail beneath treads).
+    for mesh in meshes:
+        if mesh.get("ifc_type", "") not in _RISER_IFC_TYPES:
+            continue
+        for start, end in _riser_front_back(mesh):
+            dxf.add_line(start, end, layer="STAIR_RISERS")
 
     return dxf.to_string()
 
