@@ -12,6 +12,7 @@ from stair_flights import (
     _preview_straight,
     _preview_single_winder,
     _preview_double_winder,
+    _preview_y_shaped,
 )
 
 def generate_preview_geometry(params):
@@ -29,5 +30,7 @@ def generate_preview_geometry(params):
         return _preview_single_winder(p)
     elif stair_type == "double_winder":
         return _preview_double_winder(p)
+    elif stair_type == "y_shaped":
+        return _preview_y_shaped(p)
 
     return []

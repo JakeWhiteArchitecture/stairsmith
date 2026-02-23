@@ -601,6 +601,8 @@
                     <option value="straight">Straight Flight</option>
                     <option value="single_winder">Single Winder (L-shape)</option>
                     <option value="double_winder" selected>Double Winder (U-shape)</option>
+                    <!-- Y-shaped Stair hidden pending further development -->
+                    <!-- <option value="y_shaped">Y-shaped Stair</option> -->
                 </select>
             </div>
             <div class="field toggle-field" id="mirror-toggle-row">
@@ -766,7 +768,7 @@
             <h2>Turn 1</h2>
             <div class="field toggle-field">
                 <label class="toggle-label">
-                    <input type="checkbox" id="turn1_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <input type="checkbox" id="turn1_enabled" checked onchange="onWinderToggle(this); updatePreview();">
                     <span id="turn1-label">Winder treads</span>
                 </label>
             </div>
@@ -776,7 +778,7 @@
             <h2>Turn 2</h2>
             <div class="field toggle-field">
                 <label class="toggle-label">
-                    <input type="checkbox" id="turn2_enabled" checked onchange="updateToggleState(); updatePreview();">
+                    <input type="checkbox" id="turn2_enabled" checked onchange="onWinderToggle(this); updatePreview();">
                     <span id="turn2-label">Winder treads</span>
                 </label>
             </div>
@@ -1011,6 +1013,8 @@
                 const t1 = document.getElementById('turn1_enabled').checked ? 3 : 0;
                 const t2 = document.getElementById('turn2_enabled').checked ? 3 : 0;
                 return Math.max(0, numTreads - t1 - t2);
+            } else if (type === 'y_shaped') {
+                return numTreads;
             }
             return numTreads;
         }
@@ -1018,7 +1022,7 @@
         function redistributeFlights() {
             const type = document.getElementById('staircase_type').value;
             const st = getStraightTreads();
-            if (type === 'single_winder') {
+            if (type === 'single_winder' || type === 'y_shaped') {
                 flightDist.f1 = Math.floor(st / 2);
                 flightDist.f2 = st - flightDist.f1;
                 flightDist.f3 = 0;
@@ -1173,13 +1177,44 @@
             const turn2Opts = document.getElementById('turn2-options');
             const mirrorRow = document.getElementById('mirror-toggle-row');
 
-            winderOpts.classList.toggle('visible', type !== 'straight');
+            winderOpts.classList.toggle('visible', type === 'single_winder' || type === 'double_winder');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
-            mirrorRow.style.display = (type === 'straight') ? 'none' : 'block';
+            mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
             // Update turn labels and reset flight distribution
             updateToggleState();
             redistributeFlights();
+        }
+
+        // Called from checkbox onchange — absorbs/releases 3 winder treads
+        // into the adjacent flight so the user's distribution is preserved.
+        function onWinderToggle(checkbox) {
+            const t1 = document.getElementById('turn1_enabled').checked;
+            const t2 = document.getElementById('turn2_enabled').checked;
+            document.getElementById('turn1-label').textContent = t1 ? 'Winder treads' : 'Level landings';
+            document.getElementById('turn2-label').textContent = t2 ? 'Winder treads' : 'Level landings';
+
+            const type = document.getElementById('staircase_type').value;
+            const isWinder = checkbox.checked;
+            // +3 when switching TO flat (winders become straight treads)
+            // -3 when switching TO winder (straight treads become winders)
+            const delta = isWinder ? -3 : 3;
+
+            if (type === 'double_winder') {
+                if (checkbox.id === 'turn1_enabled') {
+                    flightDist.f1 += delta;
+                } else {
+                    flightDist.f3 += delta;
+                }
+            } else if (type === 'single_winder') {
+                flightDist.f1 += delta;
+            }
+
+            if (flightDist.f1 < 0 || flightDist.f2 < 0 || flightDist.f3 < 0) {
+                redistributeFlights();
+            } else {
+                updateFlightDistUI();
+            }
         }
 
         function updateToggleState() {

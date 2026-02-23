@@ -552,12 +552,15 @@ def _spindles_landing_x(y_pos, x_start, x_end, z, name_prefix="Landing Spindle",
 
 
 def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_back, tread_t,
-                               name="Stringer", ifc_type="stringer"):
+                               name="Stringer", ifc_type="stringer", clip_z_min=None):
     """Pitched stringer along Y with a notch at the top for landing threshold.
 
     The stringer bottom continues at pitch to y_end (riser back face), then a
     vertical cut rises to ftf - tread_t (threshold underside).  The overrun
     extends to y_back with its top flush with the pitched stringer surface.
+
+    If *clip_z_min* is set the profile is clipped so nothing extends below
+    that Z value (e.g. ground-floor level = 0).
     """
     off = STRINGER_PITCH_OFFSET
     drop = STRINGER_HEIGHT - off
@@ -574,6 +577,24 @@ def _stringer_flight_y_notched(x_pos, y_start, z_start, y_end, z_end, ftf, y_bac
         [y_back,  z_back_top],           # 4  up to pitch line at threshold back
         [y_start, z_start + off],        # 5  pitch line back to start
     ]
+    if clip_z_min is not None:
+        clipped = []
+        n = len(profile)
+        for i in range(n):
+            curr = profile[i]
+            nxt = profile[(i + 1) % n]
+            c_in = curr[1] >= clip_z_min
+            n_in = nxt[1] >= clip_z_min
+            if c_in:
+                clipped.append(curr)
+            if c_in != n_in:
+                _dy = nxt[0] - curr[0]
+                _dz = nxt[1] - curr[1]
+                if abs(_dz) > 1e-9:
+                    t = (clip_z_min - curr[1]) / _dz
+                    clipped.append([curr[0] + t * _dy, clip_z_min])
+        if clipped:
+            profile = clipped
     return {
         "type": "stringer",
         "profile": profile,
