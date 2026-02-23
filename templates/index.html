@@ -1800,22 +1800,22 @@
             });
         }
 
-        function downloadDXF() {
+        async function downloadDXF() {
+            if (!window.pyodideReady) { alert('Pyodide is still loading. Please wait.'); return; }
             const params = getParams();
             const btn = document.getElementById('dxf-btn');
             btn.textContent = 'Generating...';
             btn.disabled = true;
-
-            fetch('/api/download_dxf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(params),
-            })
-            .then(response => {
-                if (!response.ok) return response.json().then(d => { throw new Error(d.error || 'Generation failed'); });
-                return response.blob();
-            })
-            .then(blob => {
+            try {
+                const paramsJSON = JSON.stringify(params);
+                const dxfString = await pyodide.runPythonAsync(`
+import json as _json
+from dxf_generator import meshes_to_dxf_string as _to_dxf
+_p = _json.loads('''${paramsJSON}''')
+_meshes = generate_preview_geometry(_p)
+_to_dxf(_meshes, _p)
+`);
+                const blob = new Blob([dxfString], { type: 'application/dxf' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -1824,14 +1824,13 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            })
-            .catch(err => {
+            } catch (err) {
+                console.error('DXF generation error:', err);
                 alert('Error generating DXF: ' + err.message);
-            })
-            .finally(() => {
+            } finally {
                 btn.textContent = 'Download DXF Plan';
                 btn.disabled = false;
-            });
+            }
         }
 
         // ─── INIT ───
