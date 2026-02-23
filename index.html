@@ -1946,6 +1946,8 @@ _to_dxf(_meshes, _p)
                     const s = await r.text();
                     pyodide.FS.writeFile('/home/pyodide/' + mod, s);
                 }
+                status.textContent = 'Loading shapely...';
+                await pyodide.loadPackage('shapely');
                 await pyodide.runPythonAsync(`
 import sys
 sys.path.insert(0, '/home/pyodide')
