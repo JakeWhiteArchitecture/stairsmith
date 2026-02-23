@@ -1755,6 +1755,19 @@
             if (e.key === 'Escape' && measureActive) toggleMeasure();
         });
 
+        // ─── DOWNLOAD FILENAME HELPER ───
+        function getDownloadFilename(ext) {
+            const now = new Date();
+            const dd = String(now.getDate()).padStart(2, '0');
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const dateStr = dd + '-' + mm + '-' + yy;
+            const key = 'StairSmith_downloads_' + ext + '_' + dateStr;
+            let count = parseInt(localStorage.getItem(key) || '0', 10) + 1;
+            localStorage.setItem(key, String(count));
+            return 'StairSmith_' + dateStr + '_' + count + '.' + ext;
+        }
+
         // ─── IFC DOWNLOAD ───
         function fetchIFCCount() {
             fetch('/api/ifc_count')
@@ -1784,7 +1797,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'staircase.ifc';
+                a.download = getDownloadFilename('ifc');
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1819,7 +1832,7 @@ _to_dxf(_meshes, _p)
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'staircase_plan.dxf';
+                a.download = getDownloadFilename('dxf');
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);

@@ -7,6 +7,7 @@ for parametric staircases (straight, single-winder, double-winder).
 
 import os
 import threading
+from datetime import date
 from flask import Flask, render_template, request, jsonify, send_file
 from ifc_generator import meshes_to_ifc
 from stair_preview import generate_preview_geometry
@@ -116,10 +117,11 @@ def download():
         meshes = generate_preview_geometry(params)
         filepath = meshes_to_ifc(meshes)
         _increment_ifc_count()
+        today = date.today().strftime("%d-%m-%y")
         return send_file(
             filepath,
             as_attachment=True,
-            download_name="staircase.ifc",
+            download_name=f"StairSmith_{today}_1.ifc",
             mimetype="application/x-step",
         )
     except Exception as e:
@@ -137,7 +139,7 @@ def download_dxf():
         return send_file(
             filepath,
             as_attachment=True,
-            download_name="staircase_plan.dxf",
+            download_name=f"StairSmith_{date.today().strftime('%d-%m-%y')}_1.dxf",
             mimetype="application/dxf",
         )
     except Exception as e:

@@ -273,14 +273,15 @@ def meshes_to_dxf_string(meshes, params):
     p = _parse(params)
     stair_type = p["staircase_type"]
 
-    # ── Tread nosing lines (drawn from params, not from mesh boxes) ──
+    # ── Tread nosing lines for straight stairs (from params) ──
     if stair_type == "straight":
         _draw_straight_tread_nosings(dxf, p)
 
-    # ── Generic mesh loop (skip treads — drawn explicitly above) ──
+    # ── Generic mesh loop ──
     for mesh in meshes:
         ifc_type = mesh.get("ifc_type", "")
-        if ifc_type in ("tread", "threshold"):
+        # For straight stairs, treads are drawn explicitly above
+        if stair_type == "straight" and ifc_type in ("tread", "threshold"):
             continue
         mtype = mesh.get("type", "")
         if mtype == "box":
