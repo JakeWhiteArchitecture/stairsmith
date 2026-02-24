@@ -271,18 +271,95 @@ def _collect_points(geom):
     return pts
 
 
-def _trim_riser_line(start, end, boundary):
-    """Return (trimmed_start, trimmed_end) by extending the riser line and
-    clipping each end to the first boundary intersection beyond each
-    original endpoint.
+def _build_trim_boundaries(meshes):
+    """Build separate outline geometries for stringers, handrails, and newels.
 
-    From each end of the riser, we look outward and pick the *first*
-    (nearest) boundary crossing.  This extends risers to the stringer,
-    handrail, or newel-post edge on each side while preventing the line
-    from accidentally spanning across into a different flight at turns.
+    Returns ``{ifc_type: boundary_geometry}`` where *boundary_geometry* is
+    the union of polygon outlines for that element type.
+    """
+    groups = {"stringer": [], "handrail": [], "newel": []}
+    for mesh in meshes:
+        ifc_type = mesh.get("ifc_type", "")
+        if ifc_type not in groups:
+            continue
+        poly, _ = _mesh_to_poly_and_z(mesh)
+        if poly is None or not poly.is_valid or poly.is_empty:
+            continue
+        groups[ifc_type].append(poly.exterior)
 
-    *boundary* is a Shapely geometry representing the outlines of all
-    non-riser shapes (the stair footprint boundary).
+    boundaries = {}
+    for key, outlines in groups.items():
+        if outlines:
+            boundaries[key] = unary_union(outlines)
+    return boundaries
+
+
+def _project_intersections(extended, boundary, mid_x, mid_y, nx, ny):
+    """Return list of (projection, x, y) for all intersection points."""
+    hits = extended.intersection(boundary)
+    if hits.is_empty:
+        return []
+    points = _collect_points(hits)
+    result = []
+    for px, py in points:
+        proj = (px - mid_x) * nx + (py - mid_y) * ny
+        result.append((proj, px, py))
+    return result
+
+
+def _pick_trim_for_end(crossings, is_start, half_len):
+    """Pick the trim point for one end of a riser line.
+
+    Finds the **innermost** (closest-to-center) crossing from ANY
+    boundary type within range.  This automatically selects the correct
+    element for each side condition:
+
+    * **Balustrade straight flight** — the handrail inner edge is closer
+      to center than the stringer, so it wins.
+    * **Balustrade at winder turn** — the newel-post face is closer to
+      center than any stray handrail from an adjacent flight, so it wins.
+    * **Wall side** — only the stringer is present, so it wins by default.
+
+    *half_len* is half the riser length (= original endpoint projection).
+    A 150 mm cap prevents picking up boundary elements from adjacent
+    flights at turn areas.
+    """
+    max_dist = 150  # mm beyond original endpoint to search
+    best = None
+
+    for btype in ("handrail", "newel", "stringer"):
+        if btype not in crossings:
+            continue
+        pts = crossings[btype]
+        if is_start:
+            lo = -half_len - max_dist
+            candidates = [p for p in pts if lo < p[0] < -_MIN_LENGTH]
+            if candidates:
+                innermost = max(candidates, key=lambda p: p[0])
+                if best is None or innermost[0] > best[0]:
+                    best = innermost
+        else:
+            hi = half_len + max_dist
+            candidates = [p for p in pts if _MIN_LENGTH < p[0] < hi]
+            if candidates:
+                innermost = min(candidates, key=lambda p: p[0])
+                if best is None or innermost[0] < best[0]:
+                    best = innermost
+
+    return best
+
+
+def _trim_riser_line(start, end, boundaries):
+    """Trim a riser line to the correct boundary on each side.
+
+    Each end is evaluated independently:
+
+    * **Wall side** (only a stringer is present) → trims to the stringer
+      inner face.
+    * **Balustrade straight flight** (handrail present) → trims to the
+      handrail inner edge.
+    * **Balustrade at winder turn** (newel present, no handrail) → trims
+      to the nearest newel-post face.
     """
     dx = end[0] - start[0]
     dy = end[1] - start[1]
@@ -293,53 +370,27 @@ def _trim_riser_line(start, end, boundary):
     mid_x = (start[0] + end[0]) / 2.0
     mid_y = (start[1] + end[1]) / 2.0
 
-    # Extend the line far in both directions so it definitely crosses
-    # any boundary elements flanking the riser.
     ext_start = (mid_x - nx * 50000, mid_y - ny * 50000)
     ext_end = (mid_x + nx * 50000, mid_y + ny * 50000)
     extended = LineString([ext_start, ext_end])
 
-    hits = extended.intersection(boundary)
-    if hits.is_empty:
-        return (start, end)
+    # Get projected intersections for each boundary type.
+    crossings = {}
+    for btype, boundary in boundaries.items():
+        pts = _project_intersections(extended, boundary,
+                                     mid_x, mid_y, nx, ny)
+        if pts:
+            crossings[btype] = pts
 
-    points = _collect_points(hits)
-    if len(points) < 2:
-        return (start, end)
+    # Trim each end independently.
+    half_len = length / 2.0
+    new_start = _pick_trim_for_end(crossings, is_start=True, half_len=half_len)
+    new_end = _pick_trim_for_end(crossings, is_start=False, half_len=half_len)
 
-    # Project each intersection onto the line direction.
-    proj_start = -length / 2.0  # projection of original start
-    proj_end = length / 2.0     # projection of original end
-    tol = 0.5       # half-mm tolerance to skip coincident edges
-    max_ext = 150   # max mm to extend beyond the original endpoint
-                    # (enough for newel posts, prevents spanning across flights)
+    ts = (new_start[1], new_start[2]) if new_start else start
+    te = (new_end[1], new_end[2]) if new_end else end
 
-    projections = []
-    for px, py in points:
-        proj = (px - mid_x) * nx + (py - mid_y) * ny
-        projections.append((proj, px, py))
-
-    # From the start end, look outward (more negative) for first hit.
-    left_outer = [p for p in projections
-                  if proj_start - max_ext < p[0] < proj_start - tol]
-    if left_outer:
-        best_start = max(left_outer, key=lambda p: p[0])  # nearest outward
-    else:
-        best_start = (proj_start, start[0], start[1])
-
-    # From the end, look outward (more positive) for first hit.
-    right_outer = [p for p in projections
-                   if proj_end + tol < p[0] < proj_end + max_ext]
-    if right_outer:
-        best_end = min(right_outer, key=lambda p: p[0])  # nearest outward
-    else:
-        best_end = (proj_end, end[0], end[1])
-
-    if best_start[0] >= best_end[0]:
-        return (start, end)
-
-    return ((best_start[1], best_start[2]),
-            (best_end[1], best_end[2]))
+    return (ts, te)
 
 
 def _emit_geometry(dxf, geom, layer):
@@ -412,17 +463,17 @@ def meshes_to_dxf_string(meshes, params):
         # Expand the opaque coverage mask.
         coverage = poly if coverage.is_empty else coverage.union(poly)
 
-    # Step 4 — dashed riser front/back lines trimmed to the stair footprint.
-    # Build boundary from all non-riser polygon outlines.
-    outlines = [poly.exterior for _z, poly in items]
-    boundary = unary_union(outlines) if outlines else None
+    # Step 4 — dashed riser front/back lines trimmed per-side.
+    # Build separate boundaries for stringers, handrails, and newels so
+    # each end of the riser trims to the correct element type.
+    boundaries = _build_trim_boundaries(meshes)
 
     for mesh in meshes:
         if mesh.get("ifc_type", "") not in _RISER_IFC_TYPES:
             continue
         for start, end in _riser_front_back(mesh):
-            if boundary is not None:
-                result = _trim_riser_line(start, end, boundary)
+            if boundaries:
+                result = _trim_riser_line(start, end, boundaries)
                 if result is None:
                     continue
                 start, end = result
