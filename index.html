@@ -1255,9 +1255,7 @@
     <script>
         // ─── TERMS OF USE ───
         function showTermsModal() {
-            if (!localStorage.getItem('stairsmith-terms-accepted')) {
-                document.getElementById('terms-modal').classList.add('open');
-            }
+            document.getElementById('terms-modal').classList.add('open');
         }
 
         function updateTermsAcceptBtn() {
@@ -1267,7 +1265,6 @@
         }
 
         function acceptTerms() {
-            localStorage.setItem('stairsmith-terms-accepted', 'true');
             document.getElementById('terms-modal').classList.remove('open');
         }
 
@@ -1277,8 +1274,10 @@
         }
 
         let pendingDownloadBlob = null;
-        function showDownloadReminder(blob) {
+        let pendingDownloadExt = 'ifc';
+        function showDownloadReminder(blob, ext) {
             pendingDownloadBlob = blob;
+            pendingDownloadExt = ext || 'ifc';
             document.getElementById('download-reminder').classList.add('open');
         }
         function confirmDownload() {
@@ -1287,7 +1286,7 @@
                 const url = URL.createObjectURL(pendingDownloadBlob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'staircase.ifc';
+                a.download = getDownloadFilename(pendingDownloadExt);
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -2291,16 +2290,16 @@ function renderGeometry(meshes) {
         });
 
         // ─── DOWNLOAD FILENAME HELPER ───
+        const _dlCounts = {};
         function getDownloadFilename(ext) {
             const now = new Date();
             const dd = String(now.getDate()).padStart(2, '0');
             const mm = String(now.getMonth() + 1).padStart(2, '0');
             const yy = String(now.getFullYear()).slice(-2);
             const dateStr = dd + '-' + mm + '-' + yy;
-            const key = 'StairSmith_downloads_' + ext + '_' + dateStr;
-            let count = parseInt(localStorage.getItem(key) || '0', 10) + 1;
-            localStorage.setItem(key, String(count));
-            return 'StairSmith_' + dateStr + '_' + count + '.' + ext;
+            const key = ext + '_' + dateStr;
+            _dlCounts[key] = (_dlCounts[key] || 0) + 1;
+            return 'StairSmith_' + dateStr + '_' + _dlCounts[key] + '.' + ext;
         }
 
         // ─── IFC DOWNLOAD ───
@@ -2362,7 +2361,7 @@ _data
                 const ifcBytes = ifcProxy.toJs();
                 if (ifcProxy.destroy) ifcProxy.destroy();
                 const blob = new Blob([ifcBytes], { type: 'application/x-step' });
-                showDownloadReminder(blob);
+                showDownloadReminder(blob, 'ifc');
             } catch (err) {
                 alert('Error generating IFC: ' + err.message);
             } finally {
@@ -2387,14 +2386,7 @@ _meshes = generate_preview_geometry(_p)
 _to_dxf(_meshes, _p)
 `);
                 const blob = new Blob([dxfString], { type: 'application/dxf' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = getDownloadFilename('dxf');
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                showDownloadReminder(blob, 'dxf');
             } catch (err) {
                 console.error('DXF generation error:', err);
                 alert('Error generating DXF: ' + err.message);
