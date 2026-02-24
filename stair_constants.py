@@ -61,8 +61,8 @@ def _parse(params):
     p["turn1_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
     p["turn2_direction"] = params.get("turn2_direction", "left")
     p["turn2_winders"] = 3  # Building regs: 90° corners must be triple winder or flat landing
-    p["turn1_enabled"] = bool(params.get("turn1_enabled", True))
-    p["turn2_enabled"] = bool(params.get("turn2_enabled", True))
+    p["turn1_enabled"] = bool(params.get("turn1_enabled", False))
+    p["turn2_enabled"] = bool(params.get("turn2_enabled", False))
     p["newel_size"] = float(params.get("newel_size", 90))
     # Winder X: distance from internal corner of newel along post face (min 25, max newel_size)
     raw_x = float(params.get("winder_x", 25))

@@ -377,18 +377,17 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
         back_off = nosing + riser_t     # riser_t past front face
 
         inner_front = (inner[0] + unx * front_off, inner[1] + uny * front_off)
-        inner_back = (inner[0] + unx * back_off, inner[1] + uny * back_off)
 
-        # Clamp inner riser ends to post face, preserving perpendicular
-        # distance from the division line by sliding along it.
+        # Clamp the front inner point to the post face by sliding along the
+        # division line, so the riser doesn't penetrate the newel post.
         post_opp_x = corner_x - x_sign * hp
-        def _clamp_to_post(pt, offset):
+        def _clamp_to_post(pt):
             ex, ey = pt
             if abs(inner[0] - pc_x) < 1e-6:
                 # inner is on Face A — slide along division line to x = pc_x
                 if abs(ex - pc_x) > 1e-6 and abs(lx) > 1e-9:
-                    base_x = inner[0] + offset * unx
-                    base_y = inner[1] + offset * uny
+                    base_x = inner[0] + front_off * unx
+                    base_y = inner[1] + front_off * uny
                     t = (pc_x - base_x) / lx
                     ex = pc_x
                     ey = base_y + t * ly
@@ -398,8 +397,8 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
             elif abs(inner[1] - pc_y) < 1e-6:
                 # inner is on Face B — slide along division line to y = pc_y
                 if abs(ey - pc_y) > 1e-6 and abs(ly) > 1e-9:
-                    base_x = inner[0] + offset * unx
-                    base_y = inner[1] + offset * uny
+                    base_x = inner[0] + front_off * unx
+                    base_y = inner[1] + front_off * uny
                     t = (pc_y - base_y) / ly
                     ex = base_x + t * lx
                     ey = pc_y
@@ -414,8 +413,13 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
                 ex = pc_x
                 ey = pc_y
             return (ex, ey)
-        inner_front = _clamp_to_post(inner_front, front_off)
-        inner_back = _clamp_to_post(inner_back, back_off)
+        inner_front = _clamp_to_post(inner_front)
+        # Derive inner_back from the clamped front point so the riser always
+        # has full riser_t perpendicular thickness.  Independent clamping of
+        # inner_back using back_off collapsed both points to the post corner
+        # for the first winder boundary (< 45°), producing a zero-thickness
+        # degenerate triangle instead of a proper riser quadrilateral.
+        inner_back = (inner_front[0] + unx * riser_t, inner_front[1] + uny * riser_t)
 
         # Trace both outer points along division line to hit the wall
         def _trace_to_wall(pt):
