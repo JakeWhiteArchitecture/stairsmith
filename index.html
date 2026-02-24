@@ -958,7 +958,7 @@
         <div class="reminder-dialog">
             <div class="reminder-heading">Reminder</div>
             <p class="reminder-text">The user must check all outputs / downloads for compliance with UK or other relevant local regulation or standard.</p>
-            <button class="reminder-btn" onclick="closeDownloadReminder()">Yes, understood</button>
+            <button class="reminder-btn" onclick="confirmDownload()">Understood, proceed to download</button>
         </div>
     </div>
 
@@ -1275,11 +1275,24 @@
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
         }
 
-        function showDownloadReminder() {
+        let pendingDownloadBlob = null;
+        function showDownloadReminder(blob) {
+            pendingDownloadBlob = blob;
             document.getElementById('download-reminder').classList.add('open');
         }
-        function closeDownloadReminder() {
+        function confirmDownload() {
             document.getElementById('download-reminder').classList.remove('open');
+            if (pendingDownloadBlob) {
+                const url = URL.createObjectURL(pendingDownloadBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'staircase.ifc';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                pendingDownloadBlob = null;
+            }
         }
 
         // Show terms on page load
@@ -2335,15 +2348,7 @@ _data
                 const ifcBytes = ifcProxy.toJs();
                 if (ifcProxy.destroy) ifcProxy.destroy();
                 const blob = new Blob([ifcBytes], { type: 'application/x-step' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'staircase.ifc';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showDownloadReminder();
+                showDownloadReminder(blob);
             } catch (err) {
                 alert('Error generating IFC: ' + err.message);
             } finally {
