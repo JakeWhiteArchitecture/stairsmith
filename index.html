@@ -816,6 +816,66 @@
             color: #e0e0e0;
             border: 1px solid #1a4a80;
         }
+
+        /* ─── DOWNLOAD REMINDER MODAL ─── */
+        #download-reminder {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        #download-reminder.open { display: flex; }
+        .reminder-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+            text-align: center;
+        }
+        .reminder-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+        .reminder-heading {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e94560;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .reminder-text {
+            font-size: 13px;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        .reminder-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 36px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: opacity 0.15s, transform 0.1s;
+            width: 100%;
+            max-width: 260px;
+        }
+        .reminder-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .reminder-btn:active { transform: translateY(0); }
     </style>
 </head>
 <body>
@@ -890,6 +950,15 @@
                 <button class="terms-btn terms-btn-decline" onclick="declineTerms()">Decline</button>
                 <button class="terms-btn terms-btn-accept" id="terms-accept-btn" onclick="acceptTerms()" disabled>I Accept</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Download Reminder Modal -->
+    <div id="download-reminder" role="dialog" aria-modal="true" aria-label="Download Reminder">
+        <div class="reminder-dialog">
+            <div class="reminder-heading">Reminder</div>
+            <p class="reminder-text">The user must check all outputs / downloads for compliance with UK or other relevant local regulation or standard.</p>
+            <button class="reminder-btn" onclick="closeDownloadReminder()">Yes, understood</button>
         </div>
     </div>
 
@@ -1204,6 +1273,13 @@
         function declineTerms() {
             document.getElementById('terms-modal').classList.remove('open');
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
+        }
+
+        function showDownloadReminder() {
+            document.getElementById('download-reminder').classList.add('open');
+        }
+        function closeDownloadReminder() {
+            document.getElementById('download-reminder').classList.remove('open');
         }
 
         // Show terms on page load
@@ -2267,6 +2343,7 @@ _data
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                showDownloadReminder();
             } catch (err) {
                 alert('Error generating IFC: ' + err.message);
             } finally {
