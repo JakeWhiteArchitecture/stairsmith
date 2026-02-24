@@ -790,6 +790,7 @@
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
             <div style="display:flex; gap:8px; margin-top:8px;">
                 <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="openShareModal()">Share</button>
                 <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
@@ -1789,6 +1790,19 @@
             if (e.key === 'Escape' && measureActive) toggleMeasure();
         });
 
+        // ─── DOWNLOAD FILENAME HELPER ───
+        function getDownloadFilename(ext) {
+            const now = new Date();
+            const dd = String(now.getDate()).padStart(2, '0');
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const dateStr = dd + '-' + mm + '-' + yy;
+            const key = 'StairSmith_downloads_' + ext + '_' + dateStr;
+            let count = parseInt(localStorage.getItem(key) || '0', 10) + 1;
+            localStorage.setItem(key, String(count));
+            return 'StairSmith_' + dateStr + '_' + count + '.' + ext;
+        }
+
         // ─── IFC DOWNLOAD ───
         function fetchIFCCount() {
             fetch('/api/ifc_count')
@@ -1818,7 +1832,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'staircase.ifc';
+                a.download = getDownloadFilename('ifc');
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1832,6 +1846,39 @@
                 btn.textContent = 'Download IFC File';
                 btn.disabled = false;
             });
+        }
+
+        async function downloadDXF() {
+            if (!window.pyodideReady) { alert('Pyodide is still loading. Please wait.'); return; }
+            const params = getParams();
+            const btn = document.getElementById('dxf-btn');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+            try {
+                const paramsJSON = JSON.stringify(params);
+                const dxfString = await pyodide.runPythonAsync(`
+import json as _json
+from dxf_generator import meshes_to_dxf_string as _to_dxf
+_p = _json.loads('''${paramsJSON}''')
+_meshes = generate_preview_geometry(_p)
+_to_dxf(_meshes, _p)
+`);
+                const blob = new Blob([dxfString], { type: 'application/dxf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = getDownloadFilename('dxf');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('DXF generation error:', err);
+                alert('Error generating DXF: ' + err.message);
+            } finally {
+                btn.textContent = 'Download DXF Plan';
+                btn.disabled = false;
+            }
         }
 
         // ─── INIT ───

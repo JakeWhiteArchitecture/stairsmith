@@ -75,9 +75,13 @@ def _parse(params):
     p["winder_y2"] = p["winder_y"]
     p["threshold_depth"] = float(params.get("threshold_depth", 100))
     # Flight distribution overrides (-1 = auto / equal split)
-    p["flight1_steps"] = int(params.get("flight1_steps", -1))
-    p["flight2_steps"] = int(params.get("flight2_steps", -1))
-    p["flight3_steps"] = int(params.get("flight3_steps", -1))
+    # JS may send null (Python None) when value is NaN; treat as -1 (auto).
+    _f1 = params.get("flight1_steps", -1)
+    _f2 = params.get("flight2_steps", -1)
+    _f3 = params.get("flight3_steps", -1)
+    p["flight1_steps"] = int(_f1) if _f1 is not None else -1
+    p["flight2_steps"] = int(_f2) if _f2 is not None else -1
+    p["flight3_steps"] = int(_f3) if _f3 is not None else -1
     # Balustrade dimensions
     p["handrail_width"] = float(params.get("handrail_width", 70))
     p["handrail_height"] = float(params.get("handrail_height", 40))

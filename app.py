@@ -7,6 +7,7 @@ for parametric staircases (straight, single-winder, double-winder).
 
 import os
 import threading
+from datetime import date
 from flask import Flask, render_template, request, jsonify, send_file
 from ifc_generator import meshes_to_ifc
 from stair_preview import generate_preview_geometry
@@ -74,6 +75,16 @@ def serve_ifc_generator():
     return resp
 
 
+@app.route("/dxf_generator.py")
+def serve_dxf_generator():
+    """Serve dxf_generator.py so the Pyodide frontend can fetch it for DXF export."""
+    from flask import send_from_directory
+    resp = send_from_directory(os.path.dirname(__file__), "dxf_generator.py",
+                               mimetype="text/plain")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/api/preview", methods=["POST"])
 def preview():
     """
@@ -106,13 +117,34 @@ def download():
         meshes = generate_preview_geometry(params)
         filepath = meshes_to_ifc(meshes)
         _increment_ifc_count()
+        today = date.today().strftime("%d-%m-%y")
         return send_file(
             filepath,
             as_attachment=True,
-            download_name="staircase.ifc",
+            download_name=f"StairSmith_{today}_1.ifc",
             mimetype="application/x-step",
         )
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+
+@app.route("/api/download_dxf", methods=["POST"])
+def download_dxf():
+    """Generate and download a DXF plan-view file."""
+    from dxf_generator import meshes_to_dxf
+    params = request.get_json()
+    try:
+        meshes = generate_preview_geometry(params)
+        filepath = meshes_to_dxf(meshes, params)
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=f"StairSmith_{date.today().strftime('%d-%m-%y')}_1.dxf",
+            mimetype="application/dxf",
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 400
 
 
