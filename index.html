@@ -742,6 +742,18 @@
             flex-direction: column;
             gap: 10px;
         }
+        .terms-checkboxes.locked {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+        .terms-scroll-hint {
+            font-size: 11px;
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 2px;
+            transition: opacity 0.3s;
+        }
+        .terms-scroll-hint.hidden { opacity: 0; pointer-events: none; }
         .terms-checkbox-label {
             display: flex;
             align-items: flex-start;
@@ -912,7 +924,8 @@
 
                 <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
             </div>
-            <div class="terms-checkboxes">
+            <p class="terms-scroll-hint" id="terms-scroll-hint">Please scroll to the bottom to read all terms before accepting</p>
+            <div class="terms-checkboxes locked" id="terms-checkboxes">
                 <label class="terms-checkbox-label">
                     <input type="checkbox" id="terms-check-1" onchange="updateTermsAcceptBtn()">
                     I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only and that I am solely responsible for verifying all outputs.
@@ -1231,7 +1244,29 @@
     <script>
         // ─── TERMS OF USE ───
         function showTermsModal() {
+            // Reset checkboxes and lock state each time
+            document.getElementById('terms-check-1').checked = false;
+            document.getElementById('terms-check-2').checked = false;
+            document.getElementById('terms-accept-btn').disabled = true;
+            var cb = document.getElementById('terms-checkboxes');
+            var hint = document.getElementById('terms-scroll-hint');
+            cb.classList.add('locked');
+            hint.classList.remove('hidden');
+
+            var content = document.querySelector('.terms-content');
+            content.scrollTop = 0;
+            content.addEventListener('scroll', onTermsScroll);
             document.getElementById('terms-modal').classList.add('open');
+        }
+
+        function onTermsScroll() {
+            var el = this;
+            // Unlocked when scrolled within 10px of the bottom
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
+                document.getElementById('terms-checkboxes').classList.remove('locked');
+                document.getElementById('terms-scroll-hint').classList.add('hidden');
+                el.removeEventListener('scroll', onTermsScroll);
+            }
         }
 
         function updateTermsAcceptBtn() {
