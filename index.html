@@ -1069,16 +1069,10 @@
                 font-size: 16px;
             }
 
-            /* Viewport hint text — show touch controls */
-            .viewport-info .desktop-hint { display: none; }
-            .viewport-info .touch-hint { display: inline; }
-
-            /* Dim overlay at bottom-right so hamburger doesn't cover it */
-            .dim-overlay {
-                left: auto;
-                right: 12px;
-                bottom: 12px;
-            }
+            /* Hide viewport hints, stats overlay and measure button on mobile */
+            .viewport-info { display: none; }
+            .dim-overlay { display: none; }
+            .mobile-measure-btn { display: none !important; }
 
             /* Measure overlay below hamburger */
             .measure-overlay {
