@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IFC Staircase Generator</title>
+    <title>StairSmith - Parametric Staircase Design Tool</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -604,32 +604,20 @@
         /* ─── LOGO ─── */
         .logo-container {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
+            gap: 4px;
             margin-bottom: 16px;
             padding-bottom: 16px;
             border-bottom: 1px solid #0f3460;
         }
-        .logo-icon {
-            flex-shrink: 0;
-        }
-        .logo-text {
-            display: flex;
-            flex-direction: column;
-        }
-        .logo-text .logo-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #e94560;
-            letter-spacing: 0.04em;
-            line-height: 1.2;
-        }
-        .logo-text .logo-tagline {
+        .logo-container .logo-tagline {
             font-size: 10px;
             color: #888;
             text-transform: uppercase;
             letter-spacing: 0.12em;
-            margin-top: 2px;
+            margin: 0;
+            text-align: center;
         }
 
         /* ─── TERMS MODAL ─── */
@@ -858,7 +846,7 @@
     <div id="terms-modal" role="dialog" aria-modal="true" aria-label="Terms of Use">
         <div class="terms-dialog">
             <div class="terms-logo">
-                <img src="/StairSmith-Logo.png" alt="StairSmith" style="width:220px;height:auto;">
+                <img src="/StairSmith-Logo.png" alt="StairSmith" style="width:286px;height:auto;">
             </div>
             <div class="terms-heading">Terms of Use &amp; Disclaimer</div>
             <p class="terms-effective">Effective Date: February 2026</p>
@@ -929,11 +917,9 @@
         <div class="panel-top">
         <!-- Logo -->
         <div class="logo-container">
-            <img src="/StairSmith-Logo.png" alt="StairSmith" style="width:180px;height:auto;">
+            <img src="/StairSmith-Logo.png" alt="StairSmith" style="width:234px;height:auto;">
+            <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
         </div>
-
-        <h1>IFC Staircase Generator</h1>
-        <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
 
         <!-- Staircase Type -->
         <div class="section">
