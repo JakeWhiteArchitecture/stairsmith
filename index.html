@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IFC Staircase Generator</title>
+    <title>StairSmith - Parametric Staircase Design Tool</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -305,30 +305,6 @@
             font-weight: 600;
         }
 
-        /* ─── IFC COUNTER ─── */
-        #ifc-counter {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(22, 33, 62, 0.9);
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-size: 12px;
-            line-height: 1.4;
-            border: 1px solid #0f3460;
-            color: #aaa;
-            pointer-events: none;
-            z-index: 10;
-            text-align: center;
-        }
-
-        #ifc-counter strong {
-            display: block;
-            color: #e94560;
-            font-weight: 700;
-            font-size: 22px;
-            line-height: 1.2;
-        }
 
         /* ─── MEASURE TOOL ─── */
         .btn-measure {
@@ -628,32 +604,20 @@
         /* ─── LOGO ─── */
         .logo-container {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
+            gap: 4px;
             margin-bottom: 16px;
             padding-bottom: 16px;
             border-bottom: 1px solid #0f3460;
         }
-        .logo-icon {
-            flex-shrink: 0;
-        }
-        .logo-text {
-            display: flex;
-            flex-direction: column;
-        }
-        .logo-text .logo-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #e94560;
-            letter-spacing: 0.04em;
-            line-height: 1.2;
-        }
-        .logo-text .logo-tagline {
+        .logo-container .logo-tagline {
             font-size: 10px;
             color: #888;
             text-transform: uppercase;
             letter-spacing: 0.12em;
-            margin-top: 2px;
+            margin: 0;
+            text-align: center;
         }
 
         /* ─── TERMS MODAL ─── */
@@ -686,20 +650,7 @@
         .terms-logo {
             display: flex;
             align-items: center;
-            gap: 14px;
-        }
-        .terms-logo .terms-logo-title {
-            font-size: 26px;
-            font-weight: 700;
-            color: #e94560;
-            letter-spacing: 0.04em;
-        }
-        .terms-logo .terms-logo-tagline {
-            font-size: 10px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            margin-top: 2px;
+            justify-content: center;
         }
         .terms-heading {
             font-size: 15px;
@@ -766,6 +717,18 @@
             flex-direction: column;
             gap: 10px;
         }
+        .terms-checkboxes.locked {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+        .terms-scroll-hint {
+            font-size: 11px;
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 2px;
+            transition: opacity 0.3s;
+        }
+        .terms-scroll-hint.hidden { opacity: 0; pointer-events: none; }
         .terms-checkbox-label {
             display: flex;
             align-items: flex-start;
@@ -883,38 +846,19 @@
     <div id="terms-modal" role="dialog" aria-modal="true" aria-label="Terms of Use">
         <div class="terms-dialog">
             <div class="terms-logo">
-                <svg width="52" height="52" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="tm-bg" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-                            <stop offset="0%" stop-color="#0f1830"/>
-                            <stop offset="100%" stop-color="#080c20"/>
-                        </linearGradient>
-                        <linearGradient id="tm-stair" x1="8" y1="36" x2="36" y2="8" gradientUnits="userSpaceOnUse">
-                            <stop offset="0%" stop-color="#d03050"/>
-                            <stop offset="100%" stop-color="#ef5575"/>
-                        </linearGradient>
-                    </defs>
-                    <rect width="44" height="44" rx="10" fill="url(#tm-bg)"/>
-                    <path d="M8 36 L8 28 L16 28 L16 20 L24 20 L24 12 L32 12 L32 8 L36 8 L36 12 L32 12 L32 20 L24 20 L24 28 L16 28 L16 36 Z" fill="url(#tm-stair)" opacity="0.9"/>
-                    <path d="M8 36 L16 36 L16 28 L24 28 L24 20 L32 20 L32 12 L36 12" stroke="#e94560" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                    <circle cx="36" cy="12" r="2.5" fill="#e0e0e0"/>
-                </svg>
-                <div>
-                    <div class="terms-logo-title">StairSmith</div>
-                    <div class="terms-logo-tagline">Parametric IFC 2x3 for BIM</div>
-                </div>
+                <img src="StairSmith-Logo.png" alt="StairSmith" style="width:286px;height:auto;">
             </div>
             <div class="terms-heading">Terms of Use &amp; Disclaimer</div>
-            <p class="terms-effective">Effective Date: February 2026<br>Applicable to: All design tools hosted on this website, including but not limited to StudForge, StairSmith, and BRICKSO ("the Tools").</p>
+            <p class="terms-effective">Effective Date: February 2026</p>
             <div class="terms-content">
-                <h4>1. Nature of the Tools</h4>
-                <p>The Tools are preliminary design aids only, intended to assist with the visual exploration and conceptual development of building components. They are not a substitute for professional design, structural engineering, or compliance verification. The Tools do not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
+                <h4>1. Nature of the Tool</h4>
+                <p>The Tool is a preliminary design aid only, intended to assist with the visual exploration and conceptual development of building components. It is not a substitute for professional design, structural engineering, or compliance verification. The Tool does not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
 
                 <h4>2. No Compliance Warranty</h4>
-                <p>Outputs have not been verified against any building regulations, standards, or codes of practice — including the Building Regulations 2010 (England and Wales), associated Approved Documents, British Standards, CDM 2015, or any international equivalent. No representation or warranty is made that any output complies with any regulatory requirement.</p>
+                <p>Outputs have not been verified against any building regulations, standards, or codes of practice — including the Building Regulations 2010 (England and Wales), associated Approved Documents, British Standards or any international equivalent. No representation or warranty is made that any output complies with any regulatory requirement.</p>
 
                 <h4>3. User Responsibility</h4>
-                <p>By using the Tools, you acknowledge that:</p>
+                <p>By using the Tool, you acknowledge that:</p>
                 <ul>
                     <li>You are solely responsible for verifying the accuracy, suitability, and regulatory compliance of all outputs.</li>
                     <li>You will not rely on any output as a final design or instruction for construction without independent professional verification.</li>
@@ -923,20 +867,21 @@
                 </ul>
 
                 <h4>4. Limitation of Liability</h4>
-                <p>The Tools are provided "as is" without warranty of any kind, whether express or implied. To the fullest extent permitted by law, the provider shall not be liable for any loss, damage, injury, cost, or expense (whether direct, indirect, or consequential) arising from the use of or reliance upon any output, any errors or omissions in the outputs, any decisions or actions taken based on the outputs, or any failure of the Tools to identify non-compliant or unsafe configurations.</p>
+                <p>The Tool is provided "as is" without warranty of any kind, whether express or implied. To the fullest extent permitted by law, the provider shall not be liable for any loss, damage, injury, cost, or expense (whether direct, indirect, or consequential) arising from the use of or reliance upon any output, any errors or omissions in the outputs, any decisions or actions taken based on the outputs, or any failure of the Tool to identify non-compliant or unsafe configurations.</p>
 
                 <h4>5. Professional Advice</h4>
-                <p>Nothing provided by the Tools constitutes professional advice. If you require advice on building design, structural adequacy, or regulatory compliance, consult an appropriately qualified and insured professional.</p>
+                <p>Nothing provided by the Tool constitutes professional advice. If you require advice on building design, structural adequacy, or regulatory compliance, consult an appropriately qualified and insured professional. Provision of this free tool does not constitute BRPD appointment formally or informally.</p>
 
                 <h4>6. Intellectual Property</h4>
-                <p>The Tools are provided free of charge. Outputs (including IFC files and visual previews) may be used freely in your projects. The Tools themselves, including source code and design, remain the intellectual property of the provider.</p>
+                <p>The Tool is provided free of charge. Outputs (including IFC files, DXF files and visual previews) may be used freely at your own discretion. The Tool itself, including source code and design, remains the intellectual property of the provider. Credit to ATPT (Architectural Technologist Power Team) — inspiration for development of the Tool was as a result of a group discussion.</p>
 
                 <h4>7. Changes to These Terms</h4>
-                <p>These terms may be updated from time to time. Continued use of the Tools following any changes constitutes acceptance of the revised terms.</p>
+                <p>These terms may be updated from time to time. Continued use of the Tool following any changes constitutes acceptance of the revised terms.</p>
 
-                <p class="terms-attribution">These Tools are provided by Jake White Architecture. For professional architectural technology services, visit <a href="https://jakewhitearchitecture.co.uk" target="_blank" rel="noopener">jakewhitearchitecture.co.uk</a>.</p>
+                <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
             </div>
-            <div class="terms-checkboxes">
+            <p class="terms-scroll-hint" id="terms-scroll-hint">Please scroll to the bottom to read all terms before accepting</p>
+            <div class="terms-checkboxes locked" id="terms-checkboxes">
                 <label class="terms-checkbox-label">
                     <input type="checkbox" id="terms-check-1" onchange="updateTermsAcceptBtn()">
                     I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only and that I am solely responsible for verifying all outputs.
@@ -972,30 +917,9 @@
         <div class="panel-top">
         <!-- Logo -->
         <div class="logo-container">
-            <svg class="logo-icon" width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <linearGradient id="sb-bg" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stop-color="#0f1830"/>
-                        <stop offset="100%" stop-color="#080c20"/>
-                    </linearGradient>
-                    <linearGradient id="sb-stair" x1="8" y1="36" x2="36" y2="8" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stop-color="#d03050"/>
-                        <stop offset="100%" stop-color="#ef5575"/>
-                    </linearGradient>
-                </defs>
-                <rect width="44" height="44" rx="10" fill="url(#sb-bg)"/>
-                <path d="M8 36 L8 28 L16 28 L16 20 L24 20 L24 12 L32 12 L32 8 L36 8 L36 12 L32 12 L32 20 L24 20 L24 28 L16 28 L16 36 Z" fill="url(#sb-stair)" opacity="0.9"/>
-                <path d="M8 36 L16 36 L16 28 L24 28 L24 20 L32 20 L32 12 L36 12" stroke="#e94560" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                <circle cx="36" cy="12" r="2.5" fill="#e0e0e0"/>
-            </svg>
-            <div class="logo-text">
-                <span class="logo-title">StairSmith</span>
-                <span class="logo-tagline">Parametric IFC 2x3 for BIM</span>
-            </div>
+            <img src="StairSmith-Logo.png" alt="StairSmith" style="width:234px;height:auto;">
+            <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
         </div>
-
-        <h1>IFC Staircase Generator</h1>
-        <p class="subtitle">Parametric staircase to IFC 2x3 for BIM</p>
 
         <!-- Staircase Type -->
         <div class="section">
@@ -1255,8 +1179,28 @@
     <script>
         // ─── TERMS OF USE ───
         function showTermsModal() {
-            if (!localStorage.getItem('stairsmith-terms-accepted')) {
-                document.getElementById('terms-modal').classList.add('open');
+            // Reset checkboxes and lock state each time
+            document.getElementById('terms-check-1').checked = false;
+            document.getElementById('terms-check-2').checked = false;
+            document.getElementById('terms-accept-btn').disabled = true;
+            var cb = document.getElementById('terms-checkboxes');
+            var hint = document.getElementById('terms-scroll-hint');
+            cb.classList.add('locked');
+            hint.classList.remove('hidden');
+
+            var content = document.querySelector('.terms-content');
+            content.scrollTop = 0;
+            content.addEventListener('scroll', onTermsScroll);
+            document.getElementById('terms-modal').classList.add('open');
+        }
+
+        function onTermsScroll() {
+            var el = this;
+            // Unlocked when scrolled within 10px of the bottom
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
+                document.getElementById('terms-checkboxes').classList.remove('locked');
+                document.getElementById('terms-scroll-hint').classList.add('hidden');
+                el.removeEventListener('scroll', onTermsScroll);
             }
         }
 
@@ -1267,7 +1211,6 @@
         }
 
         function acceptTerms() {
-            localStorage.setItem('stairsmith-terms-accepted', 'true');
             document.getElementById('terms-modal').classList.remove('open');
         }
 
@@ -1277,8 +1220,10 @@
         }
 
         let pendingDownloadBlob = null;
-        function showDownloadReminder(blob) {
+        let pendingDownloadExt = 'ifc';
+        function showDownloadReminder(blob, ext) {
             pendingDownloadBlob = blob;
+            pendingDownloadExt = ext || 'ifc';
             document.getElementById('download-reminder').classList.add('open');
         }
         function confirmDownload() {
@@ -1287,7 +1232,7 @@
                 const url = URL.createObjectURL(pendingDownloadBlob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'staircase.ifc';
+                a.download = getDownloadFilename(pendingDownloadExt);
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -2291,28 +2236,19 @@ function renderGeometry(meshes) {
         });
 
         // ─── DOWNLOAD FILENAME HELPER ───
+        const _dlCounts = {};
         function getDownloadFilename(ext) {
             const now = new Date();
             const dd = String(now.getDate()).padStart(2, '0');
             const mm = String(now.getMonth() + 1).padStart(2, '0');
             const yy = String(now.getFullYear()).slice(-2);
             const dateStr = dd + '-' + mm + '-' + yy;
-            const key = 'StairSmith_downloads_' + ext + '_' + dateStr;
-            let count = parseInt(localStorage.getItem(key) || '0', 10) + 1;
-            localStorage.setItem(key, String(count));
-            return 'StairSmith_' + dateStr + '_' + count + '.' + ext;
+            const key = ext + '_' + dateStr;
+            _dlCounts[key] = (_dlCounts[key] || 0) + 1;
+            return 'StairSmith_' + dateStr + '_' + _dlCounts[key] + '.' + ext;
         }
 
         // ─── IFC DOWNLOAD ───
-        function fetchIFCCount() {
-            fetch('/api/ifc_count')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('ifc-count-val').textContent = data.count;
-            })
-            .catch(() => {});
-        }
-
         let ifcReady = false;
         async function ensureIfcOpenShell() {
             if (ifcReady) return;
@@ -2362,7 +2298,7 @@ _data
                 const ifcBytes = ifcProxy.toJs();
                 if (ifcProxy.destroy) ifcProxy.destroy();
                 const blob = new Blob([ifcBytes], { type: 'application/x-step' });
-                showDownloadReminder(blob);
+                showDownloadReminder(blob, 'ifc');
             } catch (err) {
                 alert('Error generating IFC: ' + err.message);
             } finally {
@@ -2387,14 +2323,7 @@ _meshes = generate_preview_geometry(_p)
 _to_dxf(_meshes, _p)
 `);
                 const blob = new Blob([dxfString], { type: 'application/dxf' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = getDownloadFilename('dxf');
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                showDownloadReminder(blob, 'dxf');
             } catch (err) {
                 console.error('DXF generation error:', err);
                 alert('Error generating DXF: ' + err.message);
@@ -2447,20 +2376,10 @@ from stair_preview import generate_preview_geometry
 
         // ─── INIT ───
         initThree();
-
-        // Inject counter AFTER canvas so it sits on top in DOM order
-        (function() {
-            const el = document.createElement('div');
-            el.id = 'ifc-counter';
-            el.innerHTML = 'IFC files generated<br><strong id="ifc-count-val">--</strong>';
-            document.getElementById('viewport').appendChild(el);
-        })();
-
         onTypeChange();
         updateToggleState();
         updateDerived();
         initPyodide();
-        fetchIFCCount();
     </script>
 </body>
 </html>

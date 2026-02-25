@@ -6,42 +6,12 @@ for parametric staircases (straight, single-winder, double-winder).
 """
 
 import os
-import threading
 from datetime import date
 from flask import Flask, render_template, request, jsonify, send_file
 from ifc_generator import meshes_to_ifc
 from stair_preview import generate_preview_geometry
 
 app = Flask(__name__)
-
-# ─── IFC DOWNLOAD COUNTER ───
-_ifc_counter_lock = threading.Lock()
-_ifc_counter = 0
-
-
-def _get_ifc_count():
-    global _ifc_counter
-    # Try to load persisted count from file
-    try:
-        count_file = os.path.join(os.path.dirname(__file__), '.ifc_count')
-        with open(count_file, 'r') as f:
-            return int(f.read().strip())
-    except Exception:
-        return _ifc_counter
-
-
-def _increment_ifc_count():
-    global _ifc_counter
-    with _ifc_counter_lock:
-        count = _get_ifc_count() + 1
-        _ifc_counter = count
-        try:
-            count_file = os.path.join(os.path.dirname(__file__), '.ifc_count')
-            with open(count_file, 'w') as f:
-                f.write(str(count))
-        except Exception:
-            pass
-        return count
 
 
 @app.route("/")
@@ -85,6 +55,14 @@ def serve_dxf_generator():
     return resp
 
 
+@app.route("/StairSmith-Logo.png")
+def serve_logo():
+    """Serve the StairSmith logo image."""
+    from flask import send_from_directory
+    return send_from_directory(os.path.dirname(__file__), "StairSmith-Logo.png",
+                               mimetype="image/png")
+
+
 @app.route("/api/preview", methods=["POST"])
 def preview():
     """
@@ -99,12 +77,6 @@ def preview():
         return jsonify({"success": False, "error": str(e)}), 400
 
 
-@app.route("/api/ifc_count", methods=["GET"])
-def ifc_count():
-    """Return the total number of IFC files generated."""
-    return jsonify({"count": _get_ifc_count()})
-
-
 @app.route("/api/download", methods=["POST"])
 def download():
     """Generate and download an IFC file.
@@ -116,7 +88,6 @@ def download():
     try:
         meshes = generate_preview_geometry(params)
         filepath = meshes_to_ifc(meshes)
-        _increment_ifc_count()
         today = date.today().strftime("%d-%m-%y")
         return send_file(
             filepath,
