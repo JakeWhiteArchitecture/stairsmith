@@ -874,11 +874,11 @@
 
             <div class="startup-checkboxes locked" id="startup-checkboxes">
                 <label class="startup-checkbox-label">
-                    <input type="checkbox" id="terms-check-1" onchange="updateStartupAcceptBtn()">
+                    <input type="checkbox" id="terms-check-1" autocomplete="off" onchange="updateStartupAcceptBtn()">
                     I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only and that I am solely responsible for verifying all outputs.
                 </label>
                 <label class="startup-checkbox-label">
-                    <input type="checkbox" id="terms-check-2" onchange="updateStartupAcceptBtn()">
+                    <input type="checkbox" id="terms-check-2" autocomplete="off" onchange="updateStartupAcceptBtn()">
                     I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.
                 </label>
             </div>
@@ -1202,6 +1202,11 @@
 
     <script>
         // ─── STARTUP SCREEN (terms + loading) ───
+        // Reset checkboxes on every page load (prevent browser autofill restoring ticks)
+        document.getElementById('terms-check-1').checked = false;
+        document.getElementById('terms-check-2').checked = false;
+        document.getElementById('startup-accept-btn').disabled = true;
+
         window.pyodideLoaded = false;
 
         function unlockCheckboxesIfReady() {
