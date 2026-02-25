@@ -435,34 +435,7 @@
             cursor: not-allowed;
         }
 
-        /* ─── LOADING OVERLAY ─── */
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: #1a1a2e;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.4s;
-        }
-        .loading-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
-        .loading-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #0f3460;
-            border-top-color: #e94560;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 20px;
-        }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { color: #e0e0e0; font-size: 16px; font-weight: 600; }
-        .loading-sub  { color: #888; font-size: 12px; margin-top: 8px; }
 
         /* ─── SHARE MODAL ─── */
         #share-modal {
@@ -620,116 +593,99 @@
             text-align: center;
         }
 
-        /* ─── TERMS MODAL ─── */
-        #terms-modal {
-            display: none;
+        /* ─── STARTUP SCREEN (terms + loading) ─── */
+        #startup-screen {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.85);
+            background: #1a1a2e;
             z-index: 10000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            backdrop-filter: blur(6px);
+            display: flex;
+            transition: opacity 0.4s;
         }
-        #terms-modal.open { display: flex; }
+        #startup-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
 
-        .terms-dialog {
+        .startup-left {
+            width: 380px;
+            min-width: 380px;
             background: #16213e;
-            border: 1px solid #1a4a80;
-            border-radius: 14px;
-            width: 100%;
-            max-width: 600px;
-            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            padding: 32px 28px;
+            border-right: 1px solid #0f3460;
+        }
+
+        .startup-logo {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 20px;
-            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+            gap: 6px;
+            margin-bottom: 28px;
         }
-        .terms-logo {
+        .startup-logo .logo-tagline {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin: 0;
+        }
+
+        .startup-loading {
             display: flex;
             align-items: center;
-            justify-content: center;
-        }
-        .terms-heading {
-            font-size: 15px;
-            font-weight: 700;
-            color: #e0e0e0;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-        .terms-effective {
-            font-size: 11px;
-            color: #888;
-            margin-top: -12px;
-            text-align: center;
-            line-height: 1.5;
-        }
-        .terms-content {
-            width: 100%;
-            max-height: 280px;
-            overflow-y: auto;
+            gap: 12px;
+            padding: 14px 16px;
             background: #0d1b40;
             border: 1px solid #1a4a80;
             border-radius: 8px;
-            padding: 16px 18px;
+            margin-bottom: 24px;
+        }
+        .startup-spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #0f3460;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        .startup-spinner.done {
+            border-color: #2ecc71;
+            border-top-color: #2ecc71;
+            animation: none;
+            position: relative;
+        }
+        .startup-spinner.done::after {
+            content: '';
+            position: absolute;
+            top: 3px; left: 6px;
+            width: 6px; height: 10px;
+            border: solid #2ecc71;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg);
+        }
+        .startup-loading-text {
             font-size: 12px;
-            color: #bbb;
-            line-height: 1.7;
+            color: #888;
         }
-        .terms-content h4 {
-            color: #e94560;
-            font-size: 12px;
-            letter-spacing: 0.06em;
-            margin: 14px 0 4px 0;
+        .startup-loading-text.ready {
+            color: #2ecc71;
+            font-weight: 600;
         }
-        .terms-content h4:first-child {
-            margin-top: 0;
-        }
-        .terms-content p {
-            margin-bottom: 8px;
-        }
-        .terms-content ul {
-            margin: 4px 0 8px 18px;
-            padding: 0;
-        }
-        .terms-content ul li {
-            margin-bottom: 4px;
-        }
-        .terms-content .terms-attribution {
-            margin-top: 16px;
-            padding-top: 12px;
-            border-top: 1px solid #1a4a80;
-            font-size: 11px;
-            color: #666;
-        }
-        .terms-content .terms-attribution a {
-            color: #e94560;
-            text-decoration: none;
-        }
-        .terms-content .terms-attribution a:hover {
-            text-decoration: underline;
-        }
-        .terms-checkboxes {
-            width: 100%;
+
+        .startup-checkboxes {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
+            margin-bottom: 24px;
         }
-        .terms-checkboxes.locked {
+        .startup-checkboxes.locked {
             opacity: 0.35;
             pointer-events: none;
         }
-        .terms-scroll-hint {
-            font-size: 11px;
-            color: #e94560;
-            text-align: center;
-            margin-bottom: 2px;
-            transition: opacity 0.3s;
-        }
-        .terms-scroll-hint.hidden { opacity: 0; pointer-events: none; }
-        .terms-checkbox-label {
+        .startup-checkbox-label {
             display: flex;
             align-items: flex-start;
             gap: 10px;
@@ -738,7 +694,7 @@
             line-height: 1.55;
             cursor: pointer;
         }
-        .terms-checkbox-label input[type="checkbox"] {
+        .startup-checkbox-label input[type="checkbox"] {
             flex-shrink: 0;
             margin-top: 2px;
             width: 16px;
@@ -746,12 +702,13 @@
             accent-color: #e94560;
             cursor: pointer;
         }
-        .terms-actions {
+
+        .startup-actions {
             display: flex;
             gap: 10px;
-            width: 100%;
+            margin-top: auto;
         }
-        .terms-btn {
+        .startup-btn {
             flex: 1;
             padding: 12px 16px;
             border: none;
@@ -763,21 +720,80 @@
             letter-spacing: 0.06em;
             transition: opacity 0.15s, transform 0.1s;
         }
-        .terms-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-        .terms-btn:active:not(:disabled) { transform: translateY(0); }
-        .terms-btn:disabled {
+        .startup-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .startup-btn:active:not(:disabled) { transform: translateY(0); }
+        .startup-btn:disabled {
             opacity: 0.35;
             cursor: not-allowed;
             transform: none;
         }
-        .terms-btn-accept {
+        .startup-btn-accept {
             background: #e94560;
             color: #fff;
         }
-        .terms-btn-decline {
+        .startup-btn-decline {
             background: #0f3460;
             color: #e0e0e0;
             border: 1px solid #1a4a80;
+        }
+
+        .startup-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 32px 40px;
+            overflow-y: auto;
+        }
+        .startup-terms-heading {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+        .startup-terms-effective {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        .startup-terms-body {
+            font-size: 13px;
+            color: #bbb;
+            line-height: 1.8;
+        }
+        .startup-terms-body h4 {
+            color: #e94560;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            margin: 18px 0 6px 0;
+        }
+        .startup-terms-body h4:first-child {
+            margin-top: 0;
+        }
+        .startup-terms-body p {
+            margin-bottom: 10px;
+        }
+        .startup-terms-body ul {
+            margin: 4px 0 10px 18px;
+            padding: 0;
+        }
+        .startup-terms-body ul li {
+            margin-bottom: 4px;
+        }
+        .startup-terms-body .terms-attribution {
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid #0f3460;
+            font-size: 11px;
+            color: #666;
+        }
+        .startup-terms-body .terms-attribution a {
+            color: #e94560;
+            text-decoration: none;
+        }
+        .startup-terms-body .terms-attribution a:hover {
+            text-decoration: underline;
         }
 
         /* ─── DOWNLOAD REMINDER MODAL ─── */
@@ -842,15 +858,42 @@
     </style>
 </head>
 <body>
-    <!-- Terms of Use Modal -->
-    <div id="terms-modal" role="dialog" aria-modal="true" aria-label="Terms of Use">
-        <div class="terms-dialog">
-            <div class="terms-logo">
-                <img src="StairSmith-Logo.png" alt="StairSmith" style="width:286px;height:auto;">
+    <!-- Startup Screen (terms + loading) -->
+    <div id="startup-screen">
+        <!-- Left: logo, loading, checkboxes, buttons -->
+        <div class="startup-left">
+            <div class="startup-logo">
+                <img src="StairSmith-Logo.png" alt="StairSmith" style="width:260px;height:auto;">
+                <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
             </div>
-            <div class="terms-heading">Terms of Use &amp; Disclaimer</div>
-            <p class="terms-effective">Effective Date: February 2026</p>
-            <div class="terms-content">
+
+            <div class="startup-loading">
+                <div class="startup-spinner" id="startup-spinner"></div>
+                <span class="startup-loading-text" id="startup-loading-text">Initialising...</span>
+            </div>
+
+            <div class="startup-checkboxes locked" id="startup-checkboxes">
+                <label class="startup-checkbox-label">
+                    <input type="checkbox" id="terms-check-1" onchange="updateStartupAcceptBtn()">
+                    I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only and that I am solely responsible for verifying all outputs.
+                </label>
+                <label class="startup-checkbox-label">
+                    <input type="checkbox" id="terms-check-2" onchange="updateStartupAcceptBtn()">
+                    I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.
+                </label>
+            </div>
+
+            <div class="startup-actions">
+                <button class="startup-btn startup-btn-decline" onclick="declineTerms()">Decline</button>
+                <button class="startup-btn startup-btn-accept" id="startup-accept-btn" onclick="acceptTerms()" disabled>I Accept</button>
+            </div>
+        </div>
+
+        <!-- Right: full-height terms text -->
+        <div class="startup-right">
+            <div class="startup-terms-heading">Terms of Use &amp; Disclaimer</div>
+            <p class="startup-terms-effective">Effective Date: February 2026</p>
+            <div class="startup-terms-body">
                 <h4>1. Nature of the Tool</h4>
                 <p>The Tool is a preliminary design aid only, intended to assist with the visual exploration and conceptual development of building components. It is not a substitute for professional design, structural engineering, or compliance verification. The Tool does not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
 
@@ -880,21 +923,6 @@
 
                 <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
             </div>
-            <p class="terms-scroll-hint" id="terms-scroll-hint">Please scroll to the bottom to read all terms before accepting</p>
-            <div class="terms-checkboxes locked" id="terms-checkboxes">
-                <label class="terms-checkbox-label">
-                    <input type="checkbox" id="terms-check-1" onchange="updateTermsAcceptBtn()">
-                    I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only and that I am solely responsible for verifying all outputs.
-                </label>
-                <label class="terms-checkbox-label">
-                    <input type="checkbox" id="terms-check-2" onchange="updateTermsAcceptBtn()">
-                    I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.
-                </label>
-            </div>
-            <div class="terms-actions">
-                <button class="terms-btn terms-btn-decline" onclick="declineTerms()">Decline</button>
-                <button class="terms-btn terms-btn-accept" id="terms-accept-btn" onclick="acceptTerms()" disabled>I Accept</button>
-            </div>
         </div>
     </div>
 
@@ -907,11 +935,7 @@
         </div>
     </div>
 
-    <div class="loading-overlay" id="loading-overlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading Staircase Generator</div>
-        <div class="loading-sub" id="loading-status">Initialising Pyodide...</div>
-    </div>
+    <!-- Loading overlay removed: loading status is now shown in the startup screen -->
     <div class="panel">
       <div class="panel-scroll">
         <div class="panel-top">
@@ -1177,45 +1201,38 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
-        // ─── TERMS OF USE ───
-        function showTermsModal() {
-            // Reset checkboxes and lock state each time
-            document.getElementById('terms-check-1').checked = false;
-            document.getElementById('terms-check-2').checked = false;
-            document.getElementById('terms-accept-btn').disabled = true;
-            var cb = document.getElementById('terms-checkboxes');
-            var hint = document.getElementById('terms-scroll-hint');
-            cb.classList.add('locked');
-            hint.classList.remove('hidden');
+        // ─── STARTUP SCREEN (terms + loading) ───
+        window.pyodideLoaded = false;
 
-            var content = document.querySelector('.terms-content');
-            content.scrollTop = 0;
-            content.addEventListener('scroll', onTermsScroll);
-            document.getElementById('terms-modal').classList.add('open');
-        }
-
-        function onTermsScroll() {
-            var el = this;
-            // Unlocked when scrolled within 10px of the bottom
-            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 10) {
-                document.getElementById('terms-checkboxes').classList.remove('locked');
-                document.getElementById('terms-scroll-hint').classList.add('hidden');
-                el.removeEventListener('scroll', onTermsScroll);
+        function unlockCheckboxesIfReady() {
+            // Unlock checkboxes only when Pyodide has finished loading
+            if (window.pyodideLoaded) {
+                document.getElementById('startup-checkboxes').classList.remove('locked');
             }
         }
 
-        function updateTermsAcceptBtn() {
+        function onPyodideReady() {
+            window.pyodideLoaded = true;
+            var spinner = document.getElementById('startup-spinner');
+            var text = document.getElementById('startup-loading-text');
+            spinner.classList.add('done');
+            text.textContent = 'Ready';
+            text.classList.add('ready');
+            unlockCheckboxesIfReady();
+        }
+
+        function updateStartupAcceptBtn() {
             var c1 = document.getElementById('terms-check-1').checked;
             var c2 = document.getElementById('terms-check-2').checked;
-            document.getElementById('terms-accept-btn').disabled = !(c1 && c2);
+            document.getElementById('startup-accept-btn').disabled = !(c1 && c2);
         }
 
         function acceptTerms() {
-            document.getElementById('terms-modal').classList.remove('open');
+            document.getElementById('startup-screen').classList.add('hidden');
+            if (window.pyodideReady) updatePreview();
         }
 
         function declineTerms() {
-            document.getElementById('terms-modal').classList.remove('open');
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
         }
 
@@ -1241,8 +1258,7 @@
             }
         }
 
-        // Show terms on page load
-        document.addEventListener('DOMContentLoaded', showTermsModal);
+        // Startup screen is visible by default — no DOMContentLoaded trigger needed
 
         // ─── THREE.JS SETUP ───
         let scene, camera, renderer, controls;
@@ -2336,7 +2352,7 @@ _to_dxf(_meshes, _p)
         // ─── PYODIDE INIT ───
         window.pyodideReady = false;
         async function initPyodide() {
-            const status = document.getElementById('loading-status');
+            const status = document.getElementById('startup-loading-text');
             try {
                 status.textContent = 'Loading Pyodide runtime...';
                 window.pyodide = await loadPyodide();
@@ -2365,9 +2381,7 @@ sys.path.insert(0, '/home/pyodide')
 from stair_preview import generate_preview_geometry
 `);
                 window.pyodideReady = true;
-                status.textContent = 'Ready!';
-                document.getElementById('loading-overlay').classList.add('hidden');
-                updatePreview();
+                onPyodideReady();
             } catch (e) {
                 status.textContent = 'Error: ' + e.message;
                 console.error('Pyodide init failed:', e);
