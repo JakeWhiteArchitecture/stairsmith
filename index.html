@@ -855,6 +855,203 @@
         }
         .reminder-btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .reminder-btn:active { transform: translateY(0); }
+
+        /* ─── HAMBURGER BUTTON (hidden on desktop) ─── */
+        .hamburger-btn {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1100;
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(22, 33, 62, 0.92);
+            border: 1px solid #0f3460;
+            cursor: pointer;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hamburger-btn span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: #e0e0e0;
+            border-radius: 1px;
+            transition: transform 0.25s, opacity 0.25s;
+        }
+        .hamburger-btn.open span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        .hamburger-btn.open span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger-btn.open span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
+        /* ─── DRAWER BACKDROP (hidden on desktop) ─── */
+        .drawer-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drawer-backdrop.visible {
+            opacity: 1;
+        }
+
+        /* ─── MOBILE MEASURE BUTTON (hidden on desktop) ─── */
+        .mobile-measure-btn {
+            display: none;
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            z-index: 100;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #0f3460;
+            border: 1px solid #1a4a80;
+            color: #e0e0e0;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mobile-measure-btn.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+
+        /* ─── MOBILE RESPONSIVE ─── */
+        @media (max-width: 768px) {
+            /* Startup screen: stack vertically */
+            #startup-screen {
+                flex-direction: column;
+            }
+            .startup-left {
+                width: 100%;
+                min-width: 0;
+                padding: 24px 20px;
+                border-right: none;
+                border-bottom: 1px solid #0f3460;
+                flex-shrink: 0;
+            }
+            .startup-logo img {
+                width: 200px !important;
+            }
+            .startup-logo {
+                margin-bottom: 16px;
+            }
+            .startup-loading {
+                margin-bottom: 16px;
+            }
+            .startup-checkboxes {
+                margin-bottom: 16px;
+            }
+            .startup-right {
+                padding: 20px;
+                flex: 1;
+                min-height: 0;
+            }
+
+            /* Main layout: viewport fills screen, panel is a drawer */
+            body {
+                flex-direction: column;
+            }
+
+            .panel {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 320px;
+                min-width: 0;
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: none;
+            }
+            .panel.drawer-open {
+                transform: translateX(0);
+                box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            }
+
+            .viewport {
+                width: 100%;
+                height: 100vh;
+            }
+
+            /* Show hamburger + measure button */
+            .hamburger-btn {
+                display: flex;
+            }
+            .mobile-measure-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Bigger inputs for touch */
+            .field input, .field select {
+                font-size: 16px;
+                padding: 10px 12px;
+            }
+            .field label {
+                font-size: 13px;
+                margin-bottom: 4px;
+            }
+
+            /* Bigger toggle buttons */
+            .turn-btn {
+                padding: 12px 0;
+                font-size: 14px;
+            }
+            .dist-btn {
+                width: 36px;
+                height: 44px;
+                font-size: 16px;
+            }
+
+            /* Viewport hint text — show touch controls */
+            .viewport-info .desktop-hint { display: none; }
+            .viewport-info .touch-hint { display: inline; }
+
+            /* Dim overlay at bottom-right so hamburger doesn't cover it */
+            .dim-overlay {
+                left: auto;
+                right: 12px;
+                bottom: 12px;
+            }
+
+            /* Measure overlay below hamburger */
+            .measure-overlay {
+                top: 64px;
+                left: 12px;
+            }
+
+            /* Share modal full width */
+            .share-dialog {
+                max-width: 100%;
+            }
+        }
+
+        /* Desktop: hide touch hints, show desktop hints */
+        @media (min-width: 769px) {
+            .viewport-info .desktop-hint { display: inline; }
+            .viewport-info .touch-hint { display: none; }
+        }
     </style>
 </head>
 <body>
@@ -936,7 +1133,14 @@
     </div>
 
     <!-- Loading overlay removed: loading status is now shown in the startup screen -->
-    <div class="panel">
+
+    <!-- Mobile drawer toggle -->
+    <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle controls" onclick="toggleDrawer()">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+
+    <div class="panel" id="panel">
       <div class="panel-scroll">
         <div class="panel-top">
         <!-- Logo -->
@@ -1140,7 +1344,7 @@
     </div>
 
     <div class="viewport" id="viewport">
-        <div class="viewport-info">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</div>
+        <div class="viewport-info"><span class="desktop-hint">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</span><span class="touch-hint">Rotate: drag | Zoom: pinch | Pan: two-finger drag</span></div>
         <div class="measure-overlay" id="measure-overlay">
             <div class="measure-title">Measure</div>
             <div class="measure-result" id="measure-result">--</div>
@@ -1154,6 +1358,9 @@
             <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
         </div>
     </div>
+
+    <!-- Mobile measure button -->
+    <button class="mobile-measure-btn" id="mobile-measure-btn" onclick="toggleMeasureMobile()" aria-label="Measure">M</button>
 
     <!-- Share Modal -->
     <div id="share-modal" role="dialog" aria-modal="true" aria-label="Share your staircase">
@@ -1239,6 +1446,39 @@
 
         function declineTerms() {
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
+        }
+
+        // ─── MOBILE DRAWER ───
+        function toggleDrawer() {
+            var panel = document.getElementById('panel');
+            var btn = document.getElementById('hamburger-btn');
+            var backdrop = document.getElementById('drawer-backdrop');
+            var isOpen = panel.classList.toggle('drawer-open');
+            btn.classList.toggle('open', isOpen);
+            backdrop.style.display = 'block';
+            // Force reflow so transition fires
+            void backdrop.offsetWidth;
+            backdrop.classList.toggle('visible', isOpen);
+            if (!isOpen) {
+                backdrop.addEventListener('transitionend', function hide() {
+                    if (!panel.classList.contains('drawer-open')) backdrop.style.display = 'none';
+                    backdrop.removeEventListener('transitionend', hide);
+                });
+            }
+        }
+
+        function closeDrawer() {
+            var panel = document.getElementById('panel');
+            if (!panel.classList.contains('drawer-open')) return;
+            toggleDrawer();
+        }
+
+        function toggleMeasureMobile() {
+            var btn = document.getElementById('mobile-measure-btn');
+            // Simulate pressing M key
+            var evt = new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', bubbles: true });
+            document.dispatchEvent(evt);
+            btn.classList.toggle('active');
         }
 
         let pendingDownloadBlob = null;
