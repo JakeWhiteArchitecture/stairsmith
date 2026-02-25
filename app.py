@@ -55,6 +55,14 @@ def serve_dxf_generator():
     return resp
 
 
+@app.route("/StairSmith-Logo.png")
+def serve_logo():
+    """Serve the StairSmith logo image."""
+    from flask import send_from_directory
+    return send_from_directory(os.path.dirname(__file__), "StairSmith-Logo.png",
+                               mimetype="image/png")
+
+
 @app.route("/api/preview", methods=["POST"])
 def preview():
     """
