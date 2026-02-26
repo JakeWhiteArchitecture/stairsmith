@@ -1031,6 +1031,21 @@
             }
             .panel-collapse-tab {
                 display: flex;
+                width: 27px;
+                height: 72px;
+                right: -27px;
+                border-radius: 0 8px 8px 0;
+                font-size: 16px;
+            }
+            .panel-collapse-tab svg {
+                width: 12px;
+                height: 20px;
+            }
+            .panel.drawer-open .panel-collapse-tab svg {
+                transform: rotate(0deg);
+            }
+            .panel:not(.drawer-open) .panel-collapse-tab svg {
+                transform: rotate(180deg);
             }
 
             .viewport {
@@ -1038,9 +1053,9 @@
                 height: 100vh;
             }
 
-            /* Show hamburger + measure button */
+            /* Hide hamburger — collapse tab replaces it */
             .hamburger-btn {
-                display: flex;
+                display: none !important;
             }
             .mobile-measure-btn {
                 display: flex;
@@ -1485,18 +1500,26 @@
         function acceptTerms() {
             document.getElementById('startup-screen').classList.add('hidden');
             if (window.pyodideReady) updatePreview();
+            // On mobile, open the drawer so the sidebar is visible on start
+            if (window.innerWidth <= 768) {
+                setTimeout(function() { toggleDrawer(); }, 100);
+            }
         }
 
         function declineTerms() {
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="" style="color:#e94560;">Reload to try again</a></p></div></div>';
         }
 
-        // ─── PANEL COLLAPSE (desktop) ───
+        // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
         function togglePanelCollapse() {
-            var panel = document.getElementById('panel');
-            panel.classList.toggle('collapsed');
-            // Trigger a resize so the 3D viewport fills the freed space
-            setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 320);
+            if (window.innerWidth <= 768) {
+                toggleDrawer();
+            } else {
+                var panel = document.getElementById('panel');
+                panel.classList.toggle('collapsed');
+                // Trigger a resize so the 3D viewport fills the freed space
+                setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 320);
+            }
         }
 
         // ─── MOBILE DRAWER ───
