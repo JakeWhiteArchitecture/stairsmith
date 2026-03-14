@@ -80,15 +80,11 @@ def create_ifc_staircase(params):
     if elements:
         ifcopenshell.api.run("aggregate.assign_object", ifc, relating_object=stair, products=elements)
 
-    # Attach StairSmith disclaimer property set to IfcProject
+    # Attach StairSmith disclaimer property set to IfcProject (raw entities
+    # to avoid pset template lookup which fails in Pyodide/WASM)
     _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
                    "User must verify all outputs before use.")
-    pset = ifcopenshell.api.run("pset.add_pset", ifc,
-                                product=project,
-                                name="StairSmith_Disclaimer")
-    ifcopenshell.api.run("pset.edit_pset", ifc,
-                         pset=pset,
-                         properties={"Notice": _DISCLAIMER})
+    _attach_disclaimer_pset(ifc, project, _DISCLAIMER)
 
     # Add 3D text annotation for the disclaimer
     _add_disclaimer_annotation(ifc, body, storey, p)
@@ -208,6 +204,36 @@ def _create_element_with_geometry(ifc, context, ifc_class, name, solid, placemen
     element.ObjectPlacement = local_placement
 
     return element
+
+
+def _attach_disclaimer_pset(ifc, product, text):
+    """Attach a StairSmith_Disclaimer property set to a product.
+
+    Creates the IfcPropertySet, IfcPropertySingleValue and
+    IfcRelDefinesByProperties entities directly to avoid the
+    pset.add_pset / pset.edit_pset API which requires template files
+    not available in the Pyodide/WASM build of IfcOpenShell.
+    """
+    prop = ifc.createIfcPropertySingleValue(
+        "Notice", None,
+        ifc.create_entity("IfcText", text),
+        None,
+    )
+    owner_history = ifc.by_type("IfcOwnerHistory")[0] if ifc.by_type("IfcOwnerHistory") else None
+    pset = ifc.createIfcPropertySet(
+        ifcopenshell.guid.new(),
+        owner_history,
+        "StairSmith_Disclaimer",
+        None,
+        [prop],
+    )
+    ifc.createIfcRelDefinesByProperties(
+        ifcopenshell.guid.new(),
+        owner_history,
+        None, None,
+        [product],
+        pset,
+    )
 
 
 def _add_disclaimer_annotation(ifc, context, storey, p):
@@ -2733,15 +2759,11 @@ def meshes_to_ifc(meshes):
         ifcopenshell.api.run("aggregate.assign_object", ifc,
                              relating_object=stair, products=elements)
 
-    # Attach StairSmith disclaimer property set to IfcProject
+    # Attach StairSmith disclaimer property set to IfcProject (raw entities
+    # to avoid pset template lookup which fails in Pyodide/WASM)
     _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
                    "User must verify all outputs before use.")
-    pset = ifcopenshell.api.run("pset.add_pset", ifc,
-                                product=project,
-                                name="StairSmith_Disclaimer")
-    ifcopenshell.api.run("pset.edit_pset", ifc,
-                         pset=pset,
-                         properties={"Notice": _DISCLAIMER})
+    _attach_disclaimer_pset(ifc, project, _DISCLAIMER)
 
     # Set the Authorization field in the IFC file header
     ifc.wrapped_data.header.file_name.authorization = (
