@@ -491,16 +491,21 @@ def meshes_to_dxf_string(meshes, params):
                 start, end = result
             dxf.add_line(start, end, layer="STAIR_RISERS")
 
-    # Step 5 — add disclaimer text below the stair geometry.
+    # Step 5 — add disclaimer text to the bottom-right of the stair geometry.
+    max_x = 0
     min_y = 0
     for _z, poly in items:
         bounds = poly.bounds  # (minx, miny, maxx, maxy)
+        if bounds[2] > max_x:
+            max_x = bounds[2]
         if bounds[1] < min_y:
             min_y = bounds[1]
-    disclaimer_y = min_y - 30  # 30 mm below the lowest geometry
-    _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
-                   "User must verify all outputs before use.")
-    dxf.add_text(_DISCLAIMER, (0, disclaimer_y), height=5.0, layer="0")
+    text_x = max_x + 60
+    text_y = min_y
+    _LINE1 = "StairSmith \u2014 Preliminary design aid only."
+    _LINE2 = "User must verify all outputs before use."
+    dxf.add_text(_LINE1, (text_x, text_y), height=60.0, layer="0")
+    dxf.add_text(_LINE2, (text_x, text_y - 80), height=60.0, layer="0")
 
     return dxf.to_string()
 
