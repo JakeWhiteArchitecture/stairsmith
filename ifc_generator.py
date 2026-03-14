@@ -90,6 +90,9 @@ def create_ifc_staircase(params):
                          pset=pset,
                          properties={"Notice": _DISCLAIMER})
 
+    # Add 3D text annotation for the disclaimer
+    _add_disclaimer_annotation(ifc, body, storey, p)
+
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
     ifc.write(tmp.name)
@@ -199,6 +202,64 @@ def _create_element_with_geometry(ifc, context, ifc_class, name, solid, placemen
     element.ObjectPlacement = local_placement
 
     return element
+
+
+def _add_disclaimer_annotation(ifc, context, storey, p):
+    """Add a 3D text annotation with the StairSmith disclaimer.
+
+    Creates two IfcAnnotation entities (one per line) positioned to the
+    right of the staircase at floor level.
+    """
+    width = p["stair_width"]
+    going = p["going"]
+    num_treads = p["num_treads"]
+    total_going = num_treads * going
+
+    # Position: to the right and below the stair footprint
+    text_x = width + 100  # 100mm to the right of the stair
+    line1_y = -60
+    line2_y = line1_y - 80  # 80mm line spacing
+
+    lines = [
+        ("StairSmith \u2014 Preliminary design aid only.", line1_y),
+        ("User must verify all outputs before use.", line2_y),
+    ]
+
+    for text, y_pos in lines:
+        annotation = ifcopenshell.api.run(
+            "root.create_entity", ifc,
+            ifc_class="IfcAnnotation",
+            name="StairSmith Disclaimer",
+        )
+
+        # Text literal with placement
+        origin = ifc.createIfcCartesianPoint((0.0, 0.0))
+        axis_ref = ifc.createIfcAxis2Placement2D(origin, None)
+        text_literal = ifc.createIfcTextLiteralWithExtent(
+            text,            # Literal
+            axis_ref,        # Placement
+            "LEFT",          # Path — text direction
+            ifc.createIfcPlanarExtent(2000.0, 60.0),  # Extent (width, height in mm)
+        )
+
+        rep = ifc.createIfcShapeRepresentation(
+            context, "Annotation", "Annotation2D", [text_literal]
+        )
+        prod_rep = ifc.createIfcProductDefinitionShape(None, None, [rep])
+        annotation.Representation = prod_rep
+
+        # Place the annotation in 3D space
+        loc = ifc.createIfcCartesianPoint((text_x, y_pos, 0.0))
+        placement = ifc.createIfcAxis2Placement3D(loc, None, None)
+        local_placement = ifc.createIfcLocalPlacement(None, placement)
+        annotation.ObjectPlacement = local_placement
+
+        # Assign to the storey
+        ifcopenshell.api.run(
+            "spatial.assign_container", ifc,
+            relating_structure=storey,
+            products=[annotation],
+        )
 
 
 def _add_pset_stair_flight(ifc, flight, num_risers, num_treads, rise, going):
