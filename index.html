@@ -739,6 +739,7 @@
             height: 16px;
             accent-color: #e94560;
             cursor: pointer;
+            margin-top: -11px;
         }
 
         .startup-actions {
@@ -1155,7 +1156,7 @@
                 <ul>
                     <li>You are solely responsible for verifying the accuracy, suitability, and regulatory compliance of all outputs.</li>
                     <li>You will not rely on any output as a final design or instruction for construction without your own verification.</li>
-                    <li>You will ensure all outputs are reviewed and validated by you, as a competent person, and in consultation with others as necessary, before any stair design, or works in association, are built.</li>
+                    <li>You will ensure all outputs are reviewed and validated by you as a competent person, in consultation with others as necessary, before any stair design or associated works are built.</li>
                     <li>Any use of IFC or other file exports is entirely at your own risk.</li>
                 </ul>
 
@@ -1413,6 +1414,7 @@
             <div><span class="dim-label">Going:</span> <span class="dim-value" id="dim-going">227 mm</span></div>
             <div><span class="dim-label">Total Height:</span> <span class="dim-value" id="dim-height">2600 mm</span></div>
             <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
+            <div><span class="dim-label">Pitch:</span> <span class="dim-value" id="dim-pitch">41.4°</span></div>
         </div>
     </div>
 
@@ -1930,6 +1932,7 @@
             document.getElementById('dim-going').textContent = going + ' mm';
             document.getElementById('dim-height').textContent = ftf + ' mm';
             document.getElementById('dim-width').textContent = document.getElementById('stair_width').value + ' mm';
+            document.getElementById('dim-pitch').textContent = pitch.toFixed(1) + '\u00B0';
 
             // Revalidate flight distribution when risers change
             ensureFlightDistValid();
