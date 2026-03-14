@@ -80,6 +80,16 @@ def create_ifc_staircase(params):
     if elements:
         ifcopenshell.api.run("aggregate.assign_object", ifc, relating_object=stair, products=elements)
 
+    # Attach StairSmith disclaimer property set to IfcProject
+    _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
+                   "User must verify all outputs before use.")
+    pset = ifcopenshell.api.run("pset.add_pset", ifc,
+                                product=project,
+                                name="StairSmith_Disclaimer")
+    ifcopenshell.api.run("pset.edit_pset", ifc,
+                         pset=pset,
+                         properties={"Notice": _DISCLAIMER})
+
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
     ifc.write(tmp.name)

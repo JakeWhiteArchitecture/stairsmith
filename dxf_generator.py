@@ -55,6 +55,7 @@ class _DxfWriter:
 
     def __init__(self):
         self._entities = []
+        self._texts = []
         self._layers = {}
         self._linetypes = {}
 
@@ -66,6 +67,9 @@ class _DxfWriter:
 
     def add_line(self, start, end, layer="0"):
         self._entities.append((start, end, layer))
+
+    def add_text(self, text, position, height=5.0, layer="0"):
+        self._texts.append((text, position, height, layer))
 
     # ── serialisation ──
 
@@ -143,6 +147,14 @@ class _DxfWriter:
             a(" 11"); a("%.6f" % end[0])
             a(" 21"); a("%.6f" % end[1])
             a(" 31"); a("0.0")
+        for text, pos, height, tlayer in self._texts:
+            a("  0"); a("TEXT")
+            a("  8"); a(tlayer)
+            a(" 10"); a("%.6f" % pos[0])
+            a(" 20"); a("%.6f" % pos[1])
+            a(" 30"); a("0.0")
+            a(" 40"); a("%.6f" % height)
+            a("  1"); a(text)
         a("  0"); a("ENDSEC")
 
         # EOF
@@ -478,6 +490,17 @@ def meshes_to_dxf_string(meshes, params):
                     continue
                 start, end = result
             dxf.add_line(start, end, layer="STAIR_RISERS")
+
+    # Step 5 — add disclaimer text below the stair geometry.
+    min_y = 0
+    for _z, poly in items:
+        bounds = poly.bounds  # (minx, miny, maxx, maxy)
+        if bounds[1] < min_y:
+            min_y = bounds[1]
+    disclaimer_y = min_y - 30  # 30 mm below the lowest geometry
+    _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
+                   "User must verify all outputs before use.")
+    dxf.add_text(_DISCLAIMER, (0, disclaimer_y), height=5.0, layer="0")
 
     return dxf.to_string()
 
