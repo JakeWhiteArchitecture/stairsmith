@@ -93,6 +93,12 @@ def create_ifc_staircase(params):
     # Add 3D text annotation for the disclaimer
     _add_disclaimer_annotation(ifc, body, storey, p)
 
+    # Set the Authorization field in the IFC file header
+    ifc.wrapped_data.header.file_name.authorization = (
+        "User must verify all outputs before use. "
+        "Geometry generated in StairSmith as a preliminary design aid only."
+    )
+
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
     ifc.write(tmp.name)
