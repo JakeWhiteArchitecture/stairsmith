@@ -2733,6 +2733,22 @@ def meshes_to_ifc(meshes):
         ifcopenshell.api.run("aggregate.assign_object", ifc,
                              relating_object=stair, products=elements)
 
+    # Attach StairSmith disclaimer property set to IfcProject
+    _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
+                   "User must verify all outputs before use.")
+    pset = ifcopenshell.api.run("pset.add_pset", ifc,
+                                product=project,
+                                name="StairSmith_Disclaimer")
+    ifcopenshell.api.run("pset.edit_pset", ifc,
+                         pset=pset,
+                         properties={"Notice": _DISCLAIMER})
+
+    # Set the Authorization field in the IFC file header
+    ifc.wrapped_data.header.file_name.authorization = (
+        "User must verify all outputs before use. "
+        "Geometry generated in StairSmith as a preliminary design aid only."
+    )
+
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
     ifc.write(tmp.name)
