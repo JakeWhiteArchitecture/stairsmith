@@ -91,8 +91,7 @@ def create_ifc_staircase(params):
 
     # Set the Authorization field in the IFC file header
     ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use. "
-        "Geometry generated in StairSmith as a preliminary design aid only."
+        "User must verify all outputs before use."
     )
 
     # Write to temp file
@@ -2767,8 +2766,7 @@ def meshes_to_ifc(meshes):
 
     # Set the Authorization field in the IFC file header
     ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use. "
-        "Geometry generated in StairSmith as a preliminary design aid only."
+        "User must verify all outputs before use."
     )
 
     # Write to temp file
