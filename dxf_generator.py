@@ -25,7 +25,7 @@ Public entry points
 
 import re
 import tempfile
-from shapely.geometry import Polygon, LineString
+from shapely.geometry import Polygon, LineString, box as shapely_box
 from shapely.ops import unary_union
 
 
@@ -714,44 +714,146 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
 
 # ── Section helpers ──────────────────────────────────────────────
 
-def _mesh_extent(mesh, axis):
-    """Return *(lo, hi)* of mesh extent along *axis* ('x' or 'y'), or None."""
+_BIG = 1e7  # half-plane extent for clipping
+
+
+def _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive):
+    """Return a copy of *mesh* clipped to the beyond side of the cut plane, or None.
+
+    The "beyond" side is the half-space visible from the section viewpoint:
+    if *look_positive* the beyond range is ``[cut_pos, +inf)``, else ``(-inf, cut_pos]``.
+    """
     mtype = mesh.get("type", "")
-    idx = 0 if axis == "x" else 1
+    idx = 0 if cut_axis == "x" else 1
+    TOL = 1.0  # mm
 
-    if mtype == "box":
-        c = mesh.get("ifc_center")
-        s = mesh.get("ifc_size")
-        if not c or not s:
-            return None
-        h = s[idx] / 2.0
-        return (c[idx] - h, c[idx] + h)
+    try:
+        if mtype == "box":
+            c = list(mesh.get("ifc_center", []))
+            s = list(mesh.get("ifc_size", []))
+            if not c or not s:
+                return None
+            lo = c[idx] - s[idx] / 2.0
+            hi = c[idx] + s[idx] / 2.0
+            if look_positive:
+                new_lo = max(lo, cut_pos)
+                new_hi = hi
+            else:
+                new_lo = lo
+                new_hi = min(hi, cut_pos)
+            if new_hi - new_lo < TOL:
+                return None
+            new_center = list(c)
+            new_size = list(s)
+            new_center[idx] = (new_lo + new_hi) / 2.0
+            new_size[idx] = new_hi - new_lo
+            out = dict(mesh)
+            out["ifc_center"] = new_center
+            out["ifc_size"] = new_size
+            return out
 
-    if mtype == "stringer":
-        profile = mesh.get("profile")
-        thickness = mesh.get("thickness", 0)
-        if not profile:
-            return None
-        ma = mesh.get("axis")
-        if ma == "y":
-            if axis == "y":
-                y0 = mesh.get("y", 0)
-                return (y0, y0 + thickness)
-            vals = [p[0] for p in profile]
-            return (min(vals), max(vals))
-        else:
-            if axis == "x":
-                x0 = mesh.get("x", 0)
-                return (x0, x0 + thickness)
-            vals = [p[0] for p in profile]
-            return (min(vals), max(vals))
+        if mtype == "winder_polygon":
+            fp = mesh.get("profile")
+            if not fp or len(fp) < 3:
+                return None
+            poly = Polygon(fp)
+            if look_positive:
+                clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG) if idx == 0 else shapely_box(-_BIG, cut_pos, _BIG, _BIG)
+            else:
+                clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG) if idx == 0 else shapely_box(-_BIG, -_BIG, _BIG, cut_pos)
+            clipped = poly.intersection(clip_rect)
+            if clipped.is_empty:
+                return None
+            # Take largest polygon if MultiPolygon
+            if clipped.geom_type == "MultiPolygon":
+                clipped = max(clipped.geoms, key=lambda g: g.area)
+            if clipped.geom_type != "Polygon" or clipped.is_empty:
+                return None
+            out = dict(mesh)
+            out["profile"] = list(clipped.exterior.coords[:-1])
+            return out
 
-    if mtype == "winder_polygon":
-        fp = mesh.get("profile")
-        if not fp:
-            return None
-        vals = [p[idx] for p in fp]
-        return (min(vals), max(vals))
+        if mtype == "stringer":
+            profile = mesh.get("profile")
+            thickness = mesh.get("thickness", 0)
+            if not profile or len(profile) < 3 or thickness == 0:
+                return None
+            ma = mesh.get("axis")  # extrusion axis
+
+            # Determine which world axis corresponds to what
+            if ma == "y":
+                # Profile in XZ, extruded along Y from y0
+                if cut_axis == "y":
+                    # Cut along extrusion axis — clamp origin/thickness
+                    y0 = mesh.get("y", 0)
+                    if look_positive:
+                        new_y0 = max(y0, cut_pos)
+                        new_end = y0 + thickness
+                    else:
+                        new_y0 = y0
+                        new_end = min(y0 + thickness, cut_pos)
+                    new_thick = new_end - new_y0
+                    if new_thick < TOL:
+                        return None
+                    out = dict(mesh)
+                    out["y"] = new_y0
+                    out["thickness"] = new_thick
+                    return out
+                else:
+                    # cut_axis == "x", perpendicular to extrusion
+                    # Profile coords are (x, z) — clip x dimension
+                    poly = Polygon(profile)
+                    if look_positive:
+                        clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG)
+                    else:
+                        clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG)
+                    clipped = poly.intersection(clip_rect)
+                    if clipped.is_empty:
+                        return None
+                    if clipped.geom_type == "MultiPolygon":
+                        clipped = max(clipped.geoms, key=lambda g: g.area)
+                    if clipped.geom_type != "Polygon" or clipped.is_empty:
+                        return None
+                    out = dict(mesh)
+                    out["profile"] = [list(c) for c in clipped.exterior.coords[:-1]]
+                    return out
+            else:
+                # axis == "x": profile in YZ, extruded along X from x0
+                if cut_axis == "x":
+                    x0 = mesh.get("x", 0)
+                    if look_positive:
+                        new_x0 = max(x0, cut_pos)
+                        new_end = x0 + thickness
+                    else:
+                        new_x0 = x0
+                        new_end = min(x0 + thickness, cut_pos)
+                    new_thick = new_end - new_x0
+                    if new_thick < TOL:
+                        return None
+                    out = dict(mesh)
+                    out["x"] = new_x0
+                    out["thickness"] = new_thick
+                    return out
+                else:
+                    # cut_axis == "y", perpendicular to extrusion
+                    poly = Polygon(profile)
+                    if look_positive:
+                        clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG)
+                    else:
+                        clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG)
+                    clipped = poly.intersection(clip_rect)
+                    if clipped.is_empty:
+                        return None
+                    if clipped.geom_type == "MultiPolygon":
+                        clipped = max(clipped.geoms, key=lambda g: g.area)
+                    if clipped.geom_type != "Polygon" or clipped.is_empty:
+                        return None
+                    out = dict(mesh)
+                    out["profile"] = [list(c) for c in clipped.exterior.coords[:-1]]
+                    return out
+
+    except Exception:
+        return None
 
     return None
 
@@ -951,22 +1053,10 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     #    across the cut plane to show their beyond-view edges.
     items = []
     for mesh in meshes:
-        ext_range = _mesh_extent(mesh, cut_axis)
-        if ext_range is None:
+        clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
+        if clipped is None:
             continue
-        if look_positive and ext_range[1] <= cut_pos + 1:
-            continue
-        if not look_positive and ext_range[0] >= cut_pos - 1:
-            continue
-        # For meshes that straddle the cut plane, only include them if
-        # their midpoint is on the "beyond" (visible) side.  This prevents
-        # winder treads that are mostly behind the cut from appearing.
-        mid = (ext_range[0] + ext_range[1]) / 2.0
-        if look_positive and mid < cut_pos:
-            continue
-        if not look_positive and mid > cut_pos:
-            continue
-        poly, depth, _s = _mesh_to_elev_poly(mesh, view)
+        poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
         items.append((depth, poly))
