@@ -561,6 +561,26 @@ def _rect_from_projected(proj_pts, is_stringer):
     return poly, min_d, is_stringer
 
 
+def _safe_difference(geom, coverage):
+    """Compute geom.difference(coverage), surviving GEOS TopologyException.
+
+    In Pyodide/WASM the C++ TopologyException from GEOS is not always
+    caught by Python ``try/except``.  We mitigate by pre-buffering the
+    coverage polygon when the raw call fails validation.
+    """
+    if coverage.is_empty:
+        return geom
+    try:
+        # Fast path — works in the vast majority of cases.
+        return geom.difference(coverage)
+    except Exception:
+        pass
+    try:
+        return geom.difference(coverage.buffer(0))
+    except Exception:
+        return geom  # give up, draw anyway
+
+
 def _emit_geometry_offset(dxf, geom, layer, ox, oy):
     """Draw a Shapely geometry as DXF LINEs with an (ox, oy) offset."""
     if geom.is_empty:
@@ -618,10 +638,7 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            try:
-                visible = seg if full_cov.is_empty else seg.difference(full_cov)
-            except Exception:
-                continue
+            visible = _safe_difference(seg, full_cov)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
@@ -634,25 +651,31 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                 seg = LineString([exterior[i], exterior[i + 1]])
                 if seg.length < _MIN_LENGTH:
                     continue
-                try:
-                    vis_no_str = seg if nostr_cov.is_empty else seg.difference(nostr_cov)
-                    if vis_no_str.is_empty:
-                        continue
-                    vis_all = seg if full_cov.is_empty else seg.difference(full_cov)
-                    hidden = vis_no_str if vis_all.is_empty else vis_no_str.difference(vis_all)
-                except Exception:
+                vis_no_str = _safe_difference(seg, nostr_cov)
+                if vis_no_str.is_empty:
                     continue
+                vis_all = _safe_difference(seg, full_cov)
+                hidden = _safe_difference(vis_no_str, vis_all) if not vis_all.is_empty else vis_no_str
                 if hidden.is_empty:
                     continue
                 if hasattr(hidden, "length") and hidden.length < _MIN_LENGTH:
                     continue
                 _emit_geometry_offset(dxf, hidden, "HIDDEN", ox, oy)
 
-        # Expand coverages.
+        # Expand coverages.  Buffer by a tiny epsilon to prevent
+        # GEOS TopologyException from non-noded intersections (the C++
+        # exception is not catchable in Pyodide/WASM).
         try:
-            full_cov = poly if full_cov.is_empty else full_cov.union(poly)
+            snapped = poly.buffer(0.1)
+            if full_cov.is_empty:
+                full_cov = snapped
+            else:
+                full_cov = unary_union([full_cov, snapped])
             if not is_str:
-                nostr_cov = poly if nostr_cov.is_empty else nostr_cov.union(poly)
+                if nostr_cov.is_empty:
+                    nostr_cov = snapped
+                else:
+                    nostr_cov = unary_union([nostr_cov, snapped])
         except Exception:
             pass
 
@@ -910,17 +933,15 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            try:
-                visible = seg if coverage.is_empty else seg.difference(coverage)
-            except Exception:
-                continue
+            visible = _safe_difference(seg, coverage)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
             _emit_geometry_offset(dxf, visible, "SECTION_BEYOND", ox, oy)
         try:
-            coverage = poly if coverage.is_empty else coverage.union(poly)
+            snapped = poly.buffer(0.1)
+            coverage = snapped if coverage.is_empty else unary_union([coverage, snapped])
         except Exception:
             pass
 
