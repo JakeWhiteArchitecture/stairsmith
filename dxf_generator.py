@@ -537,7 +537,15 @@ def _mesh_to_elev_poly(mesh, view):
             for pt in fp:
                 proj_all.append(_project_point(pt[0], pt[1], z, view))
                 proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
-            return _rect_from_projected(proj_all, is_str)
+            # Use centroid depth instead of min depth so winder polygons
+            # sort behind newel posts.  The wrapping part of the winder
+            # (which extends around the post) has a closer depth, but
+            # should be occluded by the newel in elevation.
+            poly, _, is_s = _rect_from_projected(proj_all, is_str)
+            if poly is None:
+                return None, None, False
+            centroid_depth = sum(p[2] for p in proj_all) / len(proj_all)
+            return poly, centroid_depth, is_s
 
     except Exception:
         pass
@@ -632,35 +640,6 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
-def _tread_visible_in_view(mesh, view):
-    """Return True if a tread/riser should be drawn in this elevation view.
-
-    Treads are only shown when the stringer of their flight is perpendicular
-    to the viewing direction (i.e., we're looking at the stair from the side).
-
-    For box treads, flight direction is inferred from aspect ratio:
-    - sx > sy → tread spans X → flight runs along Y → visible in left/right
-    - sy > sx → tread spans Y → flight runs along X → visible in front/back
-    """
-    ifc_type = mesh.get("ifc_type", "")
-    if ifc_type not in _TREAD_RISER_IFC:
-        return True  # non-tread/riser meshes are always visible
-    mtype = mesh.get("type", "")
-    if mtype == "box":
-        size = mesh.get("ifc_size")
-        if not size:
-            return True
-        sx, sy, _sz = size
-        if sx > sy:
-            # Tread spans X → flight along Y → show in left/right (perpendicular)
-            return view in ("left", "right")
-        else:
-            # Tread spans Y → flight along X → show in front/back (perpendicular)
-            return view in ("front", "back")
-    # Winder polygons: show in all views (transitional elements)
-    return True
-
-
 def _draw_elevation(dxf, meshes, view, ox, oy):
     """Draw one orthographic elevation with solid-occlusion.
 
@@ -672,8 +651,6 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
     """
     items = []  # (depth, poly, is_stringer, is_tread_riser)
     for mesh in meshes:
-        if not _tread_visible_in_view(mesh, view):
-            continue
         poly, depth, is_str = _mesh_to_elev_poly(mesh, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
