@@ -612,11 +612,34 @@ def _compute_view_bounds(meshes, view):
     return (min(xs), min(ys), max(xs), max(ys))
 
 
+def _clip_against_list(seg, polys):
+    """Remove parts of *seg* inside any polygon in *polys*.
+
+    Clips against individual polygons one at a time (no union needed),
+    which avoids GEOS TopologyException in Pyodide/WASM.
+    """
+    remaining = seg
+    for poly in polys:
+        if remaining.is_empty:
+            break
+        try:
+            if not poly.intersects(remaining):
+                continue
+            remaining = remaining.difference(poly)
+        except Exception:
+            # Single-polygon difference almost never fails, but be safe.
+            continue
+    return remaining
+
+
 def _draw_elevation(dxf, meshes, view, ox, oy):
     """Draw one orthographic elevation with solid-occlusion.
 
     Visible edges → ELEVATION layer (white).
     Tread/riser edges hidden *only* by stringers → HIDDEN layer (dashed grey).
+
+    Uses per-polygon clipping (no union) to avoid GEOS TopologyException
+    that cannot be caught in Pyodide/WASM.
     """
     items = []  # (depth, poly, is_stringer, is_tread_riser)
     for mesh in meshes:
@@ -628,8 +651,9 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
 
     items.sort(key=lambda t: t[0])
 
-    full_cov = Polygon()
-    nostr_cov = Polygon()
+    # Build coverage lists incrementally (no union needed).
+    all_polys = []      # all polygons closer than current
+    nostr_polys = []    # non-stringer polygons closer than current
 
     for _d, poly, is_str, is_tr in items:
         exterior = list(poly.exterior.coords)
@@ -638,7 +662,7 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            visible = _safe_difference(seg, full_cov)
+            visible = _clip_against_list(seg, all_polys)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
@@ -651,33 +675,33 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                 seg = LineString([exterior[i], exterior[i + 1]])
                 if seg.length < _MIN_LENGTH:
                     continue
-                vis_no_str = _safe_difference(seg, nostr_cov)
+                vis_no_str = _clip_against_list(seg, nostr_polys)
                 if vis_no_str.is_empty:
                     continue
-                vis_all = _safe_difference(seg, full_cov)
-                hidden = _safe_difference(vis_no_str, vis_all) if not vis_all.is_empty else vis_no_str
+                vis_all = _clip_against_list(seg, all_polys)
+                if vis_all.is_empty:
+                    hidden = vis_no_str
+                else:
+                    hidden = _clip_against_list(vis_no_str, [vis_all]) \
+                        if vis_all.geom_type in ("LineString", "MultiLineString") \
+                        else vis_no_str
+                    # vis_all is a line geometry; we need the AREA that hides.
+                    # Simpler: hidden = parts in vis_no_str not in vis_all.
+                    # Since both are line subsets of the same original seg,
+                    # hidden = vis_no_str minus the visible portions.
+                    try:
+                        hidden = vis_no_str.difference(vis_all)
+                    except Exception:
+                        hidden = vis_no_str
                 if hidden.is_empty:
                     continue
                 if hasattr(hidden, "length") and hidden.length < _MIN_LENGTH:
                     continue
                 _emit_geometry_offset(dxf, hidden, "HIDDEN", ox, oy)
 
-        # Expand coverages.  Buffer by a tiny epsilon to prevent
-        # GEOS TopologyException from non-noded intersections (the C++
-        # exception is not catchable in Pyodide/WASM).
-        try:
-            snapped = poly.buffer(0.1)
-            if full_cov.is_empty:
-                full_cov = snapped
-            else:
-                full_cov = unary_union([full_cov, snapped])
-            if not is_str:
-                if nostr_cov.is_empty:
-                    nostr_cov = snapped
-                else:
-                    nostr_cov = unary_union([nostr_cov, snapped])
-        except Exception:
-            pass
+        all_polys.append(poly)
+        if not is_str:
+            nostr_polys.append(poly)
 
 
 # ── Section helpers ──────────────────────────────────────────────
@@ -925,7 +949,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         items.append((depth, poly))
 
     items.sort(key=lambda t: t[0])
-    coverage = Polygon()
+    covered = []
 
     for _d, poly in items:
         exterior = list(poly.exterior.coords)
@@ -933,17 +957,13 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            visible = _safe_difference(seg, coverage)
+            visible = _clip_against_list(seg, covered)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
             _emit_geometry_offset(dxf, visible, "SECTION_BEYOND", ox, oy)
-        try:
-            snapped = poly.buffer(0.1)
-            coverage = snapped if coverage.is_empty else unary_union([coverage, snapped])
-        except Exception:
-            pass
+        covered.append(poly)
 
 
 # ── Public entry points ─────────────────────────────────────────
