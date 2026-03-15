@@ -23,6 +23,7 @@ Public entry points
     meshes_to_dxf(meshes, params) -> str           # path to temp DXF file
 """
 
+import re
 import tempfile
 from shapely.geometry import Polygon, LineString
 from shapely.ops import unary_union
@@ -32,6 +33,10 @@ from shapely.ops import unary_union
 LAYERS = {
     "STAIR_TREADS": {"color": 7, "linetype": "CONTINUOUS"},
     "STAIR_RISERS": {"color": 8, "linetype": "DASHED"},
+    "ELEVATION":     {"color": 7, "linetype": "CONTINUOUS"},
+    "HIDDEN":        {"color": 8, "linetype": "DASHED"},
+    "SECTION_CUT":   {"color": 7, "linetype": "CONTINUOUS"},
+    "SECTION_BEYOND":{"color": 8, "linetype": "CONTINUOUS"},
 }
 
 # IFC types that participate in solid-occlusion (not risers).
@@ -422,6 +427,504 @@ def _emit_geometry(dxf, geom, layer):
             _emit_geometry(dxf, g, layer)
 
 
+# ── Elevation & Section helpers ──────────────────────────────────
+
+_STRINGER_IFC = frozenset({"stringer"})
+_TREAD_RISER_IFC = frozenset({"tread", "winder_tread", "riser", "winder_riser"})
+
+
+def _project_point(x, y, z, view):
+    """Project IFC coords (X-right, Y-forward, Z-up) → (view_x, view_y, depth).
+
+    Depth convention: smaller depth = closer to viewer.
+    """
+    if view == "front":  return (x, z, y)
+    if view == "right":  return (y, z, -x)
+    if view == "back":   return (-x, z, -y)
+    if view == "left":   return (-y, z, x)
+    return (x, z, y)
+
+
+def _mesh_to_elev_poly(mesh, view):
+    """Return *(Polygon, min_depth, is_stringer)* for *mesh* in *view*.
+
+    Returns *(None, None, False)* if the mesh cannot be projected.
+    """
+    mtype = mesh.get("type", "")
+    ifc_type = mesh.get("ifc_type", "")
+    is_str = ifc_type in _STRINGER_IFC
+
+    try:
+        if mtype == "box":
+            center = mesh.get("ifc_center")
+            size = mesh.get("ifc_size")
+            if not center or not size:
+                return None, None, False
+            cx, cy, cz = center
+            sx, sy, sz = size
+            corners = []
+            for dx in (-1, 1):
+                for dy in (-1, 1):
+                    for dz in (-1, 1):
+                        corners.append(_project_point(
+                            cx + dx * sx / 2,
+                            cy + dy * sy / 2,
+                            cz + dz * sz / 2, view))
+            min_vx = min(c[0] for c in corners)
+            max_vx = max(c[0] for c in corners)
+            min_vy = min(c[1] for c in corners)
+            max_vy = max(c[1] for c in corners)
+            min_d = min(c[2] for c in corners)
+            poly = Polygon([(min_vx, min_vy), (max_vx, min_vy),
+                            (max_vx, max_vy), (min_vx, max_vy)])
+            return poly, min_d, is_str
+
+        if mtype == "stringer":
+            profile = mesh.get("profile")
+            thickness = mesh.get("thickness", 0)
+            if not profile or len(profile) < 3 or thickness == 0:
+                return None, None, False
+            axis = mesh.get("axis")
+
+            if axis == "y":
+                # Profile in XZ, extruded along Y from y0
+                y0 = mesh.get("y", 0)
+                proj_all = []
+                for xv, zv in profile:
+                    proj_all.append(_project_point(xv, y0, zv, view))
+                    proj_all.append(_project_point(xv, y0 + thickness, zv, view))
+                if view in ("front", "back"):
+                    # Looking along Y → see profile (XZ) shape
+                    pts = [_project_point(xv, y0, zv, view)[:2]
+                           for xv, zv in profile]
+                    poly = Polygon(pts)
+                    if not poly.is_valid:
+                        poly = poly.buffer(0)
+                    if poly.is_empty:
+                        return None, None, False
+                    return poly, min(p[2] for p in proj_all), True
+                else:
+                    # Perpendicular → bounding rectangle
+                    return _rect_from_projected(proj_all, True)
+
+            else:
+                # Profile in YZ, extruded along X from x0
+                x0 = mesh.get("x", 0)
+                proj_all = []
+                for yv, zv in profile:
+                    proj_all.append(_project_point(x0, yv, zv, view))
+                    proj_all.append(_project_point(x0 + thickness, yv, zv, view))
+                if view in ("right", "left"):
+                    # Looking along X → see profile (YZ) shape
+                    pts = [_project_point(x0, yv, zv, view)[:2]
+                           for yv, zv in profile]
+                    poly = Polygon(pts)
+                    if not poly.is_valid:
+                        poly = poly.buffer(0)
+                    if poly.is_empty:
+                        return None, None, False
+                    return poly, min(p[2] for p in proj_all), True
+                else:
+                    return _rect_from_projected(proj_all, True)
+
+        if mtype == "winder_polygon":
+            fp = mesh.get("profile")
+            if not fp or len(fp) < 3:
+                return None, None, False
+            z = mesh.get("z", 0)
+            thick = mesh.get("thickness", 0)
+            proj_all = []
+            for pt in fp:
+                proj_all.append(_project_point(pt[0], pt[1], z, view))
+                proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
+            return _rect_from_projected(proj_all, is_str)
+
+    except Exception:
+        pass
+
+    return None, None, False
+
+
+def _rect_from_projected(proj_pts, is_stringer):
+    """Build a bounding rectangle Polygon from projected points."""
+    if not proj_pts:
+        return None, None, False
+    min_vx = min(p[0] for p in proj_pts)
+    max_vx = max(p[0] for p in proj_pts)
+    min_vy = min(p[1] for p in proj_pts)
+    max_vy = max(p[1] for p in proj_pts)
+    min_d = min(p[2] for p in proj_pts)
+    if max_vx - min_vx < _MIN_LENGTH or max_vy - min_vy < _MIN_LENGTH:
+        return None, None, False
+    poly = Polygon([(min_vx, min_vy), (max_vx, min_vy),
+                    (max_vx, max_vy), (min_vx, max_vy)])
+    return poly, min_d, is_stringer
+
+
+def _emit_geometry_offset(dxf, geom, layer, ox, oy):
+    """Draw a Shapely geometry as DXF LINEs with an (ox, oy) offset."""
+    if geom.is_empty:
+        return
+    gt = geom.geom_type
+    if gt == "LineString":
+        coords = list(geom.coords)
+        for i in range(len(coords) - 1):
+            dxf.add_line((coords[i][0] + ox, coords[i][1] + oy),
+                         (coords[i + 1][0] + ox, coords[i + 1][1] + oy),
+                         layer=layer)
+    elif gt in ("MultiLineString", "GeometryCollection"):
+        for g in geom.geoms:
+            _emit_geometry_offset(dxf, g, layer, ox, oy)
+
+
+def _compute_view_bounds(meshes, view):
+    """Return *(min_vx, min_vy, max_vx, max_vy)* bounding box in view coords."""
+    xs, ys = [], []
+    for mesh in meshes:
+        poly, _d, _s = _mesh_to_elev_poly(mesh, view)
+        if poly is None:
+            continue
+        b = poly.bounds
+        xs.extend([b[0], b[2]])
+        ys.extend([b[1], b[3]])
+    if not xs:
+        return (0, 0, 0, 0)
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _draw_elevation(dxf, meshes, view, ox, oy):
+    """Draw one orthographic elevation with solid-occlusion.
+
+    Visible edges → ELEVATION layer (white).
+    Tread/riser edges hidden *only* by stringers → HIDDEN layer (dashed grey).
+    """
+    items = []  # (depth, poly, is_stringer, is_tread_riser)
+    for mesh in meshes:
+        poly, depth, is_str = _mesh_to_elev_poly(mesh, view)
+        if poly is None or not poly.is_valid or poly.is_empty:
+            continue
+        is_tr = mesh.get("ifc_type", "") in _TREAD_RISER_IFC
+        items.append((depth, poly, is_str, is_tr))
+
+    items.sort(key=lambda t: t[0])
+
+    full_cov = Polygon()
+    nostr_cov = Polygon()
+
+    for _d, poly, is_str, is_tr in items:
+        exterior = list(poly.exterior.coords)
+
+        for i in range(len(exterior) - 1):
+            seg = LineString([exterior[i], exterior[i + 1]])
+            if seg.length < _MIN_LENGTH:
+                continue
+            try:
+                visible = seg if full_cov.is_empty else seg.difference(full_cov)
+            except Exception:
+                continue
+            if visible.is_empty:
+                continue
+            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
+                continue
+            _emit_geometry_offset(dxf, visible, "ELEVATION", ox, oy)
+
+        # Hidden-through-stringer pass for treads / risers.
+        if is_tr:
+            for i in range(len(exterior) - 1):
+                seg = LineString([exterior[i], exterior[i + 1]])
+                if seg.length < _MIN_LENGTH:
+                    continue
+                try:
+                    vis_no_str = seg if nostr_cov.is_empty else seg.difference(nostr_cov)
+                    if vis_no_str.is_empty:
+                        continue
+                    vis_all = seg if full_cov.is_empty else seg.difference(full_cov)
+                    hidden = vis_no_str if vis_all.is_empty else vis_no_str.difference(vis_all)
+                except Exception:
+                    continue
+                if hidden.is_empty:
+                    continue
+                if hasattr(hidden, "length") and hidden.length < _MIN_LENGTH:
+                    continue
+                _emit_geometry_offset(dxf, hidden, "HIDDEN", ox, oy)
+
+        # Expand coverages.
+        try:
+            full_cov = poly if full_cov.is_empty else full_cov.union(poly)
+            if not is_str:
+                nostr_cov = poly if nostr_cov.is_empty else nostr_cov.union(poly)
+        except Exception:
+            pass
+
+
+# ── Section helpers ──────────────────────────────────────────────
+
+def _mesh_extent(mesh, axis):
+    """Return *(lo, hi)* of mesh extent along *axis* ('x' or 'y'), or None."""
+    mtype = mesh.get("type", "")
+    idx = 0 if axis == "x" else 1
+
+    if mtype == "box":
+        c = mesh.get("ifc_center")
+        s = mesh.get("ifc_size")
+        if not c or not s:
+            return None
+        h = s[idx] / 2.0
+        return (c[idx] - h, c[idx] + h)
+
+    if mtype == "stringer":
+        profile = mesh.get("profile")
+        thickness = mesh.get("thickness", 0)
+        if not profile:
+            return None
+        ma = mesh.get("axis")
+        if ma == "y":
+            if axis == "y":
+                y0 = mesh.get("y", 0)
+                return (y0, y0 + thickness)
+            vals = [p[0] for p in profile]
+            return (min(vals), max(vals))
+        else:
+            if axis == "x":
+                x0 = mesh.get("x", 0)
+                return (x0, x0 + thickness)
+            vals = [p[0] for p in profile]
+            return (min(vals), max(vals))
+
+    if mtype == "winder_polygon":
+        fp = mesh.get("profile")
+        if not fp:
+            return None
+        vals = [p[idx] for p in fp]
+        return (min(vals), max(vals))
+
+    return None
+
+
+def _identify_flights(meshes):
+    """Return list of ``{flight, cut_axis, cut_pos, direction}`` dicts."""
+    flights = {}
+    for mesh in meshes:
+        ifc_type = mesh.get("ifc_type", "")
+        if ifc_type not in ("tread", "winder_tread"):
+            continue
+        m = re.search(r"[Ff]light\s*(\d+)", mesh.get("name", ""))
+        if not m:
+            continue
+        fnum = int(m.group(1))
+        flights.setdefault(fnum, []).append(mesh)
+
+    result = []
+    for fnum in sorted(flights):
+        centers = []
+        for t in flights[fnum]:
+            if t.get("type") == "box":
+                c = t.get("ifc_center")
+                if c:
+                    centers.append(c)
+            elif t.get("type") == "winder_polygon":
+                fp = t.get("profile", [])
+                if fp:
+                    cx = sum(p[0] for p in fp) / len(fp)
+                    cy = sum(p[1] for p in fp) / len(fp)
+                    centers.append((cx, cy, t.get("z", 0)))
+        if len(centers) < 2:
+            continue
+        xs = [c[0] for c in centers]
+        ys = [c[1] for c in centers]
+        if (max(ys) - min(ys)) > (max(xs) - min(xs)):
+            result.append({"flight": fnum, "cut_axis": "x",
+                           "cut_pos": sum(xs) / len(xs), "direction": "y"})
+        else:
+            result.append({"flight": fnum, "cut_axis": "y",
+                           "cut_pos": sum(ys) / len(ys), "direction": "x"})
+    return result
+
+
+def _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view):
+    """Return a Polygon in *view* coords for the cross-section, or None."""
+    mtype = mesh.get("type", "")
+    TOL = 1.0  # mm tolerance
+
+    try:
+        if mtype == "box":
+            c = mesh.get("ifc_center")
+            s = mesh.get("ifc_size")
+            if not c or not s:
+                return None
+            cx, cy, cz = c
+            sx, sy, sz = s
+            if cut_axis == "x":
+                if not (cx - sx / 2 - TOL <= cut_pos <= cx + sx / 2 + TOL):
+                    return None
+                pts = [(cut_pos, cy - sy / 2, cz - sz / 2),
+                       (cut_pos, cy + sy / 2, cz - sz / 2),
+                       (cut_pos, cy + sy / 2, cz + sz / 2),
+                       (cut_pos, cy - sy / 2, cz + sz / 2)]
+            else:
+                if not (cy - sy / 2 - TOL <= cut_pos <= cy + sy / 2 + TOL):
+                    return None
+                pts = [(cx - sx / 2, cut_pos, cz - sz / 2),
+                       (cx + sx / 2, cut_pos, cz - sz / 2),
+                       (cx + sx / 2, cut_pos, cz + sz / 2),
+                       (cx - sx / 2, cut_pos, cz + sz / 2)]
+            pts2 = [_project_point(*p, view)[:2] for p in pts]
+            return Polygon(pts2)
+
+        if mtype == "stringer":
+            profile = mesh.get("profile")
+            thickness = mesh.get("thickness", 0)
+            if not profile or len(profile) < 3 or thickness == 0:
+                return None
+            ma = mesh.get("axis")
+            if ma == "y":
+                y0 = mesh.get("y", 0)
+                if cut_axis == "y":
+                    if not (y0 - TOL <= cut_pos <= y0 + thickness + TOL):
+                        return None
+                    pts = [(xv, cut_pos, zv) for xv, zv in profile]
+                else:
+                    xs = [p[0] for p in profile]
+                    if not (min(xs) - TOL <= cut_pos <= max(xs) + TOL):
+                        return None
+                    zs = [p[1] for p in profile]
+                    pts = [(cut_pos, y0, min(zs)),
+                           (cut_pos, y0 + thickness, min(zs)),
+                           (cut_pos, y0 + thickness, max(zs)),
+                           (cut_pos, y0, max(zs))]
+            else:
+                x0 = mesh.get("x", 0)
+                if cut_axis == "x":
+                    if not (x0 - TOL <= cut_pos <= x0 + thickness + TOL):
+                        return None
+                    pts = [(cut_pos, yv, zv) for yv, zv in profile]
+                else:
+                    ys = [p[0] for p in profile]
+                    if not (min(ys) - TOL <= cut_pos <= max(ys) + TOL):
+                        return None
+                    zs = [p[1] for p in profile]
+                    pts = [(x0, cut_pos, min(zs)),
+                           (x0 + thickness, cut_pos, min(zs)),
+                           (x0 + thickness, cut_pos, max(zs)),
+                           (x0, cut_pos, max(zs))]
+            pts2 = [_project_point(*p, view)[:2] for p in pts]
+            poly = Polygon(pts2)
+            if not poly.is_valid:
+                poly = poly.buffer(0)
+            return poly if not poly.is_empty else None
+
+        if mtype == "winder_polygon":
+            fp = mesh.get("profile")
+            if not fp or len(fp) < 3:
+                return None
+            z = mesh.get("z", 0)
+            thick = mesh.get("thickness", 0)
+            fp_poly = Polygon([(p[0], p[1]) for p in fp])
+            if cut_axis == "x":
+                ys = [p[1] for p in fp]
+                cut_line = LineString([(cut_pos, min(ys) - 100),
+                                      (cut_pos, max(ys) + 100)])
+            else:
+                xs = [p[0] for p in fp]
+                cut_line = LineString([(min(xs) - 100, cut_pos),
+                                      (max(xs) + 100, cut_pos)])
+            inter = fp_poly.intersection(cut_line)
+            if inter.is_empty:
+                return None
+            ic = _collect_points(inter)
+            if len(ic) < 2:
+                return None
+            if cut_axis == "x":
+                yvals = [c[1] for c in ic]
+                pts = [(cut_pos, min(yvals), z),
+                       (cut_pos, max(yvals), z),
+                       (cut_pos, max(yvals), z + thick),
+                       (cut_pos, min(yvals), z + thick)]
+            else:
+                xvals = [c[0] for c in ic]
+                pts = [(min(xvals), cut_pos, z),
+                       (max(xvals), cut_pos, z),
+                       (max(xvals), cut_pos, z + thick),
+                       (min(xvals), cut_pos, z + thick)]
+            pts2 = [_project_point(*p, view)[:2] for p in pts]
+            poly = Polygon(pts2)
+            return poly if poly.is_valid and not poly.is_empty else None
+
+    except Exception:
+        pass
+    return None
+
+
+def _section_view_for(cut_axis, look_positive):
+    """Map (cut_axis, look_direction) to one of the 4 standard views."""
+    if cut_axis == "x":
+        return "left" if look_positive else "right"
+    else:
+        return "front" if look_positive else "back"
+
+
+def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
+    """Draw one section view at offset *(ox, oy)*.
+
+    *cut_axis*: 'x' or 'y' — perpendicular to the cut plane.
+    *cut_pos*: coordinate of the cut along *cut_axis*.
+    *look_positive*: True → look toward +axis from the cut plane.
+    """
+    view = _section_view_for(cut_axis, look_positive)
+
+    # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
+    for mesh in meshes:
+        cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
+        if cpoly is None or cpoly.is_empty:
+            continue
+        try:
+            ext = list(cpoly.exterior.coords)
+        except Exception:
+            continue
+        for i in range(len(ext) - 1):
+            dxf.add_line((ext[i][0] + ox, ext[i][1] + oy),
+                         (ext[i + 1][0] + ox, ext[i + 1][1] + oy),
+                         layer="SECTION_CUT")
+
+    # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
+    items = []
+    for mesh in meshes:
+        ext_range = _mesh_extent(mesh, cut_axis)
+        if ext_range is None:
+            continue
+        if look_positive and ext_range[1] <= cut_pos + 1:
+            continue
+        if not look_positive and ext_range[0] >= cut_pos - 1:
+            continue
+        poly, depth, _s = _mesh_to_elev_poly(mesh, view)
+        if poly is None or not poly.is_valid or poly.is_empty:
+            continue
+        items.append((depth, poly))
+
+    items.sort(key=lambda t: t[0])
+    coverage = Polygon()
+
+    for _d, poly in items:
+        exterior = list(poly.exterior.coords)
+        for i in range(len(exterior) - 1):
+            seg = LineString([exterior[i], exterior[i + 1]])
+            if seg.length < _MIN_LENGTH:
+                continue
+            try:
+                visible = seg if coverage.is_empty else seg.difference(coverage)
+            except Exception:
+                continue
+            if visible.is_empty:
+                continue
+            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
+                continue
+            _emit_geometry_offset(dxf, visible, "SECTION_BEYOND", ox, oy)
+        try:
+            coverage = poly if coverage.is_empty else coverage.union(poly)
+        except Exception:
+            pass
+
+
 # ── Public entry points ─────────────────────────────────────────
 
 def meshes_to_dxf_string(meshes, params):
@@ -492,20 +995,88 @@ def meshes_to_dxf_string(meshes, params):
             dxf.add_line(start, end, layer="STAIR_RISERS")
 
     # Step 5 — add disclaimer text to the bottom-right of the stair geometry.
-    max_x = 0
-    min_y = 0
+    plan_max_x = 0
+    plan_min_y = 0
+    plan_min_x = 0
     for _z, poly in items:
         bounds = poly.bounds  # (minx, miny, maxx, maxy)
-        if bounds[2] > max_x:
-            max_x = bounds[2]
-        if bounds[1] < min_y:
-            min_y = bounds[1]
-    text_x = max_x + 60
-    text_y = min_y
+        if bounds[2] > plan_max_x:
+            plan_max_x = bounds[2]
+        if bounds[1] < plan_min_y:
+            plan_min_y = bounds[1]
+        if bounds[0] < plan_min_x:
+            plan_min_x = bounds[0]
+    text_x = plan_max_x + 60
+    text_y = plan_min_y
     _LINE1 = "StairSmith \u2014 Preliminary design aid only."
     _LINE2 = "User must verify all outputs before use."
     dxf.add_text(_LINE1, (text_x, text_y), height=60.0, layer="0")
     dxf.add_text(_LINE2, (text_x, text_y - 80), height=60.0, layer="0")
+
+    # Step 6 — Orthographic elevation views (Front, Right, Back, Left).
+    _ELEV_VIEWS = ["front", "right", "back", "left"]
+    _ELEV_LABELS = ["FRONT ELEVATION", "RIGHT ELEVATION",
+                    "BACK ELEVATION", "LEFT ELEVATION"]
+
+    elev_bounds = {}
+    for v in _ELEV_VIEWS:
+        elev_bounds[v] = _compute_view_bounds(meshes, v)
+
+    elev_y_top = plan_min_y - 3000
+    elev_x = plan_min_x
+    elev_bottom = elev_y_top  # track lowest point of elevation row
+
+    for v, label in zip(_ELEV_VIEWS, _ELEV_LABELS):
+        vb = elev_bounds[v]
+        if vb == (0, 0, 0, 0):
+            continue
+        vw = vb[2] - vb[0]
+        vh = vb[3] - vb[1]
+        # Place so top-left of view bounds maps to (elev_x, elev_y_top).
+        ox = elev_x - vb[0]
+        oy = elev_y_top - vb[3]
+        try:
+            _draw_elevation(dxf, meshes, v, ox, oy)
+        except Exception:
+            pass
+        # Label below the view.
+        dxf.add_text(label, (elev_x, elev_y_top - vh - 150),
+                     height=80.0, layer="0")
+        bottom = elev_y_top - vh - 150 - 100
+        if bottom < elev_bottom:
+            elev_bottom = bottom
+        elev_x += vw + 2000
+
+    # Step 7 — Section views (2 per flight, cut along tread centreline).
+    flight_info = _identify_flights(meshes)
+    if flight_info:
+        sect_y_top = elev_bottom - 3000
+        sect_x = plan_min_x
+        sect_labels = iter("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+        for fi in flight_info:
+            ca = fi["cut_axis"]
+            cp = fi["cut_pos"]
+            fnum = fi["flight"]
+
+            for look_pos in (True, False):
+                lbl_char = next(sect_labels, "?")
+                view = _section_view_for(ca, look_pos)
+                vb = _compute_view_bounds(meshes, view)
+                if vb == (0, 0, 0, 0):
+                    continue
+                vw = vb[2] - vb[0]
+                vh = vb[3] - vb[1]
+                ox = sect_x - vb[0]
+                oy = sect_y_top - vb[3]
+                try:
+                    _draw_section(dxf, meshes, ca, cp, look_pos, ox, oy)
+                except Exception:
+                    pass
+                label = "SECTION %s-%s  (Flight %d)" % (lbl_char, lbl_char, fnum)
+                dxf.add_text(label, (sect_x, sect_y_top - vh - 150),
+                             height=80.0, layer="0")
+                sect_x += vw + 2000
 
     return dxf.to_string()
 
