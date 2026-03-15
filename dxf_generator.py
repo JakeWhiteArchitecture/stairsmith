@@ -928,13 +928,14 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     view = _section_view_for(cut_axis, look_positive)
 
     # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
-    #    Track which meshes are cut so we can skip them from beyond pass.
-    cut_ids = set()
-    for idx, mesh in enumerate(meshes):
+    #    Collect cut profile polygons to seed the beyond-pass coverage,
+    #    so grey beyond lines don't duplicate the white cut lines.
+    cut_polys = []
+    for mesh in meshes:
         cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
         if cpoly is None or cpoly.is_empty:
             continue
-        cut_ids.add(idx)
+        cut_polys.append(cpoly)
         try:
             ext = list(cpoly.exterior.coords)
         except Exception:
@@ -945,11 +946,11 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                          layer="SECTION_CUT")
 
     # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
-    #    Skip meshes already drawn as cut profiles to avoid duplicate lines.
+    #    Seed coverage with cut profile polygons so their edges aren't
+    #    redrawn in grey, while still allowing winder treads that span
+    #    across the cut plane to show their beyond-view edges.
     items = []
-    for idx, mesh in enumerate(meshes):
-        if idx in cut_ids:
-            continue
+    for mesh in meshes:
         ext_range = _mesh_extent(mesh, cut_axis)
         if ext_range is None:
             continue
@@ -963,7 +964,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         items.append((depth, poly))
 
     items.sort(key=lambda t: t[0])
-    covered = []
+    covered = list(cut_polys)  # seed with cut profiles to prevent grey duplicates
 
     for _d, poly in items:
         exterior = list(poly.exterior.coords)
