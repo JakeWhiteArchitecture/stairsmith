@@ -958,6 +958,14 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             continue
         if not look_positive and ext_range[0] >= cut_pos - 1:
             continue
+        # For meshes that straddle the cut plane, only include them if
+        # their midpoint is on the "beyond" (visible) side.  This prevents
+        # winder treads that are mostly behind the cut from appearing.
+        mid = (ext_range[0] + ext_range[1]) / 2.0
+        if look_positive and mid < cut_pos:
+            continue
+        if not look_positive and mid > cut_pos:
+            continue
         poly, depth, _s = _mesh_to_elev_poly(mesh, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
