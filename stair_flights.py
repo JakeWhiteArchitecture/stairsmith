@@ -513,10 +513,10 @@ def _preview_single_winder(p):
                 top_face_x = top_post_x - hp
                 c_face_x = corner_x + c_hp
             if render_inner:
-                # Trim start at corner newel face
+                # Extend/trim start to corner newel face
                 dx_h = f2_x1 - f2_x0
                 if abs(dx_h) > 1e-9:
-                    t_c0 = max(0.0, min(1.0, (c_face_x - f2_x0) / dx_h))
+                    t_c0 = min(1.0, (c_face_x - f2_x0) / dx_h)
                     f2_x0_ic = f2_x0 + t_c0 * dx_h
                     f2_z0_ic = f2_z0 + t_c0 * (f2_z1 - f2_z0)
                 else:
@@ -644,10 +644,10 @@ def _preview_single_winder(p):
 
         if flight2_treads > 0:
             if render_inner:
-                # Trim start at corner newel face
+                # Extend/trim start to corner newel face
                 dx_h = f2_x1 - f2_x0
                 if abs(dx_h) > 1e-9:
-                    t_c0 = max(0.0, min(1.0, (c_face_x - f2_x0) / dx_h))
+                    t_c0 = min(1.0, (c_face_x - f2_x0) / dx_h)
                     f2_x0_ic = f2_x0 + t_c0 * dx_h
                     f2_z0_ic = f2_z0 + t_c0 * (f2_z1 - f2_z0)
                 else:

@@ -37,6 +37,8 @@ LAYERS = {
     "HIDDEN":        {"color": 8, "linetype": "DASHED"},
     "SECTION_CUT":   {"color": 7, "linetype": "CONTINUOUS"},
     "SECTION_BEYOND":{"color": 8, "linetype": "CONTINUOUS"},
+    "FLOOR_LINE":    {"color": 8, "linetype": "CONTINUOUS"},
+    "DIMENSIONS":    {"color": 7, "linetype": "CONTINUOUS"},
 }
 
 # IFC types that participate in solid-occlusion (not risers).
@@ -640,6 +642,65 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
+def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS"):
+    """Draw a simple linear dimension between *p1* and *p2*.
+
+    *offset* — perpendicular offset from the geometry (positive = outward).
+    Draws extension lines, a dimension line with ticks, and a centred text label.
+    """
+    import math
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    length = math.hypot(dx, dy)
+    if length < 1:
+        return
+    # Unit normal perpendicular to the dimension direction
+    nx = -dy / length
+    ny = dx / length
+    # Dimension line endpoints (offset from geometry)
+    d1 = (p1[0] + nx * offset, p1[1] + ny * offset)
+    d2 = (p2[0] + nx * offset, p2[1] + ny * offset)
+    # Extension lines (from geometry to just past dimension line)
+    ext_gap = 30.0  # gap between geometry and extension line start
+    ext_over = 50.0  # overshoot past dimension line
+    e1_start = (p1[0] + nx * ext_gap, p1[1] + ny * ext_gap)
+    e1_end = (p1[0] + nx * (offset + ext_over), p1[1] + ny * (offset + ext_over))
+    e2_start = (p2[0] + nx * ext_gap, p2[1] + ny * ext_gap)
+    e2_end = (p2[0] + nx * (offset + ext_over), p2[1] + ny * (offset + ext_over))
+    dxf.add_line(e1_start, e1_end, layer=layer)
+    dxf.add_line(e2_start, e2_end, layer=layer)
+    # Dimension line
+    dxf.add_line(d1, d2, layer=layer)
+    # Tick marks (small 45° slashes)
+    tick = 40.0
+    tdx = (dx / length) * tick * 0.5
+    tdy = (dy / length) * tick * 0.5
+    tnx = nx * tick * 0.5
+    tny = ny * tick * 0.5
+    dxf.add_line((d1[0] - tdx - tnx, d1[1] - tdy - tny),
+                 (d1[0] + tdx + tnx, d1[1] + tdy + tny), layer=layer)
+    dxf.add_line((d2[0] - tdx - tnx, d2[1] - tdy - tny),
+                 (d2[0] + tdx + tnx, d2[1] + tdy + tny), layer=layer)
+    # Text label centred on dimension line
+    mid = ((d1[0] + d2[0]) / 2, (d1[1] + d2[1]) / 2 + 30)
+    dxf.add_text("%.0f" % length, mid, height=50.0, layer=layer)
+
+
+def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
+    """Draw a horizontal floor-level line at Z=0 (view_y=0) with extensions.
+
+    *vb* is the view bounds (min_vx, min_vy, max_vx, max_vy).
+    The line extends *extension* mm beyond the geometry on both sides.
+    Z=0 in IFC projects to view_y=0 in all elevation/section views.
+    """
+    floor_vy = 0.0  # Z=0 in all orthographic views
+    x_left = vb[0] - extension
+    x_right = vb[2] + extension
+    dxf.add_line((x_left + ox, floor_vy + oy),
+                 (x_right + ox, floor_vy + oy),
+                 layer="FLOOR_LINE")
+
+
 def _draw_elevation(dxf, meshes, view, ox, oy):
     """Draw one orthographic elevation with solid-occlusion.
 
@@ -1193,6 +1254,7 @@ def meshes_to_dxf_string(meshes, params):
             _draw_elevation(dxf, meshes, v, ox, oy)
         except Exception:
             pass
+        _draw_floor_line(dxf, vb, ox, oy)
         # Label below the view.
         dxf.add_text(label, (elev_x, elev_y_top - vh - 150),
                      height=80.0, layer="0")
@@ -1202,20 +1264,30 @@ def meshes_to_dxf_string(meshes, params):
         elev_x += vw + 2000
 
     # Step 7 — Section views (2 per flight, cut along tread centreline).
+    #   Left/right section pairs for each flight are grouped with 2x spacing
+    #   between flights so paired views are easy to compare.
     flight_info = _identify_flights(meshes)
     if flight_info:
         sect_y_top = elev_bottom - 3000
         sect_x = plan_min_x
         sect_labels = iter("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        _SECT_GAP = 2000  # standard gap between adjacent sections
+        prev_fnum = None
 
         for fi in flight_info:
             ca = fi["cut_axis"]
             cp = fi["cut_pos"]
             fnum = fi["flight"]
 
-            for look_pos in (True, False):
+            # Double gap between flight groups (but not before the first)
+            if prev_fnum is not None and fnum != prev_fnum:
+                sect_x += _SECT_GAP  # extra gap (total 2x since loop adds 1x)
+            prev_fnum = fnum
+
+            for look_idx, look_pos in enumerate((True, False)):
                 lbl_char = next(sect_labels, "?")
                 view = _section_view_for(ca, look_pos)
+                facing = "Left" if look_pos else "Right"
                 vb = _compute_view_bounds(meshes, view)
                 if vb == (0, 0, 0, 0):
                     continue
@@ -1227,10 +1299,50 @@ def meshes_to_dxf_string(meshes, params):
                     _draw_section(dxf, meshes, ca, cp, look_pos, ox, oy)
                 except Exception:
                     pass
-                label = "SECTION %s-%s  (Flight %d)" % (lbl_char, lbl_char, fnum)
+                _draw_floor_line(dxf, vb, ox, oy)
+                label = "Flight %d (%s facing section)" % (fnum, facing)
                 dxf.add_text(label, (sect_x, sect_y_top - vh - 150),
                              height=80.0, layer="0")
-                sect_x += vw + 2000
+                sect_x += vw + _SECT_GAP
+
+    # Step 8 — Overall plan dimensions.
+    #   Use the plan bounding box.  Straight stairs get 2 dims (width + depth),
+    #   L-shaped get 3 (width leg, depth through turn, second leg width).
+    plan_max_y = 0
+    for _z, poly in items:
+        bounds = poly.bounds
+        if bounds[3] > plan_max_y:
+            plan_max_y = bounds[3]
+
+    stair_type = params.get("staircase_type", params.get("stair_type", "straight"))
+    dim_offset = 300.0  # offset from geometry edge
+
+    if stair_type in ("single_winder",):
+        # L-shaped: 3 dimensions — Y extent (flight 1 depth), X extent (flight 2
+        # length), and overall width (Y of flight 2 run).
+        # Dim 1: flight 1 depth along Y (left side)
+        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_min_x, plan_max_y),
+                       -dim_offset)
+        # Dim 2: flight 2 length along X (bottom)
+        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
+                       -dim_offset)
+        # Dim 3: overall width along X at top
+        _draw_dim_line(dxf, (plan_min_x, plan_max_y), (plan_max_x, plan_max_y),
+                       dim_offset)
+    elif stair_type in ("double_winder",):
+        # U-shaped: 3 dimensions
+        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_min_x, plan_max_y),
+                       -dim_offset)
+        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
+                       -dim_offset)
+        _draw_dim_line(dxf, (plan_max_x, plan_min_y), (plan_max_x, plan_max_y),
+                       dim_offset)
+    else:
+        # Straight: 2 dimensions (width + depth)
+        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
+                       -dim_offset)
+        _draw_dim_line(dxf, (plan_max_x, plan_min_y), (plan_max_x, plan_max_y),
+                       dim_offset)
 
     return dxf.to_string()
 
