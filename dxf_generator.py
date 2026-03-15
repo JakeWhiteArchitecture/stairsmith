@@ -632,6 +632,35 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
+def _tread_visible_in_view(mesh, view):
+    """Return True if a tread/riser should be drawn in this elevation view.
+
+    Treads are only shown when the stringer of their flight is perpendicular
+    to the viewing direction (i.e., we're looking at the stair from the side).
+
+    For box treads, flight direction is inferred from aspect ratio:
+    - sx > sy → tread spans X → flight runs along Y → visible in left/right
+    - sy > sx → tread spans Y → flight runs along X → visible in front/back
+    """
+    ifc_type = mesh.get("ifc_type", "")
+    if ifc_type not in _TREAD_RISER_IFC:
+        return True  # non-tread/riser meshes are always visible
+    mtype = mesh.get("type", "")
+    if mtype == "box":
+        size = mesh.get("ifc_size")
+        if not size:
+            return True
+        sx, sy, _sz = size
+        if sx > sy:
+            # Tread spans X → flight along Y → show in left/right (perpendicular)
+            return view in ("left", "right")
+        else:
+            # Tread spans Y → flight along X → show in front/back (perpendicular)
+            return view in ("front", "back")
+    # Winder polygons: show in all views (transitional elements)
+    return True
+
+
 def _draw_elevation(dxf, meshes, view, ox, oy):
     """Draw one orthographic elevation with solid-occlusion.
 
@@ -643,6 +672,8 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
     """
     items = []  # (depth, poly, is_stringer, is_tread_riser)
     for mesh in meshes:
+        if not _tread_visible_in_view(mesh, view):
+            continue
         poly, depth, is_str = _mesh_to_elev_poly(mesh, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
@@ -920,10 +951,13 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     view = _section_view_for(cut_axis, look_positive)
 
     # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
-    for mesh in meshes:
+    #    Track which meshes are cut so we can skip them from beyond pass.
+    cut_ids = set()
+    for idx, mesh in enumerate(meshes):
         cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
         if cpoly is None or cpoly.is_empty:
             continue
+        cut_ids.add(idx)
         try:
             ext = list(cpoly.exterior.coords)
         except Exception:
@@ -934,8 +968,11 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                          layer="SECTION_CUT")
 
     # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
+    #    Skip meshes already drawn as cut profiles to avoid duplicate lines.
     items = []
-    for mesh in meshes:
+    for idx, mesh in enumerate(meshes):
+        if idx in cut_ids:
+            continue
         ext_range = _mesh_extent(mesh, cut_axis)
         if ext_range is None:
             continue

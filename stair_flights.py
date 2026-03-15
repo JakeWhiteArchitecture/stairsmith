@@ -230,7 +230,8 @@ def _preview_single_winder(p):
         tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-            width, tread_length, tread_t, "#c8a87c"
+            width, tread_length, tread_t, "#c8a87c",
+            name=f"Flight 1 Tread {i+1}", ifc_type="tread",
         ))
 
     # Flight 1 risers
@@ -239,7 +240,8 @@ def _preview_single_winder(p):
         if riser_t > 0:
             meshes.append(_box_mesh(
                 width / 2, i * going + riser_t / 2 + flight1_shift_y, i * rise + riser_h / 2,
-                width, riser_t, riser_h, "#e8dcc8"
+                width, riser_t, riser_h, "#e8dcc8",
+                name=f"Riser F1-{i+1}", ifc_type="riser",
             ))
 
     # Winder treads — construction-based profiles
@@ -315,7 +317,8 @@ def _preview_single_winder(p):
             tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
         meshes.append(_box_mesh(
             tread_x, flight2_y_center, tread_z + tread_t / 2,
-            going + nosing + riser_t, width, tread_t, "#c8a87c"
+            going + nosing + riser_t, width, tread_t, "#c8a87c",
+            name=f"Flight 2 Tread {i+1}", ifc_type="tread",
         ))
 
     # Flight 2 risers (perpendicular — thin in X, spanning width in Y)
@@ -328,7 +331,8 @@ def _preview_single_winder(p):
                 riser_x = width + i * going + winder_offset + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, flight2_y_center, riser_z,
-                riser_t, width, riser_h, "#e8dcc8"
+                riser_t, width, riser_h, "#e8dcc8",
+                name=f"Riser F2-{i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip ---
@@ -1272,7 +1276,8 @@ def _preview_double_winder(p):
         tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-            width, tread_length, tread_t, "#c8a87c"
+            width, tread_length, tread_t, "#c8a87c",
+            name=f"Flight 1 Tread {i+1}", ifc_type="tread",
         ))
 
     riser_h = rise - tread_t
@@ -1282,7 +1287,8 @@ def _preview_double_winder(p):
             landing_riser_offset = 0.0
             meshes.append(_box_mesh(
                 width / 2, i * going + riser_t / 2 + flight1_shift_y + landing_riser_offset, i * rise + riser_h / 2,
-                width, riser_t, riser_h, "#e8dcc8"
+                width, riser_t, riser_h, "#e8dcc8",
+                name=f"Riser F1-{i+1}", ifc_type="riser",
             ))
 
     riser_idx = flight1_treads + 1
@@ -1367,7 +1373,8 @@ def _preview_double_winder(p):
             tread_x = width + i * going + going / 2 - nosing / 2 + flight2_shift
         meshes.append(_box_mesh(
             tread_x, flight2_y_center, tread_z + tread_t / 2,
-            going + nosing + riser_t, width, tread_t, "#c8a87c"
+            going + nosing + riser_t, width, tread_t, "#c8a87c",
+            name=f"Flight 2 Tread {i+1}", ifc_type="tread",
         ))
 
     # Flight 2 risers
@@ -1380,7 +1387,8 @@ def _preview_double_winder(p):
                 riser_x = width + i * going + winder_offset1 + nosing + riser_t / 2
             meshes.append(_box_mesh(
                 riser_x, flight2_y_center, riser_z,
-                riser_t, width, riser_h, "#e8dcc8"
+                riser_t, width, riser_h, "#e8dcc8",
+                name=f"Riser F2-{i+1}", ifc_type="riser",
             ))
 
     riser_idx += flight2_treads
@@ -1474,7 +1482,8 @@ def _preview_double_winder(p):
         tread_length = going + nosing + riser_t
         meshes.append(_box_mesh(
             flight3_start_x + width / 2, tread_y + tread_length / 2, tread_z + tread_t / 2,
-            width, tread_length, tread_t, "#c8a87c"
+            width, tread_length, tread_t, "#c8a87c",
+            name=f"Flight 3 Tread {i+1}", ifc_type="tread",
         ))
 
     # Flight 3 risers (going in -Y direction)
@@ -1484,7 +1493,8 @@ def _preview_double_winder(p):
             riser_y = flight3_start_y - i * going - nosing + riser_t / 2 + flight3_shift_y
             meshes.append(_box_mesh(
                 flight3_start_x + width / 2, riser_y, riser_z,
-                width, riser_t, riser_h, "#e8dcc8"
+                width, riser_t, riser_h, "#e8dcc8",
+                name=f"Riser F3-{i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip (flight 3 top) ---
