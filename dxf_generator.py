@@ -1311,6 +1311,92 @@ def _stringer_extent_perp(meshes, flight_dir, flight_bbox=None):
     return (min(vals), max(vals))
 
 
+def _newel_extent_perp(meshes, flight_dir, flight_bbox=None):
+    """Return *(lo, hi)* of newel outer faces perpendicular to *flight_dir*.
+
+    For a Y-direction flight, returns the min/max X of newel bounding boxes.
+    For an X-direction flight, returns the min/max Y.
+    Only includes newels whose perpendicular centre falls within the flight bbox
+    (so winder-corner newels are excluded from straight-flight extents).
+    """
+    vals = []
+    for m in meshes:
+        if m.get("ifc_type") != "newel":
+            continue
+        c = m.get("ifc_center")
+        s = m.get("ifc_size")
+        if not c or not s:
+            continue
+        if flight_dir == "y":
+            # Perpendicular axis is X
+            n_x0 = c[0] - s[0] / 2
+            n_x1 = c[0] + s[0] / 2
+            # Filter: newel centre X must be within flight X range (± newel half-size)
+            if flight_bbox:
+                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
+                margin = s[0]
+                if c[0] < fb_xlo - margin or c[0] > fb_xhi + margin:
+                    continue
+            vals.extend([n_x0, n_x1])
+        elif flight_dir == "x":
+            n_y0 = c[1] - s[1] / 2
+            n_y1 = c[1] + s[1] / 2
+            if flight_bbox:
+                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                margin = s[1]
+                if c[1] < fb_ylo - margin or c[1] > fb_yhi + margin:
+                    continue
+            vals.extend([n_y0, n_y1])
+    if not vals:
+        return None
+    return (min(vals), max(vals))
+
+
+def _newel_extent_along(meshes, flight_dir, flight_bbox=None):
+    """Return *(lo, hi)* of newel outer faces along *flight_dir*.
+
+    For a Y-direction flight, returns the min/max Y of newel bounding boxes.
+    For an X-direction flight, returns the min/max X.
+    Filters newels by perpendicular overlap with flight_bbox.
+    """
+    vals = []
+    for m in meshes:
+        if m.get("ifc_type") != "newel":
+            continue
+        c = m.get("ifc_center")
+        s = m.get("ifc_size")
+        if not c or not s:
+            continue
+        if flight_dir == "y":
+            # Along axis is Y; filter by X (perpendicular)
+            if flight_bbox:
+                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
+                margin = s[0]
+                if c[0] < fb_xlo - margin or c[0] > fb_xhi + margin:
+                    continue
+            vals.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
+        elif flight_dir == "x":
+            # Along axis is X; filter by Y (perpendicular)
+            if flight_bbox:
+                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                margin = s[1]
+                if c[1] < fb_ylo - margin or c[1] > fb_yhi + margin:
+                    continue
+            vals.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
+    if not vals:
+        return None
+    return (min(vals), max(vals))
+
+
+def _combined_extent(ext_a, ext_b):
+    """Merge two optional (lo, hi) extents into the widest range."""
+    if ext_a is None:
+        return ext_b
+    if ext_b is None:
+        return ext_a
+    return (min(ext_a[0], ext_b[0]), max(ext_a[1], ext_b[1]))
+
+
 def _last_riser_rear_face(meshes, flight_num, flight_dir):
     """Return the coordinate of the rear face of the last riser in *flight_num*.
 
@@ -1419,8 +1505,8 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     plan_cy = (bbox_min_y + bbox_max_y) / 2
 
     # For each flight, create a length dimension along its direction.
-    # Dimension endpoints are anchored to stringer outer faces (the
-    # extremities of the visible geometry), not tread edges.
+    # Dimension endpoints are anchored to the outermost geometry — newel
+    # outer faces on balustrade sides, stringer outer faces on wall sides.
     for fi in flight_info:
         fnum = fi["flight"]
         fdir = fi["direction"]  # "x" or "y" — direction treads run along
@@ -1428,42 +1514,41 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if not fb:
             continue
 
-        # Get this flight's stringer extent along the flight direction.
-        # This gives us the actual geometry extremities (outside faces of
-        # stringers at either end of the dimension).
+        # Combine stringer and newel extents for the true overall dimension.
         str_along = _stringer_extent_along(meshes, fdir, flight_bbox=fb)
+        newel_along = _newel_extent_along(meshes, fdir, flight_bbox=fb)
+        along = _combined_extent(str_along, newel_along)
 
-        # Get this flight's stringer perpendicular extent (outer X for
-        # Y-direction flights, outer Y for X-direction flights).
         str_perp = _stringer_extent_perp(meshes, fdir, flight_bbox=fb)
+        newel_perp = _newel_extent_perp(meshes, fdir, flight_bbox=fb)
+        perp = _combined_extent(str_perp, newel_perp)
 
         if fdir == "y":
-            if str_along:
-                y_lo, y_hi = str_along
+            if along:
+                y_lo, y_hi = along
             else:
                 y_lo, y_hi = fb[2], fb[3]
-            # Position: on the stringer outer face (away from plan centroid).
+            # Position: on the outer face (away from plan centroid).
             f_cx = (fb[0] + fb[1]) / 2
             if f_cx >= plan_cx:
-                dim_x = str_perp[1] if str_perp else fb[1]
+                dim_x = perp[1] if perp else fb[1]
                 norm = (1, 0)
             else:
-                dim_x = str_perp[0] if str_perp else fb[0]
+                dim_x = perp[0] if perp else fb[0]
                 norm = (-1, 0)
             dims.append({"p1": (dim_x, y_lo), "p2": (dim_x, y_hi),
                          "offset": dim_offset, "norm": norm})
         else:
-            if str_along:
-                x_lo, x_hi = str_along
+            if along:
+                x_lo, x_hi = along
             else:
                 x_lo, x_hi = fb[0], fb[1]
-            # Position: on the stringer outer face (away from plan centroid).
             f_cy = (fb[2] + fb[3]) / 2
             if f_cy >= plan_cy:
-                dim_y = str_perp[1] if str_perp else fb[3]
+                dim_y = perp[1] if perp else fb[3]
                 norm = (0, 1)
             else:
-                dim_y = str_perp[0] if str_perp else fb[2]
+                dim_y = perp[0] if perp else fb[2]
                 norm = (0, -1)
             dims.append({"p1": (x_lo, dim_y), "p2": (x_hi, dim_y),
                          "offset": dim_offset, "norm": norm})
@@ -1486,25 +1571,27 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 dims.append({"p1": (bbox_max_x, bbox_min_y), "p2": (bbox_max_x, bbox_max_y),
                              "offset": dim_offset, "norm": (1, 0)})
 
-    # Add stringer-to-stringer width dimension for the bottom flight (flight 1).
-    # Pass flight 1's bbox so only stringers near flight 1 are included.
-    # Position at flight 1's stringer base (not bbox_min which may include
-    # other flights' treads further back).
+    # Add overall width dimension for the bottom flight (flight 1).
+    # Uses newel outer faces on balustrade sides, stringer outer faces on
+    # wall sides — giving a true overall width.
     bottom_fi = flight_info[0]
     bdir = bottom_fi["direction"]
     fb1 = flight_bboxes.get(bottom_fi["flight"])
-    ext = _stringer_extent_perp(meshes, bdir, flight_bbox=fb1)
+    str_perp1 = _stringer_extent_perp(meshes, bdir, flight_bbox=fb1)
+    newel_perp1 = _newel_extent_perp(meshes, bdir, flight_bbox=fb1)
+    ext = _combined_extent(str_perp1, newel_perp1)
     if ext:
         width_val = ext[1] - ext[0]
-        lbl = "%.0f O/A\nStringer to Stringer" % width_val
-        f1_str_along = _stringer_extent_along(meshes, bdir, flight_bbox=fb1)
+        lbl = "%.0f O/A" % width_val
+        f1_along = _combined_extent(
+            _stringer_extent_along(meshes, bdir, flight_bbox=fb1),
+            _newel_extent_along(meshes, bdir, flight_bbox=fb1))
         if bdir == "y":
-            # Width is in X direction; place at the front edge of flight 1
-            base_y = f1_str_along[0] if f1_str_along else bbox_min_y
+            base_y = f1_along[0] if f1_along else bbox_min_y
             dims.append({"p1": (ext[0], base_y), "p2": (ext[1], base_y),
                          "offset": dim_offset, "norm": (0, -1), "label": lbl})
         else:
-            base_x = f1_str_along[0] if f1_str_along else bbox_min_x
+            base_x = f1_along[0] if f1_along else bbox_min_x
             dims.append({"p1": (base_x, ext[0]), "p2": (base_x, ext[1]),
                          "offset": dim_offset, "norm": (-1, 0), "label": lbl})
 
