@@ -1640,6 +1640,16 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            // Scale dimension sprites to maintain constant screen size
+            if (dimensionGroup) {
+                dimensionGroup.traverse(child => {
+                    if (child.isSprite && child.userData.isDimLabel) {
+                        const dist = camera.position.distanceTo(child.position);
+                        const scale = dist * 0.15;
+                        child.scale.set(scale * 2, scale * 0.25, 1);
+                    }
+                });
+            }
             renderer.render(scene, camera);
         }
 
@@ -2191,7 +2201,8 @@ function renderGeometry(meshes) {
                 mid.add(norm.clone().multiplyScalar(80));
                 const sprite = makeLabelSprite(d.label);
                 sprite.position.copy(mid);
-                sprite.scale.set(600, 75, 1);
+                sprite.userData.isDimLabel = true;
+                sprite.scale.set(600, 75, 1);  // initial; overridden in animate()
                 sprite.renderOrder = 1000;
                 dimensionGroup.add(sprite);
             });

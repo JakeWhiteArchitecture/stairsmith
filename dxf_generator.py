@@ -957,16 +957,30 @@ def _identify_flights(meshes):
                     cx = sum(p[0] for p in fp) / len(fp)
                     cy = sum(p[1] for p in fp) / len(fp)
                     centers.append((cx, cy, t.get("z", 0)))
-        if len(centers) < 2:
+        if len(centers) < 1:
             continue
         xs = [c[0] for c in centers]
         ys = [c[1] for c in centers]
-        if (max(ys) - min(ys)) > (max(xs) - min(xs)):
-            result.append({"flight": fnum, "cut_axis": "x",
-                           "cut_pos": sum(xs) / len(xs), "direction": "y"})
+        if len(centers) >= 2:
+            # Determine direction from spread of tread centres
+            if (max(ys) - min(ys)) > (max(xs) - min(xs)):
+                result.append({"flight": fnum, "cut_axis": "x",
+                               "cut_pos": sum(xs) / len(xs), "direction": "y"})
+            else:
+                result.append({"flight": fnum, "cut_axis": "y",
+                               "cut_pos": sum(ys) / len(ys), "direction": "x"})
         else:
-            result.append({"flight": fnum, "cut_axis": "y",
-                           "cut_pos": sum(ys) / len(ys), "direction": "x"})
+            # Single tread — infer direction from tread box dimensions
+            t = flights[fnum][0]
+            s = t.get("ifc_size")
+            if s and s[1] > s[0]:
+                # Tread is longer in Y → it spans across, flight runs along X
+                result.append({"flight": fnum, "cut_axis": "y",
+                               "cut_pos": ys[0], "direction": "x"})
+            else:
+                # Tread is longer in X → it spans across, flight runs along Y
+                result.append({"flight": fnum, "cut_axis": "x",
+                               "cut_pos": xs[0], "direction": "y"})
     return result
 
 
@@ -1392,6 +1406,21 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 norm = (0, -1)  # push down (negative Y in IFC)
             dims.append({"p1": (x_lo, dim_y), "p2": (x_hi, dim_y),
                          "offset": dim_offset, "norm": norm})
+
+    # If a winder stair has only 1 flight detected (the other flight has
+    # 0 treads), add a dimension for the perpendicular extent (winder area).
+    if len(flight_info) == 1 and stair_type in ("single_winder", "double_winder"):
+        f1 = flight_info[0]
+        f1dir = f1["direction"]
+        fb1 = flight_bboxes.get(f1["flight"])
+        if f1dir == "y":
+            # Flight 1 runs along Y; add X-direction dimension for winder extent
+            dims.append({"p1": (bbox_min_x, bbox_max_y), "p2": (bbox_max_x, bbox_max_y),
+                         "offset": dim_offset, "norm": (0, 1)})
+        else:
+            # Flight 1 runs along X; add Y-direction dimension for winder extent
+            dims.append({"p1": (bbox_max_x, bbox_min_y), "p2": (bbox_max_x, bbox_max_y),
+                         "offset": dim_offset, "norm": (1, 0)})
 
     # Add stringer-to-stringer width dimension for the bottom flight
     bottom_fi = flight_info[0]
