@@ -1234,9 +1234,13 @@ def _last_riser_rear_face(meshes, flight_num, flight_dir):
 
 def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     """Return a list of dimension specs ``{p1, p2, offset, label}``."""
-    # Compute full plan bounding box from meshes
+    # Compute plan bounding box from treads, risers, and winders ONLY.
+    # Excludes stringers, balustrades, newels whose extents distort the bbox.
     all_x, all_y = [], []
     for m in meshes:
+        ifc_type = m.get("ifc_type", "")
+        if ifc_type not in ("tread", "riser", "winder_tread"):
+            continue
         if m.get("type") == "box":
             c = m.get("ifc_center")
             s = m.get("ifc_size")
@@ -1248,21 +1252,6 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             for pt in fp:
                 all_x.append(pt[0])
                 all_y.append(pt[1])
-        elif m.get("type") == "stringer":
-            axis = m.get("axis", "x")
-            prof = m.get("profile", [])
-            if axis == "y":
-                y0 = m.get("y", 0)
-                th = m.get("thickness", 0)
-                for pt in prof:
-                    all_x.extend([pt[0], pt[0]])
-                all_y.extend([y0, y0 + th])
-            else:
-                x0 = m.get("x", 0)
-                th = m.get("thickness", 0)
-                for pt in prof:
-                    all_y.extend([pt[0], pt[0]])
-                all_x.extend([x0, x0 + th])
     if not all_x or not all_y:
         return []
     bbox_min_x, bbox_max_x = min(all_x), max(all_x)
@@ -1325,24 +1314,9 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if fxs and fys:
             flight_bboxes[fnum] = (min(fxs), max(fxs), min(fys), max(fys))
 
-    # Plan-only bounding box (treads, risers, winders only — excludes tall
-    # stringers/balustrades whose Z extent distorts the centre).
-    plan_xs, plan_ys = [], []
-    for m in meshes:
-        if m.get("ifc_type") not in ("tread", "riser", "winder_tread"):
-            continue
-        if m.get("type") == "box":
-            c = m.get("ifc_center")
-            s = m.get("ifc_size")
-            if c and s:
-                plan_xs.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
-                plan_ys.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
-        elif m.get("type") == "winder_polygon":
-            for pt in m.get("profile", []):
-                plan_xs.append(pt[0])
-                plan_ys.append(pt[1])
-    plan_cx = (min(plan_xs) + max(plan_xs)) / 2 if plan_xs else (bbox_min_x + bbox_max_x) / 2
-    plan_cy = (min(plan_ys) + max(plan_ys)) / 2 if plan_ys else (bbox_min_y + bbox_max_y) / 2
+    # Plan centroid (bbox is already plan-only)
+    plan_cx = (bbox_min_x + bbox_max_x) / 2
+    plan_cy = (bbox_min_y + bbox_max_y) / 2
 
     # For each flight, create a length dimension along its direction.
     # Only dimension flights 1 and 2 (omit flight 3 for now).
