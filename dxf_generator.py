@@ -1377,28 +1377,6 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
 
     # Compute stringer bounding box — the outer edges of all stringers.
     # Dimensions should align to stringer outer faces, not tread edges.
-    str_x, str_y = list(all_x), list(all_y)  # start with tread bbox
-    for m in meshes:
-        if m.get("ifc_type") != "stringer" or m.get("type") != "stringer":
-            continue
-        axis = m.get("axis", "x")
-        t = m.get("thickness", 32)
-        profile = m.get("profile", [])
-        if axis != "y":
-            # X-extruded stringer: outer faces in X, profile extent in Y
-            x0 = m.get("x", 0)
-            str_x.extend([x0, x0 + t])
-            for pt in profile:
-                str_y.append(pt[1])
-        else:
-            # Y-extruded stringer: outer faces in Y, profile extent in X
-            y0 = m.get("y", 0)
-            str_y.extend([y0, y0 + t])
-            for pt in profile:
-                str_x.append(pt[0])
-    sbbox_min_x, sbbox_max_x = min(str_x), max(str_x)
-    sbbox_min_y, sbbox_max_y = min(str_y), max(str_y)
-
     flight_info = _identify_flights(meshes)
     stair_type = params.get("staircase_type", params.get("stair_type", "straight"))
     dims = []
@@ -1460,13 +1438,14 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     plan_cx = (bbox_min_x + bbox_max_x) / 2
     plan_cy = (bbox_min_y + bbox_max_y) / 2
 
-    # Compute the front-edge position of flight 1 (first riser or bottom
-    # newel, whichever projects further forward).  Used to anchor the
-    # flight 1 dim and stringer-to-stringer dim to the physical stair front.
+    # Compute the stringer extent along flight 1's direction.  The lo value
+    # gives the actual stringer start (e.g. Y=0), which is the correct base
+    # position for dimension lines — not the newel front (Y=-75).
     f1_fb = flight_bboxes.get(flight_info[0]["flight"]) if flight_info else None
-    f1_front = _flight1_front_edge(
+    f1_str_along = _stringer_extent_along(
         meshes, flight_info[0]["direction"], f1_fb
     ) if flight_info else None
+    f1_front = f1_str_along[0] if f1_str_along else None
 
     # For each flight, create a length dimension along its direction.
     for fi in flight_info:
@@ -1491,7 +1470,7 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             if use_own_extent:
                 y_lo, y_hi = fb[2], fb[3]
             else:
-                y_lo, y_hi = sbbox_min_y, sbbox_max_y
+                y_lo, y_hi = bbox_min_y, bbox_max_y
             # For flight 1, anchor the start to the front edge.
             if fnum == 1 and f1_front is not None:
                 y_lo = f1_front
@@ -1514,7 +1493,7 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             if use_own_extent:
                 x_lo, x_hi = fb[0], fb[1]
             else:
-                x_lo, x_hi = sbbox_min_x, sbbox_max_x
+                x_lo, x_hi = bbox_min_x, bbox_max_x
             if fnum == 1 and f1_front is not None:
                 x_lo = f1_front
             if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
@@ -1554,11 +1533,11 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             if f1dir == "y":
                 # Flight 1 runs along Y; dimension the X extent (perpendicular).
                 # Position at the top of the stringer bbox (above all winders).
-                dims.append({"p1": (sbbox_min_x, sbbox_max_y), "p2": (sbbox_max_x, sbbox_max_y),
+                dims.append({"p1": (bbox_min_x, bbox_max_y), "p2": (bbox_max_x, bbox_max_y),
                              "offset": dim_offset, "norm": (0, 1)})
             else:
                 # Flight 1 runs along X; dimension the Y extent.
-                dims.append({"p1": (sbbox_max_x, sbbox_min_y), "p2": (sbbox_max_x, sbbox_max_y),
+                dims.append({"p1": (bbox_max_x, bbox_min_y), "p2": (bbox_max_x, bbox_max_y),
                              "offset": dim_offset, "norm": (1, 0)})
 
     # Add stringer-to-stringer width dimension for the bottom flight (flight 1).
