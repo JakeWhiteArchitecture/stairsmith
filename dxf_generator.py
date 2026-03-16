@@ -1336,7 +1336,10 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             # Flight runs along Y.  Length = full stair Y extent.
             y_lo = bbox_min_y
             y_hi = bbox_max_y
-            if fnum == top_fnum:
+            # Only clip to last riser for the top flight when there are no
+            # winders beyond it (straight stair).  For winder stairs the
+            # dimension must include the winder box area.
+            if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
                 rr = _last_riser_rear_face(meshes, fnum, "y")
                 if rr is not None:
                     y_hi = rr
@@ -1355,7 +1358,7 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             # Flight runs along X.  Length = full stair X extent.
             x_lo = bbox_min_x
             x_hi = bbox_max_x
-            if fnum == top_fnum:
+            if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
                 rr = _last_riser_rear_face(meshes, fnum, "x")
                 if rr is not None:
                     if top_tread_centers:
