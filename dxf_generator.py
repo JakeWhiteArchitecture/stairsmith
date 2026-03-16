@@ -1234,12 +1234,13 @@ def _last_riser_rear_face(meshes, flight_num, flight_dir):
 
 def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     """Return a list of dimension specs ``{p1, p2, offset, label}``."""
-    # Compute plan bounding box from treads, risers, and winders ONLY.
-    # Excludes stringers, balustrades, newels whose extents distort the bbox.
+    # Compute plan bounding box from treads and winders ONLY.
+    # Excludes risers (closing riser can extend beyond the last tread),
+    # stringers, balustrades, and newels.
     all_x, all_y = [], []
     for m in meshes:
         ifc_type = m.get("ifc_type", "")
-        if ifc_type not in ("tread", "riser", "winder_tread"):
+        if ifc_type not in ("tread", "winder_tread"):
             continue
         if m.get("type") == "box":
             c = m.get("ifc_center")
@@ -1383,18 +1384,21 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
 
     # If a winder stair has only 1 flight detected (the other flight has
     # 0 treads), add a dimension for the perpendicular extent (winder area).
+    # This shows how far the turn projects from flight 1's outer edge.
     if len(flight_info) == 1 and stair_type in ("single_winder", "double_winder"):
         f1 = flight_info[0]
         f1dir = f1["direction"]
         fb1 = flight_bboxes.get(f1["flight"])
-        if f1dir == "y":
-            # Flight 1 runs along Y; add X-direction dimension for winder extent
-            dims.append({"p1": (bbox_min_x, bbox_max_y), "p2": (bbox_max_x, bbox_max_y),
-                         "offset": dim_offset, "norm": (0, 1)})
-        else:
-            # Flight 1 runs along X; add Y-direction dimension for winder extent
-            dims.append({"p1": (bbox_max_x, bbox_min_y), "p2": (bbox_max_x, bbox_max_y),
-                         "offset": dim_offset, "norm": (1, 0)})
+        if fb1:
+            if f1dir == "y":
+                # Flight 1 runs along Y; dimension the X extent (perpendicular).
+                # Position at the top of the plan bbox (above all winders).
+                dims.append({"p1": (bbox_min_x, bbox_max_y), "p2": (bbox_max_x, bbox_max_y),
+                             "offset": dim_offset, "norm": (0, 1)})
+            else:
+                # Flight 1 runs along X; dimension the Y extent.
+                dims.append({"p1": (bbox_max_x, bbox_min_y), "p2": (bbox_max_x, bbox_max_y),
+                             "offset": dim_offset, "norm": (1, 0)})
 
     # Add stringer-to-stringer width dimension for the bottom flight
     bottom_fi = flight_info[0]
