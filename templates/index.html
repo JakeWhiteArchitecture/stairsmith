@@ -1329,6 +1329,7 @@
         let dimensionGroup = null;
 
         function renderDimensions(dims) {
+            console.log('renderDimensions called, dims:', dims);
             // Remove old dimension objects
             if (dimensionGroup) {
                 scene.remove(dimensionGroup);
@@ -1342,17 +1343,17 @@
             }
             dimensionGroup = new THREE.Group();
 
-            if (!dims || dims.length === 0) { scene.add(dimensionGroup); return; }
+            if (!dims || dims.length === 0) { console.log('No dims to render'); scene.add(dimensionGroup); return; }
 
-            const DIM_OFFSET = 200;  // mm offset from stair
-            const TICK_SIZE = 40;
+            const DIM_OFFSET = 350;  // mm offset from stair edge
+            const TICK_LEN = 80;    // tick mark length
             const LINE_COLOR = 0x00ccff;
 
             dims.forEach(d => {
                 // d.p1, d.p2 are in IFC plan coords (X, Y at Z=0)
                 // Three.js: X=ifc_x, Y=ifc_z, Z=-ifc_y
-                // Lift slightly above floor (Y=5) to avoid z-fighting with grid
-                const FLOOR_Y = 5;
+                // Render at floor level, slightly above grid
+                const FLOOR_Y = 10;
                 const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
                 const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
 
@@ -1365,34 +1366,50 @@
                 const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
                 const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
 
-                const lineMat = new THREE.LineBasicMaterial({ color: LINE_COLOR, linewidth: 2, depthTest: false });
+                const lineMat = new THREE.LineBasicMaterial({ color: LINE_COLOR, depthTest: false });
 
-                // Dimension line
-                const dimGeo = new THREE.BufferGeometry().setFromPoints([o1, o2]);
-                dimensionGroup.add(new THREE.Line(dimGeo, lineMat));
+                // Helper: create a thin cylinder between two points (visible "thick line")
+                function addTube(a, b, radius) {
+                    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+                    const length = a.distanceTo(b);
+                    if (length < 0.1) return;
+                    const geo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const mat = new THREE.MeshBasicMaterial({ color: LINE_COLOR, depthTest: false });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(mid);
+                    // Orient cylinder along the a→b direction
+                    const axis = new THREE.Vector3().subVectors(b, a).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const quat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+                    mesh.quaternion.copy(quat);
+                    mesh.renderOrder = 999;
+                    dimensionGroup.add(mesh);
+                }
 
-                // Extension lines (from measurement point to dimension line + overshoot)
-                const ext1Geo = new THREE.BufferGeometry().setFromPoints([p1, o1.clone().add(norm.clone().multiplyScalar(30))]);
-                dimensionGroup.add(new THREE.Line(ext1Geo, lineMat));
-                const ext2Geo = new THREE.BufferGeometry().setFromPoints([p2, o2.clone().add(norm.clone().multiplyScalar(30))]);
-                dimensionGroup.add(new THREE.Line(ext2Geo, lineMat));
+                // Dimension line (main line between offset endpoints)
+                addTube(o1, o2, 3);
 
-                // Tick marks (perpendicular to dimension line) at each end
-                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_SIZE/2));
-                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_SIZE/2));
-                const tick1Geo = new THREE.BufferGeometry().setFromPoints([t1a, t1b]);
-                dimensionGroup.add(new THREE.Line(tick1Geo, lineMat));
-                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_SIZE/2));
-                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_SIZE/2));
-                const tick2Geo = new THREE.BufferGeometry().setFromPoints([t2a, t2b]);
-                dimensionGroup.add(new THREE.Line(tick2Geo, lineMat));
+                // Extension lines (from measurement point to beyond dimension line)
+                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40));
+                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40));
+                addTube(p1, extEnd1, 2);
+                addTube(p2, extEnd2, 2);
+
+                // Tick marks (perpendicular to dim line, crossing at each end)
+                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t1a, t1b, 3);
+                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t2a, t2b, 3);
 
                 // Label sprite at midpoint of dimension line
                 const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
-                mid.add(norm.clone().multiplyScalar(50));
+                mid.add(norm.clone().multiplyScalar(80));
                 const sprite = makeLabelSprite(d.label);
                 sprite.position.copy(mid);
-                sprite.scale.set(300, 150, 1);
+                sprite.scale.set(400, 200, 1);
+                sprite.renderOrder = 1000;
                 dimensionGroup.add(sprite);
             });
 
