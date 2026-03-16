@@ -236,7 +236,7 @@
             top: 10px;
             right: 10px;
             font-size: 11px;
-            color: #555;
+            color: #00ccff;
             z-index: 5;
         }
 
@@ -1258,8 +1258,13 @@
                 body: JSON.stringify(params),
             })
             .then(r => r.json())
-            .then(data => { if (data.success) renderGeometry(data.geometry); })
-            .catch(() => {});
+            .then(data => {
+                if (data.success) {
+                    renderGeometry(data.geometry);
+                    renderDimensions(data.dimensions || []);
+                }
+            })
+            .catch(err => console.error('preview error:', err));
 
             updateDerived();
         }
@@ -1319,6 +1324,133 @@
             });
 
             scene.add(staircaseGroup);
+        }
+
+        let dimensionGroup = null;
+
+        function renderDimensions(dims) {
+            console.log('renderDimensions called, dims:', dims);
+            // Remove old dimension objects
+            if (dimensionGroup) {
+                scene.remove(dimensionGroup);
+                dimensionGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+            dimensionGroup = new THREE.Group();
+
+            if (!dims || dims.length === 0) { console.log('No dims to render'); scene.add(dimensionGroup); return; }
+
+            const DIM_OFFSET = 350;  // mm offset from stair edge
+            const TICK_LEN = 80;    // tick mark length
+            const LINE_COLOR = 0x00ccff;
+
+            dims.forEach(d => {
+                // d.p1, d.p2 are in IFC plan coords (X, Y at Z=0)
+                // Three.js: X=ifc_x, Y=ifc_z, Z=-ifc_y
+                // Render at floor level, slightly above grid
+                const FLOOR_Y = 10;
+                const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
+                const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
+
+                // Direction along dimension line
+                const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                // Normal (perpendicular, in XZ plane)
+                const norm = new THREE.Vector3(-dir.z, 0, dir.x);
+
+                // Offset points away from stair
+                const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+                const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+
+                const lineMat = new THREE.LineBasicMaterial({ color: LINE_COLOR, depthTest: false });
+
+                // Helper: create a thin cylinder between two points (visible "thick line")
+                function addTube(a, b, radius) {
+                    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+                    const length = a.distanceTo(b);
+                    if (length < 0.1) return;
+                    const geo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const mat = new THREE.MeshBasicMaterial({ color: LINE_COLOR, depthTest: false });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(mid);
+                    // Orient cylinder along the a→b direction
+                    const axis = new THREE.Vector3().subVectors(b, a).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const quat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+                    mesh.quaternion.copy(quat);
+                    mesh.renderOrder = 999;
+                    dimensionGroup.add(mesh);
+                }
+
+                // Dimension line (main line between offset endpoints)
+                addTube(o1, o2, 3);
+
+                // Extension lines (from measurement point to beyond dimension line)
+                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40));
+                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40));
+                addTube(p1, extEnd1, 2);
+                addTube(p2, extEnd2, 2);
+
+                // Tick marks (perpendicular to dim line, crossing at each end)
+                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t1a, t1b, 3);
+                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t2a, t2b, 3);
+
+                // Label sprite at midpoint of dimension line
+                const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
+                mid.add(norm.clone().multiplyScalar(80));
+                const sprite = makeLabelSprite(d.label);
+                sprite.position.copy(mid);
+                sprite.scale.set(400, 200, 1);
+                sprite.renderOrder = 1000;
+                dimensionGroup.add(sprite);
+            });
+
+            scene.add(dimensionGroup);
+        }
+
+        function makeLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 1024, 128);
+            const lines = text.split('\n');
+            const nLines = lines.length;
+            let fontSize = nLines > 1 ? 40 : 56;
+            ctx.font = 'bold ' + fontSize + 'px Arial';
+            const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            while (maxLineW > 980 && fontSize > 20) {
+                fontSize -= 2;
+                ctx.font = 'bold ' + fontSize + 'px Arial';
+            }
+            const pad = 24;
+            const measuredW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            const bgW = measuredW + pad * 2;
+            const lineH = fontSize * 1.2;
+            const totalTextH = nLines * lineH;
+            const bgH = totalTextH + pad;
+            const bgX = (1024 - bgW) / 2;
+            const bgY = (128 - bgH) / 2;
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
+            ctx.fillRect(bgX, bgY, bgW, bgH);
+            ctx.fillStyle = '#00ccff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const startY = 64 - (nLines - 1) * lineH / 2;
+            for (let i = 0; i < nLines; i++) {
+                ctx.fillText(lines[i], 512, startY + i * lineH);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+            return new THREE.Sprite(mat);
         }
 
         function createWinderPolygonMesh(m) {
@@ -1767,8 +1899,8 @@
                     const horiz = Math.sqrt(dx * dx + dz * dz);
 
                     document.getElementById('measure-result').textContent = dist.toFixed(0) + ' mm';
-                    document.getElementById('measure-components').textContent =
-                        'H: ' + horiz.toFixed(0) + ' mm  |  V: ' + dy.toFixed(0) + ' mm';
+                    document.getElementById('measure-components').innerHTML =
+                        '\u0394X: ' + dx.toFixed(0) + '  \u0394Y: ' + dz.toFixed(0) + '  \u0394Z: ' + dy.toFixed(0);
                     document.getElementById('measure-hint').textContent = 'Click to start new measurement';
                 }
             } else {

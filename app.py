@@ -68,11 +68,31 @@ def preview():
     """
     Return 3D geometry data as JSON for the Three.js preview.
     This generates the staircase geometry as mesh data without creating an IFC file.
+    Also returns plan dimension data so the 3D viewer can show matching dimensions.
     """
     params = request.get_json()
     try:
         geometry = generate_preview_geometry(params)
-        return jsonify({"success": True, "geometry": geometry})
+        # Compute plan dimensions (same logic as DXF output)
+        try:
+            from dxf_generator import _compute_plan_dimensions
+            dims = _compute_plan_dimensions(geometry, params, 0, 0)
+            # Convert to simple format for JS: [{p1:[x,y], p2:[x,y], label:str}]
+            import math
+            dim_data = []
+            for d in dims:
+                length = math.hypot(d["p2"][0] - d["p1"][0],
+                                    d["p2"][1] - d["p1"][1])
+                lbl = d.get("label") or ("%.0f" % length)
+                dim_data.append({
+                    "p1": list(d["p1"]),
+                    "p2": list(d["p2"]),
+                    "label": lbl,
+                })
+        except Exception:
+            dim_data = []
+        return jsonify({"success": True, "geometry": geometry,
+                        "dimensions": dim_data})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
 
