@@ -1356,12 +1356,12 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             f_cx = (fb[0] + fb[1]) / 2
             if f_cx >= plan_cx:
                 dim_x = fb[1]
-                off = dim_offset
+                norm = (1, 0)   # push right (positive X)
             else:
                 dim_x = fb[0]
-                off = -dim_offset
+                norm = (-1, 0)  # push left (negative X)
             dims.append({"p1": (dim_x, y_lo), "p2": (dim_x, y_hi),
-                         "offset": off})
+                         "offset": dim_offset, "norm": norm})
         else:
             # Flight runs along X.  Length = full stair X extent.
             x_lo = bbox_min_x
@@ -1386,12 +1386,12 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             f_cy = (fb[2] + fb[3]) / 2
             if f_cy >= plan_cy:
                 dim_y = fb[3]
-                off = dim_offset
+                norm = (0, 1)   # push up (positive Y in IFC)
             else:
                 dim_y = fb[2]
-                off = -dim_offset
+                norm = (0, -1)  # push down (negative Y in IFC)
             dims.append({"p1": (x_lo, dim_y), "p2": (x_hi, dim_y),
-                         "offset": off})
+                         "offset": dim_offset, "norm": norm})
 
     # Add stringer-to-stringer width dimension for the bottom flight
     bottom_fi = flight_info[0]
@@ -1403,11 +1403,11 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if bdir == "y":
             # Width is in X direction; place below the plan
             dims.append({"p1": (ext[0], bbox_min_y), "p2": (ext[1], bbox_min_y),
-                         "offset": -dim_offset, "label": lbl})
+                         "offset": dim_offset, "norm": (0, -1), "label": lbl})
         else:
             # Width is in Y direction; place to the left
             dims.append({"p1": (bbox_min_x, ext[0]), "p2": (bbox_min_x, ext[1]),
-                         "offset": -dim_offset, "label": lbl})
+                         "offset": dim_offset, "norm": (-1, 0), "label": lbl})
 
     return dims
 

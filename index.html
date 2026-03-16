@@ -2054,7 +2054,7 @@ try:
     for _d in _dims_raw:
         _l = _math.hypot(_d["p2"][0]-_d["p1"][0], _d["p2"][1]-_d["p1"][1])
         _lbl = _d.get("label") or ("%.0f" % _l)
-        _dim_data.append({"p1": list(_d["p1"]), "p2": list(_d["p2"]), "label": _lbl, "offset": _d.get("offset", 300)})
+        _dim_data.append({"p1": list(_d["p1"]), "p2": list(_d["p2"]), "label": _lbl, "offset": _d.get("offset", 300), "norm": list(_d.get("norm", (1, 0)))})
 except Exception:
     _dim_data = []
 _json.dumps({"geometry": _geo, "dimensions": _dim_data})
@@ -2143,15 +2143,14 @@ function renderGeometry(meshes) {
                 const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
                 const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
 
-                // Direction along dimension line
-                const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-                // Normal (perpendicular, in XZ plane)
-                const norm = new THREE.Vector3(-dir.z, 0, dir.x);
+                // Use explicit normal from backend (IFC 2D coords),
+                // converted to Three.js: (ifc_nx, 0, -ifc_ny)
+                const ifc_nx = d.norm ? d.norm[0] : 1;
+                const ifc_ny = d.norm ? d.norm[1] : 0;
+                const norm = new THREE.Vector3(ifc_nx, 0, -ifc_ny);
 
-                // Use offset sign from backend to determine which side
-                const offsetSign = (d.offset && d.offset < 0) ? -1 : 1;
-                const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET * offsetSign));
-                const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET * offsetSign));
+                const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+                const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
 
                 // Helper: create a thin cylinder between two points
                 function addTube(a, b, radius) {
@@ -2174,8 +2173,8 @@ function renderGeometry(meshes) {
                 addTube(o1, o2, 3);
 
                 // Extension lines (from measurement point to beyond dimension line)
-                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40 * offsetSign));
-                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40 * offsetSign));
+                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40));
+                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40));
                 addTube(p1, extEnd1, 2);
                 addTube(p2, extEnd2, 2);
 
@@ -2189,7 +2188,7 @@ function renderGeometry(meshes) {
 
                 // Label sprite at midpoint of dimension line
                 const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
-                mid.add(norm.clone().multiplyScalar(80 * offsetSign));
+                mid.add(norm.clone().multiplyScalar(80));
                 const sprite = makeLabelSprite(d.label);
                 sprite.position.copy(mid);
                 sprite.scale.set(600, 75, 1);
