@@ -161,7 +161,7 @@ class _DxfWriter:
             a(" 20"); a("%.6f" % pos[1])
             a(" 30"); a("0.0")
             a(" 40"); a("%.6f" % height)
-            a("  1"); a(text)
+            a("  1"); a(text.replace("\n", " "))
         a("  0"); a("ENDSEC")
 
         # EOF
@@ -1167,6 +1167,59 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
 
 # ── Plan dimension helpers ──────────────────────────────────────
 
+def _flight1_front_edge(meshes, flight_dir, flight_bbox):
+    """Return the front-edge coordinate of flight 1 along *flight_dir*.
+
+    This is the outermost position of the first riser or any bottom newel
+    near flight 1, whichever projects further forward.  Used to anchor
+    dimension lines to the physical front of the staircase.
+    """
+    if not flight_bbox:
+        return None
+    vals = []
+    # First riser of flight 1
+    for m in meshes:
+        if m.get("ifc_type") != "riser":
+            continue
+        name = m.get("name", "")
+        if "F1-1" not in name:
+            continue
+        c = m.get("ifc_center")
+        s = m.get("ifc_size")
+        if c and s:
+            if flight_dir == "y":
+                vals.append(c[1] - s[1] / 2)
+            else:
+                vals.append(c[0] - s[0] / 2)
+    # Bottom newels near flight 1's perpendicular range
+    for m in meshes:
+        if m.get("ifc_type") != "newel":
+            continue
+        c = m.get("ifc_center")
+        s = m.get("ifc_size")
+        if not c or not s:
+            continue
+        if flight_dir == "y":
+            # Check the newel is near flight 1's X range
+            nx_lo, nx_hi = c[0] - s[0] / 2, c[0] + s[0] / 2
+            margin = 100
+            if nx_hi < flight_bbox[0] - margin or nx_lo > flight_bbox[1] + margin:
+                continue
+            ny_lo = c[1] - s[1] / 2
+            # Only include newels near the base (below the first tread)
+            if ny_lo < flight_bbox[2] + 50:
+                vals.append(ny_lo)
+        else:
+            ny_lo, ny_hi = c[1] - s[1] / 2, c[1] + s[1] / 2
+            margin = 100
+            if ny_hi < flight_bbox[2] - margin or ny_lo > flight_bbox[3] + margin:
+                continue
+            nx_lo = c[0] - s[0] / 2
+            if nx_lo < flight_bbox[0] + 50:
+                vals.append(nx_lo)
+    return min(vals) if vals else None
+
+
 def _stringer_extent_along(meshes, flight_dir, flight_bbox=None):
     """Return *(lo, hi)* along *flight_dir* for flight 1 stringers.
 
@@ -1377,11 +1430,12 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     plan_cx = (bbox_min_x + bbox_max_x) / 2
     plan_cy = (bbox_min_y + bbox_max_y) / 2
 
-    # Compute flight 1 stringer extent along its direction (used to anchor
-    # the flight 1 dim and stringer-to-stringer dim to the stringer base).
+    # Compute the front-edge position of flight 1 (first riser or bottom
+    # newel, whichever projects further forward).  Used to anchor the
+    # flight 1 dim and stringer-to-stringer dim to the physical stair front.
     f1_fb = flight_bboxes.get(flight_info[0]["flight"]) if flight_info else None
-    f1_str_along = _stringer_extent_along(
-        meshes, flight_info[0]["direction"], flight_bbox=f1_fb
+    f1_front = _flight1_front_edge(
+        meshes, flight_info[0]["direction"], f1_fb
     ) if flight_info else None
 
     # For each flight, create a length dimension along its direction.
@@ -1406,8 +1460,8 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 y_lo, y_hi = bbox_min_y, bbox_max_y
             # For flight 1, anchor the start to the stringer base so the
             # dim ties to the physical stair, not to other flights' treads.
-            if fnum == 1 and f1_str_along:
-                y_lo = f1_str_along[0]
+            if fnum == 1 and f1_front is not None:
+                y_lo = f1_front
             # Only clip to last riser for the top flight in straight stairs.
             # For winder stairs the dimension must include the winder box.
             if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
@@ -1430,8 +1484,8 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 x_lo, x_hi = fb[0], fb[1]
             else:
                 x_lo, x_hi = bbox_min_x, bbox_max_x
-            if fnum == 1 and f1_str_along:
-                x_lo = f1_str_along[0]
+            if fnum == 1 and f1_front is not None:
+                x_lo = f1_front
             if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
                 rr = _last_riser_rear_face(meshes, fnum, "x")
                 if rr is not None:
@@ -1485,18 +1539,16 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     bdir = bottom_fi["direction"]
     fb1 = flight_bboxes.get(bottom_fi["flight"])
     ext = _stringer_extent_perp(meshes, bdir, flight_bbox=fb1)
-    str_along = _stringer_extent_along(meshes, bdir, flight_bbox=fb1)
     if ext:
         width_val = ext[1] - ext[0]
         lbl = "%.0f O/A\nStringer to Stringer" % width_val
         if bdir == "y":
-            # Width is in X direction; place at the stringer base Y
-            base_y = str_along[0] if str_along else bbox_min_y
+            # Width is in X direction; place at the front edge of flight 1
+            base_y = f1_front if f1_front is not None else bbox_min_y
             dims.append({"p1": (ext[0], base_y), "p2": (ext[1], base_y),
                          "offset": dim_offset, "norm": (0, -1), "label": lbl})
         else:
-            # Width is in Y direction; place at the stringer base X
-            base_x = str_along[0] if str_along else bbox_min_x
+            base_x = f1_front if f1_front is not None else bbox_min_x
             dims.append({"p1": (base_x, ext[0]), "p2": (base_x, ext[1]),
                          "offset": dim_offset, "norm": (-1, 0), "label": lbl})
 
