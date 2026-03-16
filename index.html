@@ -2216,19 +2216,35 @@ function renderGeometry(meshes) {
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, 1024, 128);
+            const lines = text.split('\n');
+            const nLines = lines.length;
             // Auto-size font to fit the canvas
-            let fontSize = 56;
+            let fontSize = nLines > 1 ? 40 : 56;
             ctx.font = 'bold ' + fontSize + 'px Arial';
-            while (ctx.measureText(text).width > 980 && fontSize > 20) {
+            const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            while (maxLineW > 980 && fontSize > 20) {
                 fontSize -= 2;
                 ctx.font = 'bold ' + fontSize + 'px Arial';
             }
+            // Background: sized to text content + small padding
+            const pad = 24;
+            const measuredW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            const bgW = measuredW + pad * 2;
+            const lineH = fontSize * 1.2;
+            const totalTextH = nLines * lineH;
+            const bgH = totalTextH + pad;
+            const bgX = (1024 - bgW) / 2;
+            const bgY = (128 - bgH) / 2;
             ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
-            ctx.fillRect(0, 20, 1024, 88);
+            ctx.fillRect(bgX, bgY, bgW, bgH);
+            // Draw text lines
             ctx.fillStyle = '#00ccff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 512, 64);
+            const startY = 64 - (nLines - 1) * lineH / 2;
+            for (let i = 0; i < nLines; i++) {
+                ctx.fillText(lines[i], 512, startY + i * lineH);
+            }
             const tex = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
             return new THREE.Sprite(mat);

@@ -1345,9 +1345,11 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             continue
 
         # For flights 1 and 2, span the full plan bbox extent along the
-        # flight direction.  Flight 3 (U-shape return) uses its own
-        # per-flight bbox extent instead to avoid duplicating flight 1's dim.
-        use_own_extent = (fnum >= 3)
+        # flight direction.  Flight 3 (U-shape return) also spans the full
+        # extent in double-winder stairs (it includes the winder 2 area);
+        # the two Y-direction dims don't collide because flight 1 is on
+        # the right edge and flight 3 is on the left edge.
+        use_own_extent = (fnum >= 3 and stair_type != "double_winder")
 
         if fdir == "y":
             if use_own_extent:
@@ -1429,7 +1431,7 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     ext = _stringer_extent_perp(meshes, bdir, flight_bbox=fb1)
     if ext:
         width_val = ext[1] - ext[0]
-        lbl = "%.0f O/A Stringer to Stringer" % width_val
+        lbl = "%.0f O/A\nStringer to Stringer" % width_val
         if bdir == "y":
             # Width is in X direction; place below the plan
             dims.append({"p1": (ext[0], bbox_min_y), "p2": (ext[1], bbox_min_y),
