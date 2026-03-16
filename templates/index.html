@@ -1258,8 +1258,13 @@
                 body: JSON.stringify(params),
             })
             .then(r => r.json())
-            .then(data => { if (data.success) { renderGeometry(data.geometry); renderDimensions(data.dimensions || []); } })
-            .catch(() => {});
+            .then(data => {
+                if (data.success) {
+                    renderGeometry(data.geometry);
+                    renderDimensions(data.dimensions || []);
+                }
+            })
+            .catch(err => console.error('preview error:', err));
 
             updateDerived();
         }
@@ -1345,9 +1350,11 @@
 
             dims.forEach(d => {
                 // d.p1, d.p2 are in IFC plan coords (X, Y at Z=0)
-                // Three.js: X=ifc_x, Y=0, Z=-ifc_y
-                const p1 = new THREE.Vector3(d.p1[0], 0, -d.p1[1]);
-                const p2 = new THREE.Vector3(d.p2[0], 0, -d.p2[1]);
+                // Three.js: X=ifc_x, Y=ifc_z, Z=-ifc_y
+                // Lift slightly above floor (Y=5) to avoid z-fighting with grid
+                const FLOOR_Y = 5;
+                const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
+                const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
 
                 // Direction along dimension line
                 const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
@@ -1358,51 +1365,54 @@
                 const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
                 const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
 
-                const lineMat = new THREE.LineBasicMaterial({ color: LINE_COLOR });
+                const lineMat = new THREE.LineBasicMaterial({ color: LINE_COLOR, linewidth: 2, depthTest: false });
 
                 // Dimension line
                 const dimGeo = new THREE.BufferGeometry().setFromPoints([o1, o2]);
                 dimensionGroup.add(new THREE.Line(dimGeo, lineMat));
 
-                // Extension lines
+                // Extension lines (from measurement point to dimension line + overshoot)
                 const ext1Geo = new THREE.BufferGeometry().setFromPoints([p1, o1.clone().add(norm.clone().multiplyScalar(30))]);
                 dimensionGroup.add(new THREE.Line(ext1Geo, lineMat));
                 const ext2Geo = new THREE.BufferGeometry().setFromPoints([p2, o2.clone().add(norm.clone().multiplyScalar(30))]);
                 dimensionGroup.add(new THREE.Line(ext2Geo, lineMat));
 
-                // Tick marks at ends
-                const t1a = o1.clone().add(dir.clone().multiplyScalar(-TICK_SIZE/2));
-                const t1b = o1.clone().add(dir.clone().multiplyScalar(TICK_SIZE/2));
+                // Tick marks (perpendicular to dimension line) at each end
+                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_SIZE/2));
+                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_SIZE/2));
                 const tick1Geo = new THREE.BufferGeometry().setFromPoints([t1a, t1b]);
                 dimensionGroup.add(new THREE.Line(tick1Geo, lineMat));
-                const t2a = o2.clone().add(dir.clone().multiplyScalar(-TICK_SIZE/2));
-                const t2b = o2.clone().add(dir.clone().multiplyScalar(TICK_SIZE/2));
+                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_SIZE/2));
+                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_SIZE/2));
                 const tick2Geo = new THREE.BufferGeometry().setFromPoints([t2a, t2b]);
                 dimensionGroup.add(new THREE.Line(tick2Geo, lineMat));
 
-                // Label sprite at midpoint
-                const mid = o1.clone().add(o2).multiplyScalar(0.5);
-                mid.add(norm.clone().multiplyScalar(30));
-                const sprite = makeLabelSprite(d.label, LINE_COLOR);
+                // Label sprite at midpoint of dimension line
+                const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
+                mid.add(norm.clone().multiplyScalar(50));
+                const sprite = makeLabelSprite(d.label);
                 sprite.position.copy(mid);
-                sprite.scale.set(200, 100, 1);
+                sprite.scale.set(300, 150, 1);
                 dimensionGroup.add(sprite);
             });
 
             scene.add(dimensionGroup);
         }
 
-        function makeLabelSprite(text, color) {
+        function makeLabelSprite(text) {
             const canvas = document.createElement('canvas');
-            canvas.width = 256;
+            canvas.width = 512;
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, 256, 128);
-            ctx.font = 'bold 64px Arial';
-            ctx.fillStyle = '#' + new THREE.Color(color).getHexString();
+            ctx.clearRect(0, 0, 512, 128);
+            // Background for readability
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
+            ctx.fillRect(0, 20, 512, 88);
+            ctx.font = 'bold 56px Arial';
+            ctx.fillStyle = '#00ccff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 128, 64);
+            ctx.fillText(text, 256, 64);
 
             const tex = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
