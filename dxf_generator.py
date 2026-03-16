@@ -539,15 +539,23 @@ def _mesh_to_elev_poly(mesh, view):
             for pt in fp:
                 proj_all.append(_project_point(pt[0], pt[1], z, view))
                 proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
-            # Use centroid depth instead of min depth so winder polygons
-            # sort behind newel posts.  The wrapping part of the winder
-            # (which extends around the post) has a closer depth, but
-            # should be occluded by the newel in elevation.
-            poly, _, is_s = _rect_from_projected(proj_all, is_str)
-            if poly is None:
+            # Build the TRUE silhouette polygon (convex hull of projected
+            # points) rather than an axis-aligned bounding rectangle.
+            # This prevents the winder from over-occluding geometry
+            # (like newel posts) that should appear in front.
+            pts_2d = [(p[0], p[1]) for p in proj_all]
+            try:
+                from shapely.geometry import MultiPoint
+                hull = MultiPoint(pts_2d).convex_hull
+                if hull.is_empty or hull.geom_type != "Polygon":
+                    return None, None, False
+                poly = hull
+            except Exception:
                 return None, None, False
-            centroid_depth = sum(p[2] for p in proj_all) / len(proj_all)
-            return poly, centroid_depth, is_s
+            # Use max depth (furthest from viewer) so winders sort
+            # behind closer elements like newel posts.
+            max_depth = max(p[2] for p in proj_all)
+            return poly, max_depth, is_str
 
     except Exception:
         pass
@@ -642,11 +650,12 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
-def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS"):
+def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None):
     """Draw a simple linear dimension between *p1* and *p2*.
 
     *offset* — perpendicular offset from the geometry (positive = outward).
     Draws extension lines, a dimension line with ticks, and a centred text label.
+    If *label* is given it replaces the default numeric text.
     """
     import math
     dx = p2[0] - p1[0]
@@ -663,10 +672,11 @@ def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS"):
     # Extension lines (from geometry to just past dimension line)
     ext_gap = 30.0  # gap between geometry and extension line start
     ext_over = 50.0  # overshoot past dimension line
-    e1_start = (p1[0] + nx * ext_gap, p1[1] + ny * ext_gap)
-    e1_end = (p1[0] + nx * (offset + ext_over), p1[1] + ny * (offset + ext_over))
-    e2_start = (p2[0] + nx * ext_gap, p2[1] + ny * ext_gap)
-    e2_end = (p2[0] + nx * (offset + ext_over), p2[1] + ny * (offset + ext_over))
+    sign = 1 if offset >= 0 else -1
+    e1_start = (p1[0] + nx * ext_gap * sign, p1[1] + ny * ext_gap * sign)
+    e1_end = (p1[0] + nx * (offset + ext_over * sign), p1[1] + ny * (offset + ext_over * sign))
+    e2_start = (p2[0] + nx * ext_gap * sign, p2[1] + ny * ext_gap * sign)
+    e2_end = (p2[0] + nx * (offset + ext_over * sign), p2[1] + ny * (offset + ext_over * sign))
     dxf.add_line(e1_start, e1_end, layer=layer)
     dxf.add_line(e2_start, e2_end, layer=layer)
     # Dimension line
@@ -682,8 +692,9 @@ def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS"):
     dxf.add_line((d2[0] - tdx - tnx, d2[1] - tdy - tny),
                  (d2[0] + tdx + tnx, d2[1] + tdy + tny), layer=layer)
     # Text label centred on dimension line
-    mid = ((d1[0] + d2[0]) / 2, (d1[1] + d2[1]) / 2 + 30)
-    dxf.add_text("%.0f" % length, mid, height=50.0, layer=layer)
+    text = label if label is not None else "%.0f" % length
+    mid = ((d1[0] + d2[0]) / 2 + nx * 30, (d1[1] + d2[1]) / 2 + ny * 30)
+    dxf.add_text(text, mid, height=50.0, layer=layer)
 
 
 def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
@@ -1140,6 +1151,200 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         covered.append(poly)
 
 
+# ── Plan dimension helpers ──────────────────────────────────────
+
+def _stringer_extent_perp(meshes, flight_dir):
+    """Return *(lo, hi)* of stringer outer faces perpendicular to *flight_dir*.
+
+    For a Y-direction flight the stringers are at various X positions;
+    return the min and max X of all stringer outer faces.
+    For an X-direction flight return min/max Y of stringer outer faces.
+    """
+    from stair_constants import STRINGER_THICKNESS
+    st = STRINGER_THICKNESS
+    vals = []
+    for m in meshes:
+        if m.get("ifc_type") != "stringer" or m.get("type") != "stringer":
+            continue
+        axis = m.get("axis", "x")  # extrusion axis: 'y'→profile in XZ, 'x'→profile in YZ
+        if flight_dir == "y" and axis != "y":
+            # Y-direction flight → stringer extruded along X → outer faces in X
+            x0 = m.get("x", 0)
+            vals.extend([x0, x0 + m.get("thickness", st)])
+        elif flight_dir == "x" and axis == "y":
+            # X-direction flight → stringer extruded along Y → outer faces in Y
+            y0 = m.get("y", 0)
+            vals.extend([y0, y0 + m.get("thickness", st)])
+    if not vals:
+        return None
+    return (min(vals), max(vals))
+
+
+def _last_riser_rear_face(meshes, flight_num, flight_dir):
+    """Return the coordinate of the rear face of the last riser in *flight_num*.
+
+    For a Y-direction flight this is the maximum Y of the riser box.
+    For an X-direction flight this is the extreme X (min or max depending
+    on turn direction).
+    """
+    best = None
+    for m in meshes:
+        ifc = m.get("ifc_type", "")
+        if ifc != "riser":
+            continue
+        name = m.get("name", "")
+        fm = re.search(r"F(\d+)-(\d+)", name)
+        if not fm or int(fm.group(1)) != flight_num:
+            continue
+        c = m.get("ifc_center")
+        s = m.get("ifc_size")
+        if not c or not s:
+            continue
+        if flight_dir == "y":
+            face = c[1] + s[1] / 2  # rear = max Y
+            if best is None or face > best:
+                best = face
+        else:
+            # X-direction: rear could be min-X or max-X depending on turn
+            face_lo = c[0] - s[0] / 2
+            face_hi = c[0] + s[0] / 2
+            if best is None:
+                best = (face_lo, face_hi)
+            else:
+                best = (min(best[0], face_lo), max(best[1], face_hi))
+    if flight_dir != "y" and best is not None:
+        # Return the extreme X furthest from the origin
+        return best[0] if abs(best[0]) > abs(best[1]) else best[1]
+    return best
+
+
+def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
+    """Return a list of dimension specs ``{p1, p2, offset, label}``."""
+    # Compute full plan bounding box from meshes
+    all_x, all_y = [], []
+    for m in meshes:
+        if m.get("type") == "box":
+            c = m.get("ifc_center")
+            s = m.get("ifc_size")
+            if c and s:
+                all_x.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
+                all_y.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
+        elif m.get("type") == "winder_polygon":
+            fp = m.get("profile", [])
+            for pt in fp:
+                all_x.append(pt[0])
+                all_y.append(pt[1])
+        elif m.get("type") == "stringer":
+            axis = m.get("axis", "x")
+            prof = m.get("profile", [])
+            if axis == "y":
+                y0 = m.get("y", 0)
+                th = m.get("thickness", 0)
+                for pt in prof:
+                    all_x.extend([pt[0], pt[0]])
+                all_y.extend([y0, y0 + th])
+            else:
+                x0 = m.get("x", 0)
+                th = m.get("thickness", 0)
+                for pt in prof:
+                    all_y.extend([pt[0], pt[0]])
+                all_x.extend([x0, x0 + th])
+    if not all_x or not all_y:
+        return []
+    bbox_min_x, bbox_max_x = min(all_x), max(all_x)
+    bbox_min_y, bbox_max_y = min(all_y), max(all_y)
+
+    flight_info = _identify_flights(meshes)
+    stair_type = params.get("staircase_type", params.get("stair_type", "straight"))
+    dims = []
+    dim_offset = 300.0
+
+    if not flight_info:
+        return dims
+
+    # Determine topmost flight number and which end the top flight's
+    # treads are on (to replace that endpoint with the last riser face).
+    top_fnum = max(fi["flight"] for fi in flight_info)
+
+    # Work out which end of the bbox the top flight extends towards.
+    # Treads of the top flight are at the "far" end; the last riser's
+    # rear face replaces that extent limit.
+    top_fi = [fi for fi in flight_info if fi["flight"] == top_fnum][0]
+    top_tread_centers = []
+    for m in meshes:
+        if m.get("ifc_type") not in ("tread",):
+            continue
+        name = m.get("name", "")
+        fm = re.search(r"[Ff]light\s*%d" % top_fnum, name)
+        if not fm:
+            continue
+        c = m.get("ifc_center")
+        if c:
+            top_tread_centers.append(c)
+
+    # For each flight, create a length dimension along its direction
+    for fi in flight_info:
+        fnum = fi["flight"]
+        fdir = fi["direction"]  # "x" or "y" — direction treads run along
+
+        if fdir == "y":
+            # Flight runs along Y.  Length = Y extent.
+            y_lo = bbox_min_y
+            y_hi = bbox_max_y
+            if fnum == top_fnum:
+                rr = _last_riser_rear_face(meshes, fnum, "y")
+                if rr is not None:
+                    y_hi = rr
+            # Place dimension on the right side of the plan
+            dims.append({"p1": (bbox_max_x, y_lo), "p2": (bbox_max_x, y_hi),
+                         "offset": dim_offset})
+        else:
+            # Flight runs along X.  Length = X extent.
+            x_lo = bbox_min_x
+            x_hi = bbox_max_x
+            if fnum == top_fnum:
+                rr = _last_riser_rear_face(meshes, fnum, "x")
+                if rr is not None:
+                    # Determine which end of the bbox the top flight reaches.
+                    # The treads' centroid tells us which direction the flight extends.
+                    if top_tread_centers:
+                        avg_x = sum(c[0] for c in top_tread_centers) / len(top_tread_centers)
+                        mid_x = (bbox_min_x + bbox_max_x) / 2
+                        if avg_x < mid_x:
+                            x_lo = rr  # treads are on the low-X side
+                        else:
+                            x_hi = rr  # treads are on the high-X side
+                    else:
+                        # Fallback: replace whichever end is closer to rr
+                        if abs(rr - x_lo) < abs(rr - x_hi):
+                            x_lo = rr
+                        else:
+                            x_hi = rr
+            # Place dimension above the plan
+            dims.append({"p1": (x_lo, bbox_max_y), "p2": (x_hi, bbox_max_y),
+                         "offset": dim_offset})
+
+    # Add stringer-to-stringer width dimension for the bottom flight
+    bottom_fi = flight_info[0]
+    bdir = bottom_fi["direction"]
+    ext = _stringer_extent_perp(meshes, bdir)
+    if ext:
+        if bdir == "y":
+            # Width is in X direction; place below the plan
+            width_val = ext[1] - ext[0]
+            lbl = "%.0fmm O/A Stringer to stringer" % width_val
+            dims.append({"p1": (ext[0], bbox_min_y), "p2": (ext[1], bbox_min_y),
+                         "offset": -dim_offset, "label": lbl})
+        else:
+            # Width is in Y direction; place to the left
+            width_val = ext[1] - ext[0]
+            lbl = "%.0fmm O/A Stringer to stringer" % width_val
+            dims.append({"p1": (bbox_min_x, ext[0]), "p2": (bbox_min_x, ext[1]),
+                         "offset": -dim_offset, "label": lbl})
+
+    return dims
+
+
 # ── Public entry points ─────────────────────────────────────────
 
 def meshes_to_dxf_string(meshes, params):
@@ -1209,20 +1414,24 @@ def meshes_to_dxf_string(meshes, params):
                 start, end = result
             dxf.add_line(start, end, layer="STAIR_RISERS")
 
-    # Step 5 — add disclaimer text to the bottom-right of the stair geometry.
+    # Step 5 — compute plan bounds and add disclaimer text.
     plan_max_x = 0
     plan_min_y = 0
     plan_min_x = 0
+    plan_max_y = 0
     for _z, poly in items:
         bounds = poly.bounds  # (minx, miny, maxx, maxy)
         if bounds[2] > plan_max_x:
             plan_max_x = bounds[2]
+        if bounds[3] > plan_max_y:
+            plan_max_y = bounds[3]
         if bounds[1] < plan_min_y:
             plan_min_y = bounds[1]
         if bounds[0] < plan_min_x:
             plan_min_x = bounds[0]
-    text_x = plan_max_x + 60
-    text_y = plan_min_y
+    # Disclaimer: below-right, offset enough to clear dimension lines
+    text_x = plan_max_x + 500
+    text_y = plan_min_y - 500
     _LINE1 = "StairSmith \u2014 Preliminary design aid only."
     _LINE2 = "User must verify all outputs before use."
     dxf.add_text(_LINE1, (text_x, text_y), height=60.0, layer="0")
@@ -1305,44 +1514,14 @@ def meshes_to_dxf_string(meshes, params):
                              height=80.0, layer="0")
                 sect_x += vw + _SECT_GAP
 
-    # Step 8 — Overall plan dimensions.
-    #   Use the plan bounding box.  Straight stairs get 2 dims (width + depth),
-    #   L-shaped get 3 (width leg, depth through turn, second leg width).
-    plan_max_y = 0
-    for _z, poly in items:
-        bounds = poly.bounds
-        if bounds[3] > plan_max_y:
-            plan_max_y = bounds[3]
-
-    stair_type = params.get("staircase_type", params.get("stair_type", "straight"))
-    dim_offset = 300.0  # offset from geometry edge
-
-    if stair_type in ("single_winder",):
-        # L-shaped: 3 dimensions — Y extent (flight 1 depth), X extent (flight 2
-        # length), and overall width (Y of flight 2 run).
-        # Dim 1: flight 1 depth along Y (left side)
-        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_min_x, plan_max_y),
-                       -dim_offset)
-        # Dim 2: flight 2 length along X (bottom)
-        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
-                       -dim_offset)
-        # Dim 3: overall width along X at top
-        _draw_dim_line(dxf, (plan_min_x, plan_max_y), (plan_max_x, plan_max_y),
-                       dim_offset)
-    elif stair_type in ("double_winder",):
-        # U-shaped: 3 dimensions
-        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_min_x, plan_max_y),
-                       -dim_offset)
-        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
-                       -dim_offset)
-        _draw_dim_line(dxf, (plan_max_x, plan_min_y), (plan_max_x, plan_max_y),
-                       dim_offset)
-    else:
-        # Straight: 2 dimensions (width + depth)
-        _draw_dim_line(dxf, (plan_min_x, plan_min_y), (plan_max_x, plan_min_y),
-                       -dim_offset)
-        _draw_dim_line(dxf, (plan_max_x, plan_min_y), (plan_max_x, plan_max_y),
-                       dim_offset)
+    # Step 8 — Plan dimensions following flight directions.
+    #   Each flight gets an "along direction" length dimension.
+    #   Plus one stringer-to-stringer width dimension for the bottom flight.
+    #   The topmost flight's dimension stops at the rear face of the last riser.
+    plan_dims = _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y)
+    for pd in plan_dims:
+        _draw_dim_line(dxf, pd["p1"], pd["p2"], pd["offset"],
+                       label=pd.get("label"))
 
     return dxf.to_string()
 
