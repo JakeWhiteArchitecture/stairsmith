@@ -1282,10 +1282,40 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if c:
             top_tread_centers.append(c)
 
+    # Compute per-flight bounding boxes so we can place dimensions on
+    # the outer edge of each flight (not the full stair bbox).
+    flight_bboxes = {}
+    for fi in flight_info:
+        fnum = fi["flight"]
+        fxs, fys = [], []
+        for m in meshes:
+            name = m.get("name", "")
+            fm = re.search(r"[Ff]light\s*%d" % fnum, name)
+            if not fm:
+                # Also include winders/landing that belong to this flight
+                if m.get("ifc_type") in ("winder_tread",) and re.search(r"F%d" % fnum, name):
+                    pass  # include
+                else:
+                    continue
+            if m.get("type") == "box":
+                c = m.get("ifc_center")
+                s = m.get("ifc_size")
+                if c and s:
+                    fxs.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
+                    fys.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
+            elif m.get("type") == "winder_polygon":
+                fp = m.get("profile", [])
+                for pt in fp:
+                    fxs.append(pt[0])
+                    fys.append(pt[1])
+        if fxs and fys:
+            flight_bboxes[fnum] = (min(fxs), max(fxs), min(fys), max(fys))
+
     # For each flight, create a length dimension along its direction
     for fi in flight_info:
         fnum = fi["flight"]
         fdir = fi["direction"]  # "x" or "y" — direction treads run along
+        fb = flight_bboxes.get(fnum)
 
         if fdir == "y":
             # Flight runs along Y.  Length = Y extent.
@@ -1295,9 +1325,25 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 rr = _last_riser_rear_face(meshes, fnum, "y")
                 if rr is not None:
                     y_hi = rr
-            # Place dimension on the right side of the plan
-            dims.append({"p1": (bbox_max_x, y_lo), "p2": (bbox_max_x, y_hi),
-                         "offset": dim_offset})
+            # Place dimension on the OUTER side of this flight (away from
+            # stair centre).  Use the flight's own X bbox to find its
+            # outward edge, then compare with the stair centre.
+            stair_cx = (bbox_min_x + bbox_max_x) / 2
+            if fb:
+                f_cx = (fb[0] + fb[1]) / 2
+                if f_cx >= stair_cx:
+                    # Flight is on the right half → place dim further right
+                    dim_x = fb[1]
+                    off = dim_offset
+                else:
+                    # Flight is on the left half → place dim further left
+                    dim_x = fb[0]
+                    off = -dim_offset
+            else:
+                dim_x = bbox_max_x
+                off = dim_offset
+            dims.append({"p1": (dim_x, y_lo), "p2": (dim_x, y_hi),
+                         "offset": off})
         else:
             # Flight runs along X.  Length = X extent.
             x_lo = bbox_min_x
@@ -1306,39 +1352,49 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                 rr = _last_riser_rear_face(meshes, fnum, "x")
                 if rr is not None:
                     # Determine which end of the bbox the top flight reaches.
-                    # The treads' centroid tells us which direction the flight extends.
                     if top_tread_centers:
                         avg_x = sum(c[0] for c in top_tread_centers) / len(top_tread_centers)
                         mid_x = (bbox_min_x + bbox_max_x) / 2
                         if avg_x < mid_x:
-                            x_lo = rr  # treads are on the low-X side
+                            x_lo = rr
                         else:
-                            x_hi = rr  # treads are on the high-X side
+                            x_hi = rr
                     else:
-                        # Fallback: replace whichever end is closer to rr
                         if abs(rr - x_lo) < abs(rr - x_hi):
                             x_lo = rr
                         else:
                             x_hi = rr
-            # Place dimension above the plan
-            dims.append({"p1": (x_lo, bbox_max_y), "p2": (x_hi, bbox_max_y),
-                         "offset": dim_offset})
+            # Place dimension on the OUTER side of this flight.
+            stair_cy = (bbox_min_y + bbox_max_y) / 2
+            if fb:
+                f_cy = (fb[2] + fb[3]) / 2
+                if f_cy >= stair_cy:
+                    # Flight is on the top half → place dim above
+                    dim_y = fb[3]
+                    off = dim_offset
+                else:
+                    # Flight is on the bottom half → place dim below
+                    dim_y = fb[2]
+                    off = -dim_offset
+            else:
+                dim_y = bbox_max_y
+                off = dim_offset
+            dims.append({"p1": (x_lo, dim_y), "p2": (x_hi, dim_y),
+                         "offset": off})
 
     # Add stringer-to-stringer width dimension for the bottom flight
     bottom_fi = flight_info[0]
     bdir = bottom_fi["direction"]
     ext = _stringer_extent_perp(meshes, bdir)
     if ext:
+        width_val = ext[1] - ext[0]
+        lbl = "%.0f O/A Stringer to Stringer" % width_val
         if bdir == "y":
             # Width is in X direction; place below the plan
-            width_val = ext[1] - ext[0]
-            lbl = "%.0fmm O/A Stringer to stringer" % width_val
             dims.append({"p1": (ext[0], bbox_min_y), "p2": (ext[1], bbox_min_y),
                          "offset": -dim_offset, "label": lbl})
         else:
             # Width is in Y direction; place to the left
-            width_val = ext[1] - ext[0]
-            lbl = "%.0fmm O/A Stringer to stringer" % width_val
             dims.append({"p1": (bbox_min_x, ext[0]), "p2": (bbox_min_x, ext[1]),
                          "offset": -dim_offset, "label": lbl})
 

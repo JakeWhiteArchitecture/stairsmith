@@ -2191,7 +2191,7 @@ function renderGeometry(meshes) {
                 mid.add(norm.clone().multiplyScalar(80));
                 const sprite = makeLabelSprite(d.label);
                 sprite.position.copy(mid);
-                sprite.scale.set(400, 200, 1);
+                sprite.scale.set(600, 75, 1);
                 sprite.renderOrder = 1000;
                 dimensionGroup.add(sprite);
             });
@@ -2201,17 +2201,23 @@ function renderGeometry(meshes) {
 
         function makeLabelSprite(text) {
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
+            canvas.width = 1024;
             canvas.height = 128;
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, 512, 128);
+            ctx.clearRect(0, 0, 1024, 128);
+            // Auto-size font to fit the canvas
+            let fontSize = 56;
+            ctx.font = 'bold ' + fontSize + 'px Arial';
+            while (ctx.measureText(text).width > 980 && fontSize > 20) {
+                fontSize -= 2;
+                ctx.font = 'bold ' + fontSize + 'px Arial';
+            }
             ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
-            ctx.fillRect(0, 20, 512, 88);
-            ctx.font = 'bold 56px Arial';
+            ctx.fillRect(0, 20, 1024, 88);
             ctx.fillStyle = '#00ccff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 256, 64);
+            ctx.fillText(text, 512, 64);
             const tex = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
             return new THREE.Sprite(mat);
