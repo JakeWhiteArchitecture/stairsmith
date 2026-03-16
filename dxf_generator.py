@@ -1311,47 +1311,64 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if fxs and fys:
             flight_bboxes[fnum] = (min(fxs), max(fxs), min(fys), max(fys))
 
-    # For each flight, create a length dimension along its direction
+    # Plan-only bounding box (treads, risers, winders only — excludes tall
+    # stringers/balustrades whose Z extent distorts the centre).
+    plan_xs, plan_ys = [], []
+    for m in meshes:
+        if m.get("ifc_type") not in ("tread", "riser", "winder_tread"):
+            continue
+        if m.get("type") == "box":
+            c = m.get("ifc_center")
+            s = m.get("ifc_size")
+            if c and s:
+                plan_xs.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
+                plan_ys.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
+        elif m.get("type") == "winder_polygon":
+            for pt in m.get("profile", []):
+                plan_xs.append(pt[0])
+                plan_ys.append(pt[1])
+    plan_cx = (min(plan_xs) + max(plan_xs)) / 2 if plan_xs else (bbox_min_x + bbox_max_x) / 2
+    plan_cy = (min(plan_ys) + max(plan_ys)) / 2 if plan_ys else (bbox_min_y + bbox_max_y) / 2
+
+    # For each flight, create a length dimension along its direction.
+    # Only dimension flights 1 and 2 (omit flight 3 for now).
+    # Each flight's dim spans only that flight's own extent (from its
+    # per-flight bbox), not the full stair bbox.
     for fi in flight_info:
         fnum = fi["flight"]
+        if fnum > 2:
+            continue
         fdir = fi["direction"]  # "x" or "y" — direction treads run along
         fb = flight_bboxes.get(fnum)
+        if not fb:
+            continue
 
         if fdir == "y":
-            # Flight runs along Y.  Length = Y extent.
+            # Flight runs along Y.  Length = full stair Y extent.
             y_lo = bbox_min_y
             y_hi = bbox_max_y
             if fnum == top_fnum:
                 rr = _last_riser_rear_face(meshes, fnum, "y")
                 if rr is not None:
                     y_hi = rr
-            # Place dimension on the OUTER side of this flight (away from
-            # stair centre).  Use the flight's own X bbox to find its
-            # outward edge, then compare with the stair centre.
-            stair_cx = (bbox_min_x + bbox_max_x) / 2
-            if fb:
-                f_cx = (fb[0] + fb[1]) / 2
-                if f_cx >= stair_cx:
-                    # Flight is on the right half → place dim further right
-                    dim_x = fb[1]
-                    off = dim_offset
-                else:
-                    # Flight is on the left half → place dim further left
-                    dim_x = fb[0]
-                    off = -dim_offset
-            else:
-                dim_x = bbox_max_x
+            # Position: on the outer side of this flight (away from plan
+            # centroid in X), using the flight's own X bbox.
+            f_cx = (fb[0] + fb[1]) / 2
+            if f_cx >= plan_cx:
+                dim_x = fb[1]
                 off = dim_offset
+            else:
+                dim_x = fb[0]
+                off = -dim_offset
             dims.append({"p1": (dim_x, y_lo), "p2": (dim_x, y_hi),
                          "offset": off})
         else:
-            # Flight runs along X.  Length = X extent.
+            # Flight runs along X.  Length = full stair X extent.
             x_lo = bbox_min_x
             x_hi = bbox_max_x
             if fnum == top_fnum:
                 rr = _last_riser_rear_face(meshes, fnum, "x")
                 if rr is not None:
-                    # Determine which end of the bbox the top flight reaches.
                     if top_tread_centers:
                         avg_x = sum(c[0] for c in top_tread_centers) / len(top_tread_centers)
                         mid_x = (bbox_min_x + bbox_max_x) / 2
@@ -1364,21 +1381,15 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                             x_lo = rr
                         else:
                             x_hi = rr
-            # Place dimension on the OUTER side of this flight.
-            stair_cy = (bbox_min_y + bbox_max_y) / 2
-            if fb:
-                f_cy = (fb[2] + fb[3]) / 2
-                if f_cy >= stair_cy:
-                    # Flight is on the top half → place dim above
-                    dim_y = fb[3]
-                    off = dim_offset
-                else:
-                    # Flight is on the bottom half → place dim below
-                    dim_y = fb[2]
-                    off = -dim_offset
-            else:
-                dim_y = bbox_max_y
+            # Position: on the outer side of this flight (away from plan
+            # centroid in Y), using the flight's own Y bbox.
+            f_cy = (fb[2] + fb[3]) / 2
+            if f_cy >= plan_cy:
+                dim_y = fb[3]
                 off = dim_offset
+            else:
+                dim_y = fb[2]
+                off = -dim_offset
             dims.append({"p1": (x_lo, dim_y), "p2": (x_hi, dim_y),
                          "offset": off})
 
