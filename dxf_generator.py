@@ -650,10 +650,12 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
-def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None):
+def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None, norm=None):
     """Draw a simple linear dimension between *p1* and *p2*.
 
-    *offset* — perpendicular offset from the geometry (positive = outward).
+    *offset* — perpendicular distance from the geometry (always positive).
+    *norm*   — explicit (nx, ny) unit normal for the offset direction.
+               If not given, a perpendicular is computed (may point inward).
     Draws extension lines, a dimension line with ticks, and a centred text label.
     If *label* is given it replaces the default numeric text.
     """
@@ -664,19 +666,22 @@ def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None):
     if length < 1:
         return
     # Unit normal perpendicular to the dimension direction
-    nx = -dy / length
-    ny = dx / length
-    # Dimension line endpoints (offset from geometry)
-    d1 = (p1[0] + nx * offset, p1[1] + ny * offset)
-    d2 = (p2[0] + nx * offset, p2[1] + ny * offset)
+    if norm:
+        nx, ny = norm
+    else:
+        nx = -dy / length
+        ny = dx / length
+    abs_offset = abs(offset)
+    # Dimension line endpoints (offset from geometry along the normal)
+    d1 = (p1[0] + nx * abs_offset, p1[1] + ny * abs_offset)
+    d2 = (p2[0] + nx * abs_offset, p2[1] + ny * abs_offset)
     # Extension lines (from geometry to just past dimension line)
     ext_gap = 30.0  # gap between geometry and extension line start
     ext_over = 50.0  # overshoot past dimension line
-    sign = 1 if offset >= 0 else -1
-    e1_start = (p1[0] + nx * ext_gap * sign, p1[1] + ny * ext_gap * sign)
-    e1_end = (p1[0] + nx * (offset + ext_over * sign), p1[1] + ny * (offset + ext_over * sign))
-    e2_start = (p2[0] + nx * ext_gap * sign, p2[1] + ny * ext_gap * sign)
-    e2_end = (p2[0] + nx * (offset + ext_over * sign), p2[1] + ny * (offset + ext_over * sign))
+    e1_start = (p1[0] + nx * ext_gap, p1[1] + ny * ext_gap)
+    e1_end = (p1[0] + nx * (abs_offset + ext_over), p1[1] + ny * (abs_offset + ext_over))
+    e2_start = (p2[0] + nx * ext_gap, p2[1] + ny * ext_gap)
+    e2_end = (p2[0] + nx * (abs_offset + ext_over), p2[1] + ny * (abs_offset + ext_over))
     dxf.add_line(e1_start, e1_end, layer=layer)
     dxf.add_line(e2_start, e2_end, layer=layer)
     # Dimension line
@@ -693,6 +698,7 @@ def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None):
                  (d2[0] + tdx + tnx, d2[1] + tdy + tny), layer=layer)
     # Text label centred on dimension line
     text = label if label is not None else "%.0f" % length
+    text = text.replace("\n", " ")
     mid = ((d1[0] + d2[0]) / 2 + nx * 30, (d1[1] + d2[1]) / 2 + ny * 30)
     dxf.add_text(text, mid, height=50.0, layer=layer)
 
@@ -1731,7 +1737,7 @@ def meshes_to_dxf_string(meshes, params):
     plan_dims = _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y)
     for pd in plan_dims:
         _draw_dim_line(dxf, pd["p1"], pd["p2"], pd["offset"],
-                       label=pd.get("label"))
+                       label=pd.get("label"), norm=pd.get("norm"))
 
     return dxf.to_string()
 
