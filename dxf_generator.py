@@ -1249,9 +1249,9 @@ def _stringer_extent_along(meshes, flight_dir, flight_bbox=None):
                 margin = st * 2
                 if x1 < fb_xlo - margin or x0 > fb_xhi + margin:
                     continue
-            # Profile Y coords give extent along flight direction
+            # Profile[i][0] = Y coord for Y-direction stringers
             for pt in profile:
-                vals.append(pt[1])
+                vals.append(pt[0])
         elif flight_dir == "x" and axis == "y":
             y0 = m.get("y", 0)
             y1 = y0 + m.get("thickness", st)
@@ -1385,26 +1385,6 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     if not flight_info:
         return dims
 
-    # Determine topmost flight number and which end the top flight's
-    # treads are on (to replace that endpoint with the last riser face).
-    top_fnum = max(fi["flight"] for fi in flight_info)
-
-    # Work out which end of the bbox the top flight extends towards.
-    # Treads of the top flight are at the "far" end; the last riser's
-    # rear face replaces that extent limit.
-    top_fi = [fi for fi in flight_info if fi["flight"] == top_fnum][0]
-    top_tread_centers = []
-    for m in meshes:
-        if m.get("ifc_type") not in ("tread",):
-            continue
-        name = m.get("name", "")
-        fm = re.search(r"[Ff]light\s*%d" % top_fnum, name)
-        if not fm:
-            continue
-        c = m.get("ifc_center")
-        if c:
-            top_tread_centers.append(c)
-
     # Compute per-flight bounding boxes so we can place dimensions on
     # the outer edge of each flight (not the full stair bbox).
     flight_bboxes = {}
@@ -1438,16 +1418,9 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     plan_cx = (bbox_min_x + bbox_max_x) / 2
     plan_cy = (bbox_min_y + bbox_max_y) / 2
 
-    # Compute the stringer extent along flight 1's direction.  The lo value
-    # gives the actual stringer start (e.g. Y=0), which is the correct base
-    # position for dimension lines — not the newel front (Y=-75).
-    f1_fb = flight_bboxes.get(flight_info[0]["flight"]) if flight_info else None
-    f1_str_along = _stringer_extent_along(
-        meshes, flight_info[0]["direction"], f1_fb
-    ) if flight_info else None
-    f1_front = f1_str_along[0] if f1_str_along else None
-
     # For each flight, create a length dimension along its direction.
+    # Dimension endpoints are anchored to stringer outer faces (the
+    # extremities of the visible geometry), not tread edges.
     for fi in flight_info:
         fnum = fi["flight"]
         fdir = fi["direction"]  # "x" or "y" — direction treads run along
@@ -1455,30 +1428,20 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
         if not fb:
             continue
 
-        # For flights 1 and 2, span the full plan bbox extent along the
-        # flight direction.  Flight 3 (U-shape return) also spans the full
-        # extent in double-winder stairs (it includes the winder 2 area);
-        # the two Y-direction dims don't collide because flight 1 is on
-        # the right edge and flight 3 is on the left edge.
-        use_own_extent = (fnum >= 3 and stair_type != "double_winder")
+        # Get this flight's stringer extent along the flight direction.
+        # This gives us the actual geometry extremities (outside faces of
+        # stringers at either end of the dimension).
+        str_along = _stringer_extent_along(meshes, fdir, flight_bbox=fb)
 
         # Get this flight's stringer perpendicular extent (outer X for
         # Y-direction flights, outer Y for X-direction flights).
         str_perp = _stringer_extent_perp(meshes, fdir, flight_bbox=fb)
 
         if fdir == "y":
-            if use_own_extent:
-                y_lo, y_hi = fb[2], fb[3]
+            if str_along:
+                y_lo, y_hi = str_along
             else:
-                y_lo, y_hi = bbox_min_y, bbox_max_y
-            # For flight 1, anchor the start to the front edge.
-            if fnum == 1 and f1_front is not None:
-                y_lo = f1_front
-            # Only clip to last riser for the top flight in straight stairs.
-            if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
-                rr = _last_riser_rear_face(meshes, fnum, "y")
-                if rr is not None:
-                    y_hi = rr
+                y_lo, y_hi = fb[2], fb[3]
             # Position: on the stringer outer face (away from plan centroid).
             f_cx = (fb[0] + fb[1]) / 2
             if f_cx >= plan_cx:
@@ -1490,27 +1453,10 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
             dims.append({"p1": (dim_x, y_lo), "p2": (dim_x, y_hi),
                          "offset": dim_offset, "norm": norm})
         else:
-            if use_own_extent:
-                x_lo, x_hi = fb[0], fb[1]
+            if str_along:
+                x_lo, x_hi = str_along
             else:
-                x_lo, x_hi = bbox_min_x, bbox_max_x
-            if fnum == 1 and f1_front is not None:
-                x_lo = f1_front
-            if fnum == top_fnum and stair_type not in ("single_winder", "double_winder"):
-                rr = _last_riser_rear_face(meshes, fnum, "x")
-                if rr is not None:
-                    if top_tread_centers:
-                        avg_x = sum(c[0] for c in top_tread_centers) / len(top_tread_centers)
-                        mid_x = (bbox_min_x + bbox_max_x) / 2
-                        if avg_x < mid_x:
-                            x_lo = rr
-                        else:
-                            x_hi = rr
-                    else:
-                        if abs(rr - x_lo) < abs(rr - x_hi):
-                            x_lo = rr
-                        else:
-                            x_hi = rr
+                x_lo, x_hi = fb[0], fb[1]
             # Position: on the stringer outer face (away from plan centroid).
             f_cy = (fb[2] + fb[3]) / 2
             if f_cy >= plan_cy:
