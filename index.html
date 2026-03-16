@@ -2044,13 +2044,25 @@
             try {
                 const resultJSON = await pyodide.runPythonAsync(`
 import json as _json
+import math as _math
+from dxf_generator import _compute_plan_dimensions as _cpd
 _params = _json.loads('''${paramsJSON}''')
 _geo = generate_preview_geometry(_params)
-_json.dumps({"geometry": _geo})
+try:
+    _dims_raw = _cpd(_geo, _params, 0, 0)
+    _dim_data = []
+    for _d in _dims_raw:
+        _l = _math.hypot(_d["p2"][0]-_d["p1"][0], _d["p2"][1]-_d["p1"][1])
+        _lbl = _d.get("label") or ("%.0f" % _l)
+        _dim_data.append({"p1": list(_d["p1"]), "p2": list(_d["p2"]), "label": _lbl})
+except Exception:
+    _dim_data = []
+_json.dumps({"geometry": _geo, "dimensions": _dim_data})
 `);
                 if (seq !== _updateSeq) return;
                 const result = JSON.parse(resultJSON);
                 renderGeometry(result.geometry);
+                renderDimensions(result.dimensions || []);
             } catch (e) {
                 console.error('Preview error:', e);
             }
@@ -2100,6 +2112,109 @@ function renderGeometry(meshes) {
             });
 
             scene.add(staircaseGroup);
+        }
+
+        let dimensionGroup = null;
+
+        function renderDimensions(dims) {
+            // Remove old dimension objects
+            if (dimensionGroup) {
+                scene.remove(dimensionGroup);
+                dimensionGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+            dimensionGroup = new THREE.Group();
+
+            if (!dims || dims.length === 0) { scene.add(dimensionGroup); return; }
+
+            const DIM_OFFSET = 350;  // mm offset from stair edge
+            const TICK_LEN = 80;     // tick mark length
+            const LINE_COLOR = 0x00ccff;
+
+            dims.forEach(d => {
+                // d.p1, d.p2 are in IFC plan coords (X, Y at Z=0)
+                // Three.js: X=ifc_x, Y=ifc_z, Z=-ifc_y
+                const FLOOR_Y = 10;
+                const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
+                const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
+
+                // Direction along dimension line
+                const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                // Normal (perpendicular, in XZ plane)
+                const norm = new THREE.Vector3(-dir.z, 0, dir.x);
+
+                // Offset points away from stair
+                const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+                const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+
+                // Helper: create a thin cylinder between two points
+                function addTube(a, b, radius) {
+                    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+                    const length = a.distanceTo(b);
+                    if (length < 0.1) return;
+                    const geo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const mat = new THREE.MeshBasicMaterial({ color: LINE_COLOR, depthTest: false });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(mid);
+                    const axis = new THREE.Vector3().subVectors(b, a).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const quat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+                    mesh.quaternion.copy(quat);
+                    mesh.renderOrder = 999;
+                    dimensionGroup.add(mesh);
+                }
+
+                // Dimension line (main line between offset endpoints)
+                addTube(o1, o2, 3);
+
+                // Extension lines (from measurement point to beyond dimension line)
+                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40));
+                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40));
+                addTube(p1, extEnd1, 2);
+                addTube(p2, extEnd2, 2);
+
+                // Tick marks at each end
+                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t1a, t1b, 3);
+                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t2a, t2b, 3);
+
+                // Label sprite at midpoint of dimension line
+                const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
+                mid.add(norm.clone().multiplyScalar(80));
+                const sprite = makeLabelSprite(d.label);
+                sprite.position.copy(mid);
+                sprite.scale.set(400, 200, 1);
+                sprite.renderOrder = 1000;
+                dimensionGroup.add(sprite);
+            });
+
+            scene.add(dimensionGroup);
+        }
+
+        function makeLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 512, 128);
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
+            ctx.fillRect(0, 20, 512, 88);
+            ctx.font = 'bold 56px Arial';
+            ctx.fillStyle = '#00ccff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 256, 64);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+            return new THREE.Sprite(mat);
         }
 
         function createWinderPolygonMesh(m) {
