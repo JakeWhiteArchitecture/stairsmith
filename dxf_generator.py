@@ -1497,13 +1497,14 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     if ext:
         width_val = ext[1] - ext[0]
         lbl = "%.0f O/A\nStringer to Stringer" % width_val
+        f1_str_along = _stringer_extent_along(meshes, bdir, flight_bbox=fb1)
         if bdir == "y":
             # Width is in X direction; place at the front edge of flight 1
-            base_y = f1_front if f1_front is not None else bbox_min_y
+            base_y = f1_str_along[0] if f1_str_along else bbox_min_y
             dims.append({"p1": (ext[0], base_y), "p2": (ext[1], base_y),
                          "offset": dim_offset, "norm": (0, -1), "label": lbl})
         else:
-            base_x = f1_front if f1_front is not None else bbox_min_x
+            base_x = f1_str_along[0] if f1_str_along else bbox_min_x
             dims.append({"p1": (base_x, ext[0]), "p2": (base_x, ext[1]),
                          "offset": dim_offset, "norm": (-1, 0), "label": lbl})
 
