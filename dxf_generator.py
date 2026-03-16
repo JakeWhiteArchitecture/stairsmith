@@ -1227,11 +1227,15 @@ def _flight1_front_edge(meshes, flight_dir, flight_bbox):
 
 
 def _stringer_extent_along(meshes, flight_dir, flight_bbox=None):
-    """Return *(lo, hi)* along *flight_dir* for flight 1 stringers.
+    """Return *(lo, hi)* along *flight_dir* for stringers near a flight.
 
-    For a Y-direction flight, return the min/max Y of the stringer profiles.
-    For an X-direction flight, return the min/max X.
-    Uses the same flight_bbox filter as _stringer_extent_perp.
+    For a Y-direction flight, return the min/max Y of the stringer profiles
+    (pitched stringers) *and* the Y positions of any perpendicular landing
+    stringers whose profile overlaps the flight's X range.  This ensures
+    dimensions extend through corner landing stringers with no gaps.
+
+    For an X-direction flight, the same logic applies with axes swapped.
+    Uses *flight_bbox* ``(x_lo, x_hi, y_lo, y_hi)`` to filter.
     """
     from stair_constants import STRINGER_THICKNESS
     st = STRINGER_THICKNESS
@@ -1241,27 +1245,59 @@ def _stringer_extent_along(meshes, flight_dir, flight_bbox=None):
             continue
         axis = m.get("axis", "x")
         profile = m.get("profile", [])
-        if flight_dir == "y" and axis != "y":
-            x0 = m.get("x", 0)
-            x1 = x0 + m.get("thickness", st)
-            if flight_bbox:
-                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
-                margin = st * 2
-                if x1 < fb_xlo - margin or x0 > fb_xhi + margin:
-                    continue
-            # Profile[i][0] = Y coord for Y-direction stringers
-            for pt in profile:
-                vals.append(pt[0])
-        elif flight_dir == "x" and axis == "y":
-            y0 = m.get("y", 0)
-            y1 = y0 + m.get("thickness", st)
-            if flight_bbox:
-                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
-                margin = st * 2
-                if y1 < fb_ylo - margin or y0 > fb_yhi + margin:
-                    continue
-            for pt in profile:
-                vals.append(pt[0])
+        if flight_dir == "y":
+            if axis != "y":
+                # Pitched stringer running along Y — use profile Y values
+                x0 = m.get("x", 0)
+                x1 = x0 + m.get("thickness", st)
+                if flight_bbox:
+                    fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
+                    margin = st * 2
+                    if x1 < fb_xlo - margin or x0 > fb_xhi + margin:
+                        continue
+                for pt in profile:
+                    vals.append(pt[0])
+            else:
+                # Perpendicular (landing) stringer — its Y position is the
+                # along-flight coordinate.  Include it if its profile X
+                # extent overlaps this flight's X range.
+                y0 = m.get("y", 0)
+                y1 = y0 + m.get("thickness", st)
+                if flight_bbox:
+                    fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
+                    prof_xs = [pt[0] for pt in profile]
+                    if not prof_xs:
+                        continue
+                    margin = st * 2
+                    if max(prof_xs) < fb_xlo - margin or min(prof_xs) > fb_xhi + margin:
+                        continue
+                vals.extend([y0, y1])
+        elif flight_dir == "x":
+            if axis == "y":
+                # Pitched stringer running along X — use profile X values
+                y0 = m.get("y", 0)
+                y1 = y0 + m.get("thickness", st)
+                if flight_bbox:
+                    fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                    margin = st * 2
+                    if y1 < fb_ylo - margin or y0 > fb_yhi + margin:
+                        continue
+                for pt in profile:
+                    vals.append(pt[0])
+            else:
+                # Perpendicular (landing) stringer — its X position is the
+                # along-flight coordinate.
+                x0 = m.get("x", 0)
+                x1 = x0 + m.get("thickness", st)
+                if flight_bbox:
+                    fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                    prof_ys = [pt[0] for pt in profile]
+                    if not prof_ys:
+                        continue
+                    margin = st * 2
+                    if max(prof_ys) < fb_ylo - margin or min(prof_ys) > fb_yhi + margin:
+                        continue
+                vals.extend([x0, x1])
     if not vals:
         return None
     return (min(vals), max(vals))
