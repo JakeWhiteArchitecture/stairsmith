@@ -1400,7 +1400,8 @@ def _newel_extent_along(meshes, flight_dir, flight_bbox=None):
 
     For a Y-direction flight, returns the min/max Y of newel bounding boxes.
     For an X-direction flight, returns the min/max X.
-    Filters by both axes so only newels belonging to this flight are included.
+    Filters only by perpendicular position (not along-direction) because
+    top/bottom balustrade posts extend well beyond the tread area.
     """
     vals = []
     for m in meshes:
@@ -1411,25 +1412,19 @@ def _newel_extent_along(meshes, flight_dir, flight_bbox=None):
         if not c or not s:
             continue
         if flight_dir == "y":
+            # Along axis is Y; filter by X (perpendicular) only
             if flight_bbox:
                 fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
-                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
                 margin_x = s[0]
-                margin_y = s[1]
                 if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
-                    continue
-                if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
                     continue
             vals.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
         elif flight_dir == "x":
+            # Along axis is X; filter by Y (perpendicular) only
             if flight_bbox:
-                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
                 fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
-                margin_x = s[0]
                 margin_y = s[1]
                 if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
-                    continue
-                if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
                     continue
             vals.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
     if not vals:
