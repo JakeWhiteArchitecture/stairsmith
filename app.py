@@ -10,6 +10,7 @@ from datetime import date
 from flask import Flask, render_template, request, jsonify, send_file
 from ifc_generator import meshes_to_ifc
 from stair_preview import generate_preview_geometry
+from stair_booleans import apply_boolean_ops
 
 app = Flask(__name__)
 
@@ -107,6 +108,7 @@ def download():
     params = request.get_json()
     try:
         meshes = generate_preview_geometry(params)
+        meshes = apply_boolean_ops(meshes)
         filepath = meshes_to_ifc(meshes)
         today = date.today().strftime("%d-%m-%y")
         return send_file(
@@ -126,6 +128,7 @@ def download_dxf():
     params = request.get_json()
     try:
         meshes = generate_preview_geometry(params)
+        meshes = apply_boolean_ops(meshes)
         filepath = meshes_to_dxf(meshes, params)
         return send_file(
             filepath,

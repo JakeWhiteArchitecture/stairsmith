@@ -90,9 +90,12 @@ def create_ifc_staircase(params):
     _add_disclaimer_annotation(ifc, body, storey, p)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    try:
+        ifc.wrapped_data.header.file_name.authorization = (
+            "User must verify all outputs before use."
+        )
+    except (AttributeError, Exception):
+        pass
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
@@ -150,7 +153,8 @@ def parse_params(params):
 
 
 def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, position_xyz,
-                           direction=(0.0, 0.0, 1.0), axis=None, ref_direction=None):
+                           direction=(0.0, 0.0, 1.0), axis=None, ref_direction=None,
+                           holes=None):
     """
     Create an IfcExtrudedAreaSolid from a list of 2D profile coordinates,
     extruded along a direction.
@@ -159,13 +163,26 @@ def _create_extruded_solid(ifc, context, profile_coords, extrusion_depth, positi
     coordinate system.  The 2D profile lives in the local XY plane defined by
     (ref_direction, axis × ref_direction).  *direction* is expressed in this
     local frame.
+
+    holes: optional list of hole coordinate lists, each a list of (u, v) tuples
+           defining an interior ring to subtract from the profile.
     """
     # Create cartesian points for the profile
     points = [ifc.createIfcCartesianPoint(coord) for coord in profile_coords]
     points.append(points[0])  # close the loop
 
     polyline = ifc.createIfcPolyline(points)
-    profile = ifc.createIfcArbitraryClosedProfileDef("AREA", None, polyline)
+
+    if holes:
+        inner_curves = []
+        for hole in holes:
+            h_pts = [ifc.createIfcCartesianPoint(c) for c in hole]
+            h_pts.append(h_pts[0])
+            inner_curves.append(ifc.createIfcPolyline(h_pts))
+        profile = ifc.createIfcArbitraryProfileDefWithVoids(
+            "AREA", None, polyline, inner_curves)
+    else:
+        profile = ifc.createIfcArbitraryClosedProfileDef("AREA", None, polyline)
 
     # Position of the extrusion
     location = ifc.createIfcCartesianPoint(position_xyz)
@@ -1673,12 +1690,14 @@ SPINDLE_SIZE = 32.0
 SPINDLE_MAX_GAP = 99.0
 
 
-def _create_pitched_profile_element_y(ifc, context, name, ifc_class, profile_yz, x_pos, thickness):
+def _create_pitched_profile_element_y(ifc, context, name, ifc_class, profile_yz, x_pos, thickness,
+                                      holes=None):
     """Create an IFC element from a Y-Z profile extruded in X direction.
 
     profile_yz: list of (y, z) points defining the 2D profile.
     x_pos: X position of the profile start (extrusion starts here).
     thickness: extrusion depth in X.
+    holes: optional list of hole coordinate lists for boolean-subtracted profiles.
     """
     # Orient the local CS so the 2D profile maps to the YZ plane:
     #   local X (RefDir)  = global Y  →  profile u = IFC Y
@@ -1691,16 +1710,19 @@ def _create_pitched_profile_element_y(ifc, context, name, ifc_class, profile_yz,
         direction=(0.0, 0.0, 1.0),
         axis=(1.0, 0.0, 0.0),
         ref_direction=(0.0, 1.0, 0.0),
+        holes=holes,
     )
     return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
 
 
-def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz, y_pos, thickness):
+def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz, y_pos, thickness,
+                                      holes=None):
     """Create an IFC element from an X-Z profile extruded in Y direction.
 
     profile_xz: list of (x, z) points defining the 2D profile.
     y_pos: Y position of the profile start (extrusion starts here).
     thickness: extrusion depth in Y.
+    holes: optional list of hole coordinate lists for boolean-subtracted profiles.
     """
     # Orient the local CS so the 2D profile maps to the XZ plane:
     #   local X (RefDir)  = global X   →  profile u = IFC X
@@ -1714,6 +1736,7 @@ def _create_pitched_profile_element_x(ifc, context, name, ifc_class, profile_xz,
         direction=(0.0, 0.0, -1.0),
         axis=(0.0, -1.0, 0.0),
         ref_direction=(1.0, 0.0, 0.0),
+        holes=holes,
     )
     return _create_element_with_geometry(ifc, context, ifc_class, name, solid)
 
@@ -2765,9 +2788,12 @@ def meshes_to_ifc(meshes):
     _attach_disclaimer_pset(ifc, project, _DISCLAIMER)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    try:
+        ifc.wrapped_data.header.file_name.authorization = (
+            "User must verify all outputs before use."
+        )
+    except (AttributeError, Exception):
+        pass
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
@@ -2820,17 +2846,20 @@ def _convert_stringer_mesh(ifc, context, mesh, ifc_class, name):
     """
     profile = [(float(pt[0]), float(pt[1])) for pt in mesh["profile"]]
     thickness = float(mesh["thickness"])
+    holes = mesh.get("_holes")
+    if holes:
+        holes = [[(float(c[0]), float(c[1])) for c in h] for h in holes]
 
     if mesh.get("axis") == "y":
         # X-Z profile extruded in Y
         y_pos = float(mesh["y"])
         return _create_pitched_profile_element_x(
-            ifc, context, name, ifc_class, profile, y_pos, thickness)
+            ifc, context, name, ifc_class, profile, y_pos, thickness, holes=holes)
     else:
         # Y-Z profile extruded in X
         x_pos = float(mesh["x"])
         return _create_pitched_profile_element_y(
-            ifc, context, name, ifc_class, profile, x_pos, thickness)
+            ifc, context, name, ifc_class, profile, x_pos, thickness, holes=holes)
 
 
 def _convert_polygon_mesh(ifc, context, mesh, ifc_class, name):
@@ -2841,9 +2870,12 @@ def _convert_polygon_mesh(ifc, context, mesh, ifc_class, name):
     profile = [(float(pt[0]), float(pt[1])) for pt in mesh["profile"]]
     z_base = float(mesh["z"])
     thickness = float(mesh["thickness"])
+    holes = mesh.get("_holes")
+    if holes:
+        holes = [[(float(c[0]), float(c[1])) for c in h] for h in holes]
 
     solid = _create_extruded_solid(ifc, context, profile, thickness,
-                                   (0.0, 0.0, z_base))
+                                   (0.0, 0.0, z_base), holes=holes)
 
     element = ifcopenshell.api.run("root.create_entity", ifc,
                                    ifc_class=ifc_class, name=name)
