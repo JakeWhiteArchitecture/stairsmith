@@ -552,10 +552,10 @@ def _mesh_to_elev_poly(mesh, view):
                 poly = hull
             except Exception:
                 return None, None, False
-            # Use max depth (furthest from viewer) so winders sort
-            # behind closer elements like newel posts.
-            max_depth = max(p[2] for p in proj_all)
-            return poly, max_depth, is_str
+            # Use min depth (closest to viewer) so winders sort
+            # in front of elements behind them (like stringers).
+            min_depth = min(p[2] for p in proj_all)
+            return poly, min_depth, is_str
 
     except Exception:
         pass

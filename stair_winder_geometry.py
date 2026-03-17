@@ -145,7 +145,7 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
     # Pre-compute riser extension points for non-last winders.
     # These extend the upper boundary (at a1) by riser_extension past
     # the division line so the riser above can sit on the tread.
-    ext_inner = ext_outer = None
+    ext_inner = ext_outer = ext_corner = None
     if riser_extension > 0 and winder_index < num_winders - 1:
         a_ic = math.atan2(winder_x, winder_x)
         if a1 < a_ic - 1e-6:
@@ -172,7 +172,34 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
                     ey = ey + t * dly
                 else:
                     ex = pc_x
+                unclamped_ey = ey
                 ey = min(ey, pc_y)
+                # If clamping to corner lost perpendicular distance,
+                # continue extension along Face B to achieve full coverage.
+                if unclamped_ey > pc_y + 1e-6:
+                    # Compute perpendicular distance achieved at corner
+                    cx_off = pc_x - inner_a1[0]
+                    cy_off = pc_y - inner_a1[1]
+                    perp_at_corner = abs(cx_off * (-dly / dl) + cy_off * (dlx / dl))
+                    shortfall = riser_extension - perp_at_corner
+                    if shortfall > 1.0:
+                        # Walk along Face B (y=pc_y, x toward post_opp_x)
+                        # to gain the remaining perpendicular distance.
+                        # Perpendicular unit = (-dly/dl, dlx/dl) scaled by x_sign.
+                        # On Face B, dx changes, dy=0, so perpendicular gain
+                        # per unit dx = abs(-dly/dl).
+                        perp_per_dx = abs(dly / dl)
+                        if perp_per_dx > 1e-9:
+                            face_b_dist = shortfall / perp_per_dx
+                            face_b_x = pc_x - x_sign * face_b_dist
+                            # Clamp to post opposite face
+                            if x_sign > 0:
+                                face_b_x = max(face_b_x, post_opp_x)
+                            else:
+                                face_b_x = min(face_b_x, post_opp_x)
+                            ext_corner = (pc_x, pc_y)
+                            ex = face_b_x
+                            ey = pc_y
             elif abs(inner_a1[1] - pc_y) < 1e-6:
                 # inner_a1 is on Face B — slide along division line to y = pc_y
                 if abs(ey - pc_y) > 1e-6 and abs(dly) > 1e-9:
@@ -225,6 +252,8 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
         if ext_outer:
             profile.append(ext_outer)
             profile.append(ext_inner)
+            if ext_corner:
+                profile.append(ext_corner)
         profile.append(mark_a)           # fixed 25mm mark on Face A
 
         if flight_extension > 0:
