@@ -1118,52 +1118,46 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     *cut_axis*: 'x' or 'y' — perpendicular to the cut plane.
     *cut_pos*: coordinate of the cut along *cut_axis*.
     *look_positive*: True → look toward +axis from the cut plane.
+
+    Uses a unified depth-sorted occlusion pass so that beyond geometry
+    closer to the viewer (e.g. newel posts) properly occludes cut
+    profiles further away (e.g. winder tread cross-sections).
     """
     view = _section_view_for(cut_axis, look_positive)
 
-    # Types to skip in section views — winder treads/risers create thin
-    # edge-on artifacts at flight junctions that overlap stringer profiles.
-    _SECTION_SKIP = frozenset({"winder_tread", "winder_riser"})
+    # Depth of the cut plane itself (all cut profiles sit here).
+    cut_depth = _project_point(
+        cut_pos if cut_axis == "x" else 0,
+        cut_pos if cut_axis == "y" else 0,
+        0, view)[2]
 
-    # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
-    #    Collect cut profile polygons to seed the beyond-pass coverage,
-    #    so grey beyond lines don't duplicate the white cut lines.
+    # Collect all items into a single list: (depth, poly, layer)
+    items = []  # (depth, Polygon, layer_name)
+
+    # 1. Cut profiles — depth = cut plane depth.
     cut_polys = []
     for mesh in meshes:
-        if mesh.get("ifc_type", "") in _SECTION_SKIP:
-            continue
         cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
         if cpoly is None or cpoly.is_empty:
             continue
         cut_polys.append(cpoly)
-        try:
-            ext = list(cpoly.exterior.coords)
-        except Exception:
-            continue
-        for i in range(len(ext) - 1):
-            dxf.add_line((ext[i][0] + ox, ext[i][1] + oy),
-                         (ext[i + 1][0] + ox, ext[i + 1][1] + oy),
-                         layer="SECTION_CUT")
+        items.append((cut_depth, cpoly, "SECTION_CUT"))
 
-    # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
-    #    Seed coverage with cut profile polygons so their edges aren't
-    #    redrawn in grey.
-    items = []
+    # 2. Beyond geometry — depth from _mesh_to_elev_poly.
     for mesh in meshes:
-        if mesh.get("ifc_type", "") in _SECTION_SKIP:
-            continue
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
             continue
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly))
+        items.append((depth, poly, "SECTION_BEYOND"))
 
+    # Sort by depth (closest to viewer first) and draw with occlusion.
     items.sort(key=lambda t: t[0])
-    covered = list(cut_polys)  # seed with cut profiles to prevent grey duplicates
+    covered = []
 
-    for _d, poly in items:
+    for _d, poly, layer in items:
         exterior = list(poly.exterior.coords)
         for i in range(len(exterior) - 1):
             seg = LineString([exterior[i], exterior[i + 1]])
@@ -1174,7 +1168,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
-            _emit_geometry_offset(dxf, visible, "SECTION_BEYOND", ox, oy)
+            _emit_geometry_offset(dxf, visible, layer, ox, oy)
         covered.append(poly)
 
 
