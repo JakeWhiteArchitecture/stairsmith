@@ -1352,8 +1352,9 @@ def _newel_extent_perp(meshes, flight_dir, flight_bbox=None):
 
     For a Y-direction flight, returns the min/max X of newel bounding boxes.
     For an X-direction flight, returns the min/max Y.
-    Only includes newels whose perpendicular centre falls within the flight bbox
-    (so winder-corner newels are excluded from straight-flight extents).
+    Filters by *both* axes so only newels belonging to this flight are included
+    (winder-corner newels at similar perpendicular positions but far along the
+    other axis are excluded).
     """
     vals = []
     for m in meshes:
@@ -1364,23 +1365,29 @@ def _newel_extent_perp(meshes, flight_dir, flight_bbox=None):
         if not c or not s:
             continue
         if flight_dir == "y":
-            # Perpendicular axis is X
             n_x0 = c[0] - s[0] / 2
             n_x1 = c[0] + s[0] / 2
-            # Filter: newel centre X must be within flight X range (± newel half-size)
             if flight_bbox:
                 fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
-                margin = s[0]
-                if c[0] < fb_xlo - margin or c[0] > fb_xhi + margin:
+                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                margin_x = s[0]
+                margin_y = s[1]
+                if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
+                    continue
+                if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
                     continue
             vals.extend([n_x0, n_x1])
         elif flight_dir == "x":
             n_y0 = c[1] - s[1] / 2
             n_y1 = c[1] + s[1] / 2
             if flight_bbox:
+                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
                 fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
-                margin = s[1]
-                if c[1] < fb_ylo - margin or c[1] > fb_yhi + margin:
+                margin_x = s[0]
+                margin_y = s[1]
+                if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
+                    continue
+                if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
                     continue
             vals.extend([n_y0, n_y1])
     if not vals:
@@ -1393,7 +1400,7 @@ def _newel_extent_along(meshes, flight_dir, flight_bbox=None):
 
     For a Y-direction flight, returns the min/max Y of newel bounding boxes.
     For an X-direction flight, returns the min/max X.
-    Filters newels by perpendicular overlap with flight_bbox.
+    Filters by both axes so only newels belonging to this flight are included.
     """
     vals = []
     for m in meshes:
@@ -1404,19 +1411,25 @@ def _newel_extent_along(meshes, flight_dir, flight_bbox=None):
         if not c or not s:
             continue
         if flight_dir == "y":
-            # Along axis is Y; filter by X (perpendicular)
             if flight_bbox:
                 fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
-                margin = s[0]
-                if c[0] < fb_xlo - margin or c[0] > fb_xhi + margin:
+                fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
+                margin_x = s[0]
+                margin_y = s[1]
+                if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
+                    continue
+                if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
                     continue
             vals.extend([c[1] - s[1] / 2, c[1] + s[1] / 2])
         elif flight_dir == "x":
-            # Along axis is X; filter by Y (perpendicular)
             if flight_bbox:
+                fb_xlo, fb_xhi = flight_bbox[0], flight_bbox[1]
                 fb_ylo, fb_yhi = flight_bbox[2], flight_bbox[3]
-                margin = s[1]
-                if c[1] < fb_ylo - margin or c[1] > fb_yhi + margin:
+                margin_x = s[0]
+                margin_y = s[1]
+                if c[1] < fb_ylo - margin_y or c[1] > fb_yhi + margin_y:
+                    continue
+                if c[0] < fb_xlo - margin_x or c[0] > fb_xhi + margin_x:
                     continue
             vals.extend([c[0] - s[0] / 2, c[0] + s[0] / 2])
     if not vals:
@@ -1608,27 +1621,77 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
                              "offset": dim_offset, "norm": (1, 0)})
 
     # Add overall width dimension for the bottom flight (flight 1).
-    # Uses newel outer faces on balustrade sides, stringer outer faces on
-    # wall sides — giving a true overall width.
+    # Each side independently uses newel outer face (balustrade) or stringer
+    # outer face (wall) so the width tracks the true O/A at the stair base.
     bottom_fi = flight_info[0]
     bdir = bottom_fi["direction"]
     fb1 = flight_bboxes.get(bottom_fi["flight"])
     str_perp1 = _stringer_extent_perp(meshes, bdir, flight_bbox=fb1)
-    newel_perp1 = _newel_extent_perp(meshes, bdir, flight_bbox=fb1)
-    ext = _combined_extent(str_perp1, newel_perp1)
-    if ext:
-        width_val = ext[1] - ext[0]
+    if str_perp1:
+        left_cond = params.get("left_condition", "wall")
+        right_cond = params.get("right_condition", "wall")
+        # Find base newels — newels at the entry end of flight 1 only, so
+        # winder-corner newels (at the far end) don't inflate the width.
+        base_newels_lo = None  # min-side newel outer face
+        base_newels_hi = None  # max-side newel outer face
+        f1_cx = (fb1[0] + fb1[1]) / 2 if fb1 else 0
+        f1_cy = (fb1[2] + fb1[3]) / 2 if fb1 else 0
+        for m in meshes:
+            if m.get("ifc_type") != "newel":
+                continue
+            c = m.get("ifc_center")
+            s = m.get("ifc_size")
+            if not c or not s:
+                continue
+            if bdir == "y":
+                # Width is in X; only include newels near the base (low Y)
+                # and within the flight's X range.
+                margin_x = s[0]
+                if c[1] > f1_cy:
+                    continue  # skip corner/top newels
+                if fb1 and (c[0] < fb1[0] - margin_x or c[0] > fb1[1] + margin_x):
+                    continue  # skip newels from other flights
+                n_lo = c[0] - s[0] / 2
+                n_hi = c[0] + s[0] / 2
+                if c[0] < f1_cx:
+                    base_newels_lo = min(base_newels_lo, n_lo) if base_newels_lo is not None else n_lo
+                else:
+                    base_newels_hi = max(base_newels_hi, n_hi) if base_newels_hi is not None else n_hi
+            else:
+                # Width is in Y; only include newels near the base (low X)
+                # and within the flight's Y range.
+                margin_y = s[1]
+                if c[0] > f1_cx:
+                    continue
+                if fb1 and (c[1] < fb1[2] - margin_y or c[1] > fb1[3] + margin_y):
+                    continue
+                n_lo = c[1] - s[1] / 2
+                n_hi = c[1] + s[1] / 2
+                if c[1] < f1_cy:
+                    base_newels_lo = min(base_newels_lo, n_lo) if base_newels_lo is not None else n_lo
+                else:
+                    base_newels_hi = max(base_newels_hi, n_hi) if base_newels_hi is not None else n_hi
+
+        # Assemble per-side: balustrade → newel face, wall → stringer face
+        ext_lo = str_perp1[0]
+        ext_hi = str_perp1[1]
+        if left_cond == "balustrade" and base_newels_lo is not None:
+            ext_lo = min(ext_lo, base_newels_lo)
+        if right_cond == "balustrade" and base_newels_hi is not None:
+            ext_hi = max(ext_hi, base_newels_hi)
+
+        width_val = ext_hi - ext_lo
         lbl = "%.0f O/A" % width_val
         f1_along = _combined_extent(
             _stringer_extent_along(meshes, bdir, flight_bbox=fb1),
             _newel_extent_along(meshes, bdir, flight_bbox=fb1))
         if bdir == "y":
             base_y = f1_along[0] if f1_along else bbox_min_y
-            dims.append({"p1": (ext[0], base_y), "p2": (ext[1], base_y),
+            dims.append({"p1": (ext_lo, base_y), "p2": (ext_hi, base_y),
                          "offset": dim_offset, "norm": (0, -1), "label": lbl})
         else:
             base_x = f1_along[0] if f1_along else bbox_min_x
-            dims.append({"p1": (base_x, ext[0]), "p2": (base_x, ext[1]),
+            dims.append({"p1": (base_x, ext_lo), "p2": (base_x, ext_hi),
                          "offset": dim_offset, "norm": (-1, 0), "label": lbl})
 
     return dims
