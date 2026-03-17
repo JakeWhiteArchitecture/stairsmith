@@ -1121,11 +1121,17 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     """
     view = _section_view_for(cut_axis, look_positive)
 
+    # Types to skip in section views — winder treads/risers create thin
+    # edge-on artifacts at flight junctions that overlap stringer profiles.
+    _SECTION_SKIP = frozenset({"winder_tread", "winder_riser"})
+
     # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
     #    Collect cut profile polygons to seed the beyond-pass coverage,
     #    so grey beyond lines don't duplicate the white cut lines.
     cut_polys = []
     for mesh in meshes:
+        if mesh.get("ifc_type", "") in _SECTION_SKIP:
+            continue
         cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
         if cpoly is None or cpoly.is_empty:
             continue
@@ -1141,10 +1147,11 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
 
     # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
     #    Seed coverage with cut profile polygons so their edges aren't
-    #    redrawn in grey, while still allowing winder treads that span
-    #    across the cut plane to show their beyond-view edges.
+    #    redrawn in grey.
     items = []
     for mesh in meshes:
+        if mesh.get("ifc_type", "") in _SECTION_SKIP:
+            continue
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
             continue
