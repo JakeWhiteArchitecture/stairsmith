@@ -218,6 +218,15 @@
             background: #1a4a80;
         }
 
+        @keyframes btn-throb {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.97); }
+        }
+        .btn-generating {
+            animation: btn-throb 1s ease-in-out infinite;
+            pointer-events: none;
+        }
+
         /* ─── 3D VIEWPORT ─── */
         .viewport {
             flex: 1;
@@ -789,8 +798,8 @@
       </div>
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
-            <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
-            <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
+            <button class="btn btn-primary" id="ifc-btn" onclick="downloadIFC();">Download 3D IFC</button>
+            <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download 2D DXF</button>
             <div style="display:flex; gap:8px; margin-top:8px;">
                 <button class="btn btn-secondary" style="margin-top:0; flex:1;" onclick="openShareModal()">Share</button>
                 <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback">Feedback</a>
@@ -1953,9 +1962,10 @@
 
         function downloadIFC() {
             const params = getParams();
-            const btn = document.querySelector('.btn-primary');
-            btn.textContent = 'Generating...';
+            const btn = document.getElementById('ifc-btn');
+            btn.textContent = 'Generating 3D IFC\u2026';
             btn.disabled = true;
+            btn.classList.add('btn-generating');
 
             fetch('/api/download', {
                 method: 'POST',
@@ -1981,8 +1991,9 @@
                 alert('Error generating IFC: ' + err.message);
             })
             .finally(() => {
-                btn.textContent = 'Download IFC File';
+                btn.textContent = 'Download 3D IFC';
                 btn.disabled = false;
+                btn.classList.remove('btn-generating');
             });
         }
 
@@ -1990,8 +2001,9 @@
             if (!window.pyodideReady) { alert('Pyodide is still loading. Please wait.'); return; }
             const params = getParams();
             const btn = document.getElementById('dxf-btn');
-            btn.textContent = 'Generating...';
+            btn.textContent = 'Generating 2D DXF\u2026';
             btn.disabled = true;
+            btn.classList.add('btn-generating');
             try {
                 const paramsJSON = JSON.stringify(params);
                 const dxfString = await pyodide.runPythonAsync(`
@@ -2014,8 +2026,9 @@ _to_dxf(_meshes, _p)
                 console.error('DXF generation error:', err);
                 alert('Error generating DXF: ' + err.message);
             } finally {
-                btn.textContent = 'Download DXF Plan';
+                btn.textContent = 'Download 2D DXF';
                 btn.disabled = false;
+                btn.classList.remove('btn-generating');
             }
         }
 
