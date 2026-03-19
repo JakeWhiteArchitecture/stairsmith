@@ -1425,7 +1425,7 @@
             <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
             <div><span class="dim-label">Pitch:</span> <span class="dim-value" id="dim-pitch">41.4°</span></div>
         </div>
-        <div style="position:absolute; bottom:20px; left:20px; z-index:10; text-align:center;">
+        <div style="position:absolute; bottom:20px; right:20px; z-index:10; text-align:center;">
             <a href="https://buymeacoffee.com/jakewhite" target="_blank" rel="noopener noreferrer"
                style="display:inline-block; background:rgba(212,136,15,0.85); color:#fff; font-size:11px; font-weight:600; padding:6px 14px; border-radius:4px; text-decoration:none; letter-spacing:0.3px; backdrop-filter:blur(4px);">
                 ☕ Buy me a coffee
@@ -2781,6 +2781,7 @@ else:
             btn.textContent = 'Generating 3D IFC\u2026';
             btn.disabled = true;
             btn.classList.add('btn-generating');
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             try {
                 await ensureIfcOpenShell();
                 btn.textContent = 'Generating 3D IFC\u2026';
@@ -2816,6 +2817,7 @@ _data
             btn.textContent = 'Generating 2D DXF\u2026';
             btn.disabled = true;
             btn.classList.add('btn-generating');
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
             try {
                 const paramsJSON = JSON.stringify(params);
                 const dxfString = await pyodide.runPythonAsync(`
