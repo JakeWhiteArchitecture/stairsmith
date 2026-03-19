@@ -776,36 +776,9 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
 
     items.sort(key=lambda t: t[0])
 
-    # ── Synthetic balustrade occluder ──────────────────────────────
-    # In side views the nearest (wall-side) stringer is a wide bounding
-    # rectangle that covers the full flight width.  Extending it upward
-    # to the tallest newel-post height creates a virtual "wall" that
-    # hides far-side railing components (handrails, spindles, baserails)
-    # which would otherwise peek above the stringer silhouette.
-    # In front/back views the nearest stringer is narrow (32 mm), so the
-    # extension has negligible impact and near-side railing stays visible.
-    max_newel_vy = 0
-    for _d, poly, _s, _t in items:
-        # We don't store ifc_type here, but newels project as tall narrow
-        # boxes — just use the maximum view_y of all items as upper bound.
-        b = poly.bounds
-        if b[3] > max_newel_vy:
-            max_newel_vy = b[3]
-
     # Build coverage lists incrementally (no union needed).
     all_polys = []      # all polygons closer than current
     nostr_polys = []    # non-stringer polygons closer than current
-
-    # Pre-seed coverage with the nearest stringer extended to balustrade height.
-    for _d, poly, is_str, _t in items:
-        if is_str and max_newel_vy > 0:
-            b = poly.bounds
-            if max_newel_vy > b[3]:
-                ext = Polygon([(b[0], b[1]), (b[2], b[1]),
-                               (b[2], max_newel_vy), (b[0], max_newel_vy)])
-                all_polys.append(ext)
-                nostr_polys.append(ext)
-            break  # only extend the nearest (first in depth order)
 
     # Two-pass collection: gather all ELEVATION and HIDDEN segments first,
     # then deduplicate (remove ELEVATION segments that overlap HIDDEN ones).
