@@ -460,6 +460,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
             "color": "#e8dcc8",
             "name": f"Winder Riser {j+1}",
             "ifc_type": "winder_riser",
+            "winder_index": j,  # 0-based index within this turn's winders
         })
 
     return meshes
