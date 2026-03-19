@@ -396,39 +396,45 @@ def _clip_last_winder_at_newel(winder_treads, newels):
             if w_poly.is_empty:
                 continue
 
-        xmin, ymin, xmax, ymax = w_poly.bounds
+        # Find the thin (narrowest) vertex of the winder — closest to
+        # the newel center.  That thin tip is what extends past a newel
+        # face and needs clipping.
+        coords = list(w_poly.exterior.coords[:-1])
+        thin_pt = min(coords, key=lambda p: (p[0] - cx) ** 2 + (p[1] - cy) ** 2)
 
-        # Check each newel face for significant extension (> newel size
-        # in that dimension — the winder spans the full stair width which
-        # is expected, so we only clip the flight-direction overshoot).
         face_y_hi = cy + nd / 2.0
         face_y_lo = cy - nd / 2.0
         face_x_hi = cx + nw / 2.0
         face_x_lo = cx - nw / 2.0
 
-        faces = []
-        if ymax - face_y_hi > nd:
-            faces.append(("y+", ymax - face_y_hi,
-                           shapely_box(-1e9, face_y_hi, 1e9, 1e9)))
-        if face_y_lo - ymin > nd:
-            faces.append(("y-", face_y_lo - ymin,
-                           shapely_box(-1e9, -1e9, 1e9, face_y_lo)))
-        if xmax - face_x_hi > nw:
-            faces.append(("x+", xmax - face_x_hi,
-                           shapely_box(face_x_hi, -1e9, 1e9, 1e9)))
-        if face_x_lo - xmin > nw:
-            faces.append(("x-", face_x_lo - xmin,
-                           shapely_box(-1e9, -1e9, face_x_lo, 1e9)))
+        # Determine which newel face the thin tip extends past.
+        # Build a "wall" clip box: extends from the newel face outward
+        # in the overshoot direction, but only as wide as the newel in
+        # the perpendicular direction.  This trims just the thin end
+        # without cutting across the entire tread.
+        EPS = 1.0  # 1 mm tolerance
+        clip_away = None
+        if thin_pt[1] > face_y_hi + EPS:
+            # Thin tip extends past newel y+ face
+            clip_away = shapely_box(face_x_lo, face_y_hi,
+                                    face_x_hi, face_y_hi + 1e6)
+        elif thin_pt[1] < face_y_lo - EPS:
+            # Thin tip extends past newel y- face
+            clip_away = shapely_box(face_x_lo, face_y_lo - 1e6,
+                                    face_x_hi, face_y_lo)
+        elif thin_pt[0] > face_x_hi + EPS:
+            # Thin tip extends past newel x+ face
+            clip_away = shapely_box(face_x_hi, face_y_lo,
+                                    face_x_hi + 1e6, face_y_hi)
+        elif thin_pt[0] < face_x_lo - EPS:
+            # Thin tip extends past newel x- face
+            clip_away = shapely_box(face_x_lo - 1e6, face_y_lo,
+                                    face_x_lo, face_y_hi)
 
-        if not faces:
+        if clip_away is None:
             continue
 
-        # Pick the face with the smallest extension — that's the flight-
-        # direction face (the stair-width direction has a larger span).
-        faces.sort(key=lambda f: f[1])
-        _face_name, _extent, clip_away = faces[0]
-
-        # Clip: keep only the part NOT past the newel face
+        # Clip: remove only the sliver past the newel face
         remaining = w_poly.difference(clip_away)
         if remaining.is_empty:
             continue
