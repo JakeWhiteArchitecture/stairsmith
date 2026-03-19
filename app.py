@@ -56,6 +56,16 @@ def serve_dxf_generator():
     return resp
 
 
+@app.route("/stair_booleans.py")
+def serve_stair_booleans():
+    """Serve stair_booleans.py so the Pyodide frontend can fetch it."""
+    from flask import send_from_directory
+    resp = send_from_directory(os.path.dirname(__file__), "stair_booleans.py",
+                               mimetype="text/plain")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
 @app.route("/StairSmith-Logo.png")
 def serve_logo():
     """Serve the StairSmith logo image."""
