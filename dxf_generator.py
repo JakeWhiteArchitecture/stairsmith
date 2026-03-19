@@ -1206,20 +1206,47 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         cut_pos if cut_axis == "y" else 0,
         0, view)[2]
 
-    # Collect all items: (depth, poly, color).
-    # color=None → white (layer default), color=8 → gray.
-    items = []  # (depth, Polygon, color)
-
-    # 1. Cut profiles — depth = cut plane depth.
+    # 1. Cut profiles — collect and union into a single shape.
     cut_polys = []
     for mesh in meshes:
         cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
         if cpoly is None or cpoly.is_empty:
             continue
         cut_polys.append(cpoly)
-        items.append((cut_depth, cpoly, None))
 
-    # 2. Beyond geometry — depth from _mesh_to_elev_poly (gray).
+    # Union all cut profiles so shared boundaries (e.g. winder 2 and
+    # the corner newel) collapse — no interior edges to fight over.
+    cut_union = unary_union(cut_polys) if cut_polys else None
+
+    # Draw the boundary of the unioned cut profile.
+    if cut_union is not None and not cut_union.is_empty:
+        # Handle both Polygon and MultiPolygon results.
+        polys = []
+        if cut_union.geom_type == "Polygon":
+            polys = [cut_union]
+        elif cut_union.geom_type == "MultiPolygon":
+            polys = list(cut_union.geoms)
+        for cp in polys:
+            exterior = list(cp.exterior.coords)
+            for i in range(len(exterior) - 1):
+                seg = LineString([exterior[i], exterior[i + 1]])
+                if seg.length < _MIN_LENGTH:
+                    continue
+                _emit_geometry_offset(dxf, seg, _LINE_LAYER, ox, oy,
+                                      color=None)
+            for interior in cp.interiors:
+                icoords = list(interior.coords)
+                for i in range(len(icoords) - 1):
+                    seg = LineString([icoords[i], icoords[i + 1]])
+                    if seg.length < _MIN_LENGTH:
+                        continue
+                    _emit_geometry_offset(dxf, seg, _LINE_LAYER, ox, oy,
+                                          color=None)
+
+    # 2. Beyond geometry — depth-sorted with occlusion.
+    # Start the coverage mask with the unioned cut profile so beyond
+    # geometry is correctly occluded by the full section cut shape.
+    items = []  # (depth, Polygon, color)
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
@@ -1232,6 +1259,13 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     # Sort by depth (closest to viewer first) and draw with occlusion.
     items.sort(key=lambda t: t[0])
     covered = []
+    # Seed coverage with the unioned cut profile so beyond geometry
+    # behind the cut plane is occluded by the cut shape.
+    if cut_union is not None and not cut_union.is_empty:
+        if cut_union.geom_type == "Polygon":
+            covered.append(cut_union)
+        elif cut_union.geom_type == "MultiPolygon":
+            covered.extend(list(cut_union.geoms))
 
     for _d, poly, ent_color in items:
         exterior = list(poly.exterior.coords)
