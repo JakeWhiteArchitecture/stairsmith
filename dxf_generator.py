@@ -590,10 +590,16 @@ def _mesh_to_elev_poly(mesh, view):
                 poly = hull
             except Exception:
                 return None, None, False
-            # Use min depth (closest to viewer) so winders sort
-            # in front of elements behind them (like stringers).
-            min_depth = min(p[2] for p in proj_all)
-            return poly, min_depth, is_str
+            # Use max depth (furthest from viewer) rather than min —
+            # winders wrap around newels and min_depth picks up corner
+            # points that are genuinely in front, causing the bulk of
+            # the winder to incorrectly occlude the newel post in
+            # section views.  Max depth ensures winders sort behind
+            # the newel so the newel can properly occlude them.
+            # A tiny nudge (+0.1) breaks ties with newel posts whose
+            # min_depth lands on the same face.
+            max_depth = max(p[2] for p in proj_all) + 0.1
+            return poly, max_depth, is_str
 
     except Exception:
         pass
