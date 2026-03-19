@@ -44,11 +44,11 @@ def apply_boolean_ops(meshes):
     for wr in winder_risers:
         _subtract_boxes_from_winder(wr, newels)
 
-    # 1b. Clip the first winder tread at the corner-newel face so it
-    #     doesn't extend past the newel into the flight zone.
-    #     Only the first (lowest-Z) winder overlapping each newel is
+    # 1b. Clip the last winder tread at the corner-newel face so it
+    #     doesn't extend past the newel into the outgoing flight zone.
+    #     Only the last (highest-Z) winder overlapping each newel is
     #     clipped — the other winders are left untouched.
-    _clip_first_winder_at_newel(winder_treads, newels)
+    _clip_last_winder_at_newel(winder_treads, newels)
 
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers
@@ -351,11 +351,11 @@ def _subtract_boxes_from_winder(winder, boxes):
 
 # ── winder face-clipping ───────────────────────────────────
 
-def _clip_first_winder_at_newel(winder_treads, newels):
-    """Clip the first winder tread that extends past a corner-newel face.
+def _clip_last_winder_at_newel(winder_treads, newels):
+    """Clip the last winder tread that extends past a corner-newel face.
 
-    Only the lowest-Z winder overlapping each newel is considered — it's
-    the one adjacent to the incoming flight that can extend past the newel.
+    Only the highest-Z winder overlapping each newel is considered — it's
+    the one adjacent to the outgoing flight that can extend past the newel.
     All other winders are left completely untouched.
     """
     if not winder_treads or not newels:
@@ -370,9 +370,9 @@ def _clip_first_winder_at_newel(winder_treads, newels):
         newel_rect = shapely_box(cx - nw / 2.0, cy - nd / 2.0,
                                  cx + nw / 2.0, cy + nd / 2.0)
 
-        # Find the first (lowest-Z) winder that overlaps this newel
-        first_winder = None
-        for wt in sorted_wt:
+        # Find the last (highest-Z) winder that overlaps this newel
+        last_winder = None
+        for wt in reversed(sorted_wt):
             z_lo = float(wt["z"])
             z_hi = z_lo + float(wt["thickness"])
             if nz_hi <= z_lo + 0.5 or nz_lo >= z_hi - 0.5:
@@ -382,14 +382,14 @@ def _clip_first_winder_at_newel(winder_treads, newels):
                 continue
             w_poly = Polygon(wpts)
             if w_poly.is_valid and w_poly.intersects(newel_rect):
-                first_winder = wt
+                last_winder = wt
                 break
 
-        if first_winder is None:
+        if last_winder is None:
             continue
 
         # Build polygon for this winder
-        wpts = [(float(p[0]), float(p[1])) for p in first_winder["profile"]]
+        wpts = [(float(p[0]), float(p[1])) for p in last_winder["profile"]]
         w_poly = Polygon(wpts)
         if w_poly.is_empty or not w_poly.is_valid:
             w_poly = w_poly.buffer(0)
@@ -437,7 +437,7 @@ def _clip_first_winder_at_newel(winder_treads, newels):
         if remaining.geom_type != "Polygon" or remaining.is_empty:
             continue
 
-        _write_profile(first_winder, remaining, fmt="nested")
+        _write_profile(last_winder, remaining, fmt="nested")
 
 
 # ── helpers ─────────────────────────────────────────────────
