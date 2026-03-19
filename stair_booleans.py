@@ -44,11 +44,11 @@ def apply_boolean_ops(meshes):
     for wr in winder_risers:
         _subtract_boxes_from_winder(wr, newels)
 
-    # 1b. Clip the last winder tread at the corner-newel face so it
-    #     doesn't extend past the newel into the outgoing flight zone.
-    #     Only the last (highest-Z) winder overlapping each newel is
-    #     clipped — the other winders are left untouched.
-    _clip_last_winder_at_newel(winder_treads, newels, flight_parts)
+    # 1b. Clip winder treads at the corner-newel faces.
+    #     The last (highest-Z) winder is clipped on the outgoing-flight
+    #     face.  Other winders are clipped on the opposite (incoming)
+    #     face where their thin diagonal edge crosses the newel.
+    _clip_winders_at_newel(winder_treads, newels, flight_parts)
 
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers
@@ -351,15 +351,15 @@ def _subtract_boxes_from_winder(winder, boxes):
 
 # ── winder face-clipping ───────────────────────────────────
 
-def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
-    """Clip the last winder tread flush with the newel face on the
-    outgoing-flight side.
+def _clip_winders_at_newel(winder_treads, newels, flight_parts):
+    """Clip winder treads flush with the corner-newel faces.
 
-    Logic: as you climb up through the winders, the top winder should be
-    flush with the newel face that's beside you — the face that looks
-    toward the outgoing flight.  We determine which face that is by
-    finding the first outgoing flight tread (just above the top winder
-    in Z) and seeing which direction it extends from the newel.
+    The *last* (highest-Z) winder is clipped on the outgoing-flight face
+    so it doesn't extend past the newel into the next flight.
+
+    *Other* winders whose thin diagonal edge crosses the opposite newel
+    face are also clipped flush — this trims the internal-corner sliver
+    that would otherwise poke past the newel post.
     """
     if not winder_treads or not newels:
         return
@@ -373,9 +373,9 @@ def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
         newel_rect = shapely_box(cx - nw / 2.0, cy - nd / 2.0,
                                  cx + nw / 2.0, cy + nd / 2.0)
 
-        # Find the last (highest-Z) winder that overlaps this newel
-        last_winder = None
-        for wt in reversed(sorted_wt):
+        # Find ALL winders that overlap this newel (Z-overlap + XY touch)
+        overlapping = []
+        for wt in sorted_wt:
             z_lo = float(wt["z"])
             z_hi = z_lo + float(wt["thickness"])
             if nz_hi <= z_lo + 0.5 or nz_lo >= z_hi - 0.5:
@@ -385,27 +385,15 @@ def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
                 continue
             w_poly = Polygon(wpts)
             if w_poly.is_valid and w_poly.intersects(newel_rect):
-                last_winder = wt
-                break
+                overlapping.append(wt)
 
-        if last_winder is None:
+        if not overlapping:
             continue
 
-        # Build polygon for this winder
-        wpts = [(float(p[0]), float(p[1])) for p in last_winder["profile"]]
-        w_poly = Polygon(wpts)
-        if w_poly.is_empty or not w_poly.is_valid:
-            w_poly = w_poly.buffer(0)
-            if w_poly.is_empty:
-                continue
-
+        last_winder = overlapping[-1]  # highest Z (list is sorted)
         last_winder_z = float(last_winder["z"])
 
         # ── Determine outgoing flight direction from the newel ──
-        # Collect flight treads whose Z >= the top winder's Z, sorted
-        # by Z.  The direction between consecutive treads gives us the
-        # true flight direction (immune to the tread's large span in
-        # the stair-width perpendicular direction).
         outgoing = []
         for fp in flight_parts:
             if fp.get("ifc_type") != "tread":
@@ -418,7 +406,6 @@ def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
         if len(outgoing) < 2:
             continue
 
-        # Direction = vector from tread 1 to tread 2
         t1 = outgoing[0]["ifc_center"]
         t2 = outgoing[1]["ifc_center"]
         dx = t2[0] - t1[0]
@@ -429,49 +416,76 @@ def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
         face_x_hi = cx + nw / 2.0
         face_x_lo = cx - nw / 2.0
 
-        # Build a "corner" clip box past the newel — only the area that is
-        # past the newel face in the outgoing-flight direction AND past
-        # the newel face toward the winder body.  This preserves the rear
-        # portion of the tread that sits under the riser above it.
-        #
-        # A 1 mm offset on the perpendicular face avoids splitting the
-        # polygon at an exact vertex match (which would create two
-        # disconnected pieces).
         OFFSET = 1.0
-        w_cx = w_poly.centroid.x
-        w_cy = w_poly.centroid.y
-        if abs(dx) > abs(dy):
-            # Outgoing flight runs in X; perpendicular is Y
-            if dx > 0:
-                x_lo, x_hi = face_x_hi, 1e9
-            else:
-                x_lo, x_hi = -1e9, face_x_lo
-            if w_cy > cy:
-                y_lo, y_hi = face_y_hi + OFFSET, 1e9
-            else:
-                y_lo, y_hi = -1e9, face_y_lo - OFFSET
-        else:
-            # Outgoing flight runs in Y; perpendicular is X
-            if dy > 0:
-                y_lo, y_hi = face_y_hi, 1e9
-            else:
-                y_lo, y_hi = -1e9, face_y_lo
-            if w_cx > cx:
-                x_lo, x_hi = face_x_hi + OFFSET, 1e9
-            else:
-                x_lo, x_hi = -1e9, face_x_lo - OFFSET
-        clip_away = shapely_box(x_lo, y_lo, x_hi, y_hi)
 
-        # Clip: remove the part of the winder past the newel face
-        remaining = w_poly.difference(clip_away)
-        if remaining.is_empty:
-            continue
-        if isinstance(remaining, MultiPolygon):
-            remaining = max(remaining.geoms, key=lambda g: g.area)
-        if remaining.geom_type != "Polygon" or remaining.is_empty:
-            continue
+        for wt in overlapping:
+            wpts = [(float(p[0]), float(p[1])) for p in wt["profile"]]
+            w_poly = Polygon(wpts)
+            if w_poly.is_empty or not w_poly.is_valid:
+                w_poly = w_poly.buffer(0)
+                if w_poly.is_empty:
+                    continue
 
-        _write_profile(last_winder, remaining, fmt="nested")
+            w_cx = w_poly.centroid.x
+            w_cy_val = w_poly.centroid.y
+            is_last = (wt is last_winder)
+
+            # Build a "corner" clip box past the newel face.
+            # Last winder:  clip past the outgoing-flight face.
+            # Other winders: clip past the opposite (incoming) face —
+            #   their thin diagonal edge crosses this face.
+            #
+            # The 1 mm offset on the perpendicular face avoids splitting
+            # the last winder at an exact vertex.  Non-last winders have
+            # vertices right at the newel face so they need offset = 0.
+            perp_off = OFFSET if is_last else 0.0
+
+            if abs(dx) > abs(dy):
+                # Outgoing flight runs in X; perpendicular is Y.
+                # Last winder: clip past the outgoing face.
+                # Non-last: clip past the opposite face but in the
+                # same direction (the thin edge crosses the nearer face).
+                if is_last:
+                    if dx > 0:
+                        x_lo, x_hi = face_x_hi, 1e9
+                    else:
+                        x_lo, x_hi = -1e9, face_x_lo
+                else:
+                    if dx > 0:
+                        x_lo, x_hi = face_x_lo, 1e9
+                    else:
+                        x_lo, x_hi = -1e9, face_x_hi
+                if w_cy_val > cy:
+                    y_lo, y_hi = face_y_hi + perp_off, 1e9
+                else:
+                    y_lo, y_hi = -1e9, face_y_lo - perp_off
+            else:
+                # Outgoing flight runs in Y; perpendicular is X.
+                if is_last:
+                    if dy > 0:
+                        y_lo, y_hi = face_y_hi, 1e9
+                    else:
+                        y_lo, y_hi = -1e9, face_y_lo
+                else:
+                    if dy > 0:
+                        y_lo, y_hi = face_y_lo, 1e9
+                    else:
+                        y_lo, y_hi = -1e9, face_y_hi
+                if w_cx > cx:
+                    x_lo, x_hi = face_x_hi + perp_off, 1e9
+                else:
+                    x_lo, x_hi = -1e9, face_x_lo - perp_off
+            clip_away = shapely_box(x_lo, y_lo, x_hi, y_hi)
+
+            remaining = w_poly.difference(clip_away)
+            if remaining.is_empty:
+                continue
+            if isinstance(remaining, MultiPolygon):
+                remaining = max(remaining.geoms, key=lambda g: g.area)
+            if remaining.geom_type != "Polygon" or remaining.is_empty:
+                continue
+
+            _write_profile(wt, remaining, fmt="nested")
 
 
 # ── helpers ─────────────────────────────────────────────────
