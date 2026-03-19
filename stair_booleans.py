@@ -6,8 +6,8 @@ exported geometry has proper joinery (mortice holes, housing notches)
 rather than overlapping volumes.
 
 Hierarchy (highest priority drawn first, subtracts from lower):
-  1. Newel posts  — subtract from stringers and overlapping winder treads
-  2. Flight treads/risers & winder treads — subtract from stringers
+  1. Newel posts  — subtract from winder treads, winder risers, and stringers
+  2. Flight treads/risers & winder treads/risers — subtract from stringers
   3. Stringers    — receive subtractions, lowest priority
 
 The preview model is NOT modified; only the exported copy is processed.
@@ -36,9 +36,11 @@ def apply_boolean_ops(meshes):
     winder_risers = [m for m in meshes
                      if m.get("ifc_type") == "winder_riser" and m.get("type") == "winder_polygon"]
 
-    # 1. Newels subtract from winder treads (XY boolean, Z-overlap gated)
+    # 1. Newels subtract from winder treads and winder risers (XY boolean, Z-overlap gated)
     for wt in winder_treads:
         _subtract_boxes_from_winder(wt, newels)
+    for wr in winder_risers:
+        _subtract_boxes_from_winder(wr, newels)
 
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers

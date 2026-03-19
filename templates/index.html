@@ -2011,8 +2011,9 @@
                 const dxfString = await pyodide.runPythonAsync(`
 import json as _json
 from dxf_generator import meshes_to_dxf_string as _to_dxf
+from stair_booleans import apply_boolean_ops as _bool_ops
 _p = _json.loads('''${paramsJSON}''')
-_meshes = generate_preview_geometry(_p)
+_meshes = _bool_ops(generate_preview_geometry(_p))
 _to_dxf(_meshes, _p)
 `);
                 const blob = new Blob([dxfString], { type: 'application/dxf' });
