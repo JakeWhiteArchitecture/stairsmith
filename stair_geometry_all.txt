@@ -3643,6 +3643,13 @@ def apply_boolean_ops(meshes):
     for wr in winder_risers:
         _subtract_boxes_from_winder(wr, newels)
 
+    # 1b. Clip winder treads at the corner-newel faces.
+    #     The last (highest-Z) winder is clipped on the outgoing-flight
+    #     face.  Other winders are clipped on the opposite (incoming)
+    #     face where their thin diagonal edge crosses the newel.
+    #     See DESIGN NOTES section below for full explanation.
+    _clip_winders_at_newel(winder_treads, newels, flight_parts)
+
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers
     #    Then winder treads/risers subtract from stringers
@@ -3836,6 +3843,147 @@ def _write_profile(mesh, poly, fmt="list"):
             mesh["_holes"] = [[list(c) for c in h.coords[:-1]] for h in holes]
     elif "_holes" in mesh:
         del mesh["_holes"]
+
+
+# ══════════════════════════════════════════════════════════════════
+# DESIGN NOTES — Winder 2 Corner-Edge Clipping at Corner Newel
+# ══════════════════════════════════════════════════════════════════
+#
+# PROBLEM STATEMENT
+# -----------------
+# In a quarter-turn stair, winder 2 (the middle winder) has a thin
+# diagonal edge that extends past the corner newel post face.
+#
+# For a left-turn stair with the corner newel at (0, 1100), size 90×90:
+#   Newel XY footprint: x = [-45, 45], y = [1055, 1145]
+#
+# Winder 2's original profile (8 vertices):
+#   (45, 1120), (45, 1145), (20, 1145), (-19.6, 1145),
+#   (446.9, 1928), (486.5, 1928), (828, 1928), (828, 1586.5)
+#
+# The vertices at (20, 1145) and (-19.6, 1145) are PAST the newel's
+# +X face at x=45, extending into the newel zone.  The diagonal edge
+# from (-19.6, 1145) to (446.9, 1928) crosses x=45 at y≈1253.
+# This creates a thin triangular sliver between the newel face and
+# the diagonal that shows up in section views as incorrect geometry.
+#
+# The user's requirement: trim this internal-corner edge of winder 2
+# flush to the newel post surface, but do NOT trim the rear (back)
+# edge of the winder at y=1928.
+#
+#
+# WHY _subtract_boxes_from_winder DOES NOT FIX THIS
+# --------------------------------------------------
+# The existing _subtract_boxes_from_winder function subtracts the
+# newel's XY footprint rectangle from the winder polygon.  However,
+# winder 2 only TOUCHES the newel rectangle along the line y=1145
+# (zero-area intersection — a MultiLineString, not a Polygon).
+# Shapely's .difference() produces no change because there is no
+# overlapping area to remove.  The winder and newel share a boundary
+# edge but do not overlap in 2D area.
+#
+#
+# APPROACH 1 — _clip_last_winder_at_newel (PARTIALLY WORKED)
+# -----------------------------------------------------------
+# A function was added to clip the LAST (highest-Z) winder flush with
+# the newel face on the outgoing-flight side.  This correctly clips
+# winder 3 where it extends past x=-45 into the flight 2 zone.
+#
+# However, this function only processed the LAST winder.  Winder 2
+# (the middle winder) was left untouched.  The thin corner sliver on
+# winder 2 persisted in section views.
+#
+#
+# APPROACH 2 — _clip_winders_at_newel (CURRENT — clips ALL winders)
+# ------------------------------------------------------------------
+# The function was extended to process ALL winders overlapping each
+# corner newel, not just the last one.  The key insight is that the
+# last winder and the other winders need to be clipped at DIFFERENT
+# faces of the newel:
+#
+#   Last winder (winder 3):
+#     Clip at the OUTGOING-FLIGHT face of the newel.
+#     For left-turn with flight 2 going in -X: clip past x = -45 (face_x_lo).
+#     This stops winder 3 from extending into the flight 2 zone.
+#
+#   Other winders (winder 1, winder 2):
+#     Clip at the OPPOSITE face — the face on the same side as the
+#     outgoing flight but at the near (incoming) edge of the newel.
+#     For left-turn: clip past x = +45 (face_x_hi), removing the thin
+#     triangle where the diagonal edge crosses the newel face.
+#
+# The clip is a CORNER clip: it removes geometry past the newel face
+# in the flight direction AND past the newel face in the perpendicular
+# direction (toward the winder body).  This preserves the main winder
+# area while removing only the sliver at the corner.
+#
+# Clip box construction (for abs(dx) > abs(dy), flight runs in X):
+#
+#   Last winder, dx > 0:  x ∈ [face_x_hi, +∞)    (past +X face)
+#   Last winder, dx < 0:  x ∈ (-∞, face_x_lo]    (past -X face)
+#   Non-last,    dx > 0:  x ∈ [face_x_lo, +∞)    (past -X face, same side)
+#   Non-last,    dx < 0:  x ∈ (-∞, face_x_hi]    (past +X face, same side)
+#
+#   Perpendicular (same for last and non-last):
+#     If winder centroid Y > newel center Y:  y ∈ [face_y_hi, +∞)
+#     If winder centroid Y < newel center Y:  y ∈ (-∞, face_y_lo]
+#
+# IMPORTANT: The perpendicular offset (OFFSET=1mm) that prevents
+# polygon splitting for the last winder must be set to 0 for non-last
+# winders.  Non-last winders have vertices exactly at the newel face
+# (y=1145), and using an offset of 1mm would push the clip to y=1146,
+# leaving those vertices un-clipped.
+#
+#
+# RESULT FOR LEFT-TURN STAIR
+# --------------------------
+# Winder 2 goes from 8 vertices to 7:
+#   BEFORE: (45,1120) (45,1145) (20,1145) (-19.6,1145) (446.9,1928)
+#           (486.5,1928) (828,1928) (828,1586.5)
+#   AFTER:  (45,1120) (45,1145) (45,1253.4) (446.9,1928)
+#           (486.5,1928) (828,1928) (828,1586.5)
+#
+# The thin triangle [(45,1145), (20,1145), (-19.6,1145), (45,1253.4)]
+# is removed.  The winder now has a clean vertical edge at x=45 (the
+# newel face) from y=1120 up to y=1253.4 where the diagonal naturally
+# clears the newel.  The rear edge at y=1928 is UNTOUCHED.
+#
+#
+# REMAINING CONCERN — REAR EDGE TRIMMING IN SECTION VIEWS
+# --------------------------------------------------------
+# The user reported that the rear edge of winder 2 (y=1928) appeared
+# trimmed in some section views.  Investigation showed:
+#
+# 1. The boolean operations do NOT modify the rear edge — the y=1928
+#    vertices are identical before and after apply_boolean_ops.
+#
+# 2. The section view cross-section at the flight 1 cut plane (x=414)
+#    shows winder 2 spanning y=[1339.8, 1872.7].  These limits come
+#    from the natural shape of the fan-shaped winder polygon at x=414,
+#    not from any trimming.  The winder is narrower at intermediate X
+#    positions because of its trapezoidal/fan shape.
+#
+# 3. The "beyond" geometry in section views clips the winder to the
+#    half-space beyond the cut plane and projects it as a bounding
+#    rectangle.  This correctly uses the clipped profile.
+#
+# 4. Flat landing code (actual_winders == 0 path) was investigated as
+#    a possible cause of overriding the winder profile.  Confirmed:
+#    the flat landing tread is ONLY created when actual_winders == 0.
+#    When winders are present, the landing code path is completely
+#    skipped for tread creation.  The two paths are mutually exclusive.
+#
+# If rear-edge trimming is still visible, possible causes to
+# investigate next:
+#   - Elevation occlusion hiding winder edges behind closer geometry
+#     (the winder is behind the wall stringer in side elevation views)
+#   - Section "beyond" bounding-rectangle projection collapsing the
+#     fan shape to a simpler rectangle
+#   - Browser/Pyodide caching serving stale stair_booleans.py
+#
+# ══════════════════════════════════════════════════════════════════
+
+
 """
 Stair Preview Engine — thin facade module for Pyodide.
 
