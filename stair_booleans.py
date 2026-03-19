@@ -44,6 +44,12 @@ def apply_boolean_ops(meshes):
     for wr in winder_risers:
         _subtract_boxes_from_winder(wr, newels)
 
+    # 1b. Clip the first winder tread at the corner-newel face so it
+    #     doesn't extend past the newel into the flight zone.
+    #     Only the first (lowest-Z) winder overlapping each newel is
+    #     clipped — the other winders are left untouched.
+    _clip_first_winder_at_newel(winder_treads, newels)
+
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers
     #    Then winder treads/risers subtract from stringers
@@ -341,6 +347,97 @@ def _subtract_boxes_from_winder(winder, boxes):
 
     if changed:
         _write_profile(winder, wt_poly, fmt="nested")
+
+
+# ── winder face-clipping ───────────────────────────────────
+
+def _clip_first_winder_at_newel(winder_treads, newels):
+    """Clip the first winder tread that extends past a corner-newel face.
+
+    Only the lowest-Z winder overlapping each newel is considered — it's
+    the one adjacent to the incoming flight that can extend past the newel.
+    All other winders are left completely untouched.
+    """
+    if not winder_treads or not newels:
+        return
+
+    sorted_wt = sorted(winder_treads, key=lambda w: float(w.get("z", 0)))
+
+    for newel in newels:
+        cx, cy, cz = newel["ifc_center"]
+        nw, nd, nh = newel["ifc_size"]
+        nz_lo, nz_hi = cz - nh / 2.0, cz + nh / 2.0
+        newel_rect = shapely_box(cx - nw / 2.0, cy - nd / 2.0,
+                                 cx + nw / 2.0, cy + nd / 2.0)
+
+        # Find the first (lowest-Z) winder that overlaps this newel
+        first_winder = None
+        for wt in sorted_wt:
+            z_lo = float(wt["z"])
+            z_hi = z_lo + float(wt["thickness"])
+            if nz_hi <= z_lo + 0.5 or nz_lo >= z_hi - 0.5:
+                continue
+            wpts = [(float(p[0]), float(p[1])) for p in wt["profile"]]
+            if len(wpts) < 3:
+                continue
+            w_poly = Polygon(wpts)
+            if w_poly.is_valid and w_poly.intersects(newel_rect):
+                first_winder = wt
+                break
+
+        if first_winder is None:
+            continue
+
+        # Build polygon for this winder
+        wpts = [(float(p[0]), float(p[1])) for p in first_winder["profile"]]
+        w_poly = Polygon(wpts)
+        if w_poly.is_empty or not w_poly.is_valid:
+            w_poly = w_poly.buffer(0)
+            if w_poly.is_empty:
+                continue
+
+        xmin, ymin, xmax, ymax = w_poly.bounds
+
+        # Check each newel face for significant extension (> newel size
+        # in that dimension — the winder spans the full stair width which
+        # is expected, so we only clip the flight-direction overshoot).
+        face_y_hi = cy + nd / 2.0
+        face_y_lo = cy - nd / 2.0
+        face_x_hi = cx + nw / 2.0
+        face_x_lo = cx - nw / 2.0
+
+        faces = []
+        if ymax - face_y_hi > nd:
+            faces.append(("y+", ymax - face_y_hi,
+                           shapely_box(-1e9, face_y_hi, 1e9, 1e9)))
+        if face_y_lo - ymin > nd:
+            faces.append(("y-", face_y_lo - ymin,
+                           shapely_box(-1e9, -1e9, 1e9, face_y_lo)))
+        if xmax - face_x_hi > nw:
+            faces.append(("x+", xmax - face_x_hi,
+                           shapely_box(face_x_hi, -1e9, 1e9, 1e9)))
+        if face_x_lo - xmin > nw:
+            faces.append(("x-", face_x_lo - xmin,
+                           shapely_box(-1e9, -1e9, face_x_lo, 1e9)))
+
+        if not faces:
+            continue
+
+        # Pick the face with the smallest extension — that's the flight-
+        # direction face (the stair-width direction has a larger span).
+        faces.sort(key=lambda f: f[1])
+        _face_name, _extent, clip_away = faces[0]
+
+        # Clip: keep only the part NOT past the newel face
+        remaining = w_poly.difference(clip_away)
+        if remaining.is_empty:
+            continue
+        if isinstance(remaining, MultiPolygon):
+            remaining = max(remaining.geoms, key=lambda g: g.area)
+        if remaining.geom_type != "Polygon" or remaining.is_empty:
+            continue
+
+        _write_profile(first_winder, remaining, fmt="nested")
 
 
 # ── helpers ─────────────────────────────────────────────────
