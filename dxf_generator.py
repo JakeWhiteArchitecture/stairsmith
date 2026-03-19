@@ -78,6 +78,30 @@ class _DxfWriter:
     def add_text(self, text, position, height=5.0, layer="0"):
         self._texts.append((text, position, height, layer))
 
+    def _extents(self):
+        """Return (min_x, min_y, max_x, max_y) across all entities and texts."""
+        xs, ys = [], []
+        for start, end, _layer in self._entities:
+            xs.extend([start[0], end[0]])
+            ys.extend([start[1], end[1]])
+        for _text, pos, _h, _l in self._texts:
+            xs.append(pos[0])
+            ys.append(pos[1])
+        if not xs:
+            return (0, 0, 1000, 1000)
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def shift_all(self, dx, dy):
+        """Apply a global offset to all entities and texts."""
+        self._entities = [
+            ((s[0] + dx, s[1] + dy), (e[0] + dx, e[1] + dy), l)
+            for s, e, l in self._entities
+        ]
+        self._texts = [
+            (t, (p[0] + dx, p[1] + dy), h, l)
+            for t, p, h, l in self._texts
+        ]
+
     # ── serialisation ──
 
     def to_string(self):
@@ -91,6 +115,17 @@ class _DxfWriter:
         a("  1"); a("AC1009")
         a("  9"); a("$MEASUREMENT")
         a(" 70"); a("     1")
+        # Extents for zoom-to-fit on open
+        ext = self._extents()
+        margin = 100
+        a("  9"); a("$EXTMIN")
+        a(" 10"); a("%.6f" % (ext[0] - margin))
+        a(" 20"); a("%.6f" % (ext[1] - margin))
+        a(" 30"); a("0.0")
+        a("  9"); a("$EXTMAX")
+        a(" 10"); a("%.6f" % (ext[2] + margin))
+        a(" 20"); a("%.6f" % (ext[3] + margin))
+        a(" 30"); a("0.0")
         a("  0"); a("ENDSEC")
 
         # TABLES
@@ -741,6 +776,11 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
     all_polys = []      # all polygons closer than current
     nostr_polys = []    # non-stringer polygons closer than current
 
+    # Two-pass collection: gather all ELEVATION and HIDDEN segments first,
+    # then deduplicate (remove ELEVATION segments that overlap HIDDEN ones).
+    elev_segs = []    # [(LineString/Multi, ...)]
+    hidden_segs = []  # [(LineString/Multi, ...)]
+
     for _d, poly, is_str, is_tr in items:
         exterior = list(poly.exterior.coords)
 
@@ -753,7 +793,7 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
-            _emit_geometry_offset(dxf, visible, "ELEVATION", ox, oy)
+            elev_segs.append(visible)
 
         # Hidden-through-stringer pass for treads / risers.
         if is_tr:
@@ -768,13 +808,6 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                 if vis_all.is_empty:
                     hidden = vis_no_str
                 else:
-                    hidden = _clip_against_list(vis_no_str, [vis_all]) \
-                        if vis_all.geom_type in ("LineString", "MultiLineString") \
-                        else vis_no_str
-                    # vis_all is a line geometry; we need the AREA that hides.
-                    # Simpler: hidden = parts in vis_no_str not in vis_all.
-                    # Since both are line subsets of the same original seg,
-                    # hidden = vis_no_str minus the visible portions.
                     try:
                         hidden = vis_no_str.difference(vis_all)
                     except Exception:
@@ -783,11 +816,39 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                     continue
                 if hasattr(hidden, "length") and hidden.length < _MIN_LENGTH:
                     continue
-                _emit_geometry_offset(dxf, hidden, "HIDDEN", ox, oy)
+                hidden_segs.append(hidden)
 
         all_polys.append(poly)
         if not is_str:
             nostr_polys.append(poly)
+
+    # Emit HIDDEN segments.
+    for h in hidden_segs:
+        _emit_geometry_offset(dxf, h, "HIDDEN", ox, oy)
+
+    # Emit ELEVATION segments, subtracting any overlap with HIDDEN.
+    if hidden_segs:
+        # Buffer hidden lines to a thin polygon so we can subtract them
+        # from elevation lines (line.difference(line) is unreliable).
+        _BUF = 0.5  # 0.5 mm tolerance
+        hidden_coverage = []
+        for h in hidden_segs:
+            try:
+                buf = h.buffer(_BUF)
+                if not buf.is_empty and buf.is_valid:
+                    hidden_coverage.append(buf)
+            except Exception:
+                pass
+        for e in elev_segs:
+            cleaned = _clip_against_list(e, hidden_coverage)
+            if cleaned.is_empty:
+                continue
+            if hasattr(cleaned, "length") and cleaned.length < _MIN_LENGTH:
+                continue
+            _emit_geometry_offset(dxf, cleaned, "ELEVATION", ox, oy)
+    else:
+        for e in elev_segs:
+            _emit_geometry_offset(dxf, e, "ELEVATION", ox, oy)
 
 
 # ── Section helpers ──────────────────────────────────────────────
@@ -1870,6 +1931,11 @@ def meshes_to_dxf_string(meshes, params):
     for pd in plan_dims:
         _draw_dim_line(dxf, pd["p1"], pd["p2"], pd["offset"],
                        label=pd.get("label"), norm=pd.get("norm"))
+
+    # Step 9 — Shift all geometry so it sits just above and right of 0,0.
+    ext = dxf._extents()
+    MARGIN = 100  # small gap from origin
+    dxf.shift_all(-ext[0] + MARGIN, -ext[1] + MARGIN)
 
     return dxf.to_string()
 

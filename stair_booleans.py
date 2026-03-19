@@ -429,21 +429,38 @@ def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
         face_x_hi = cx + nw / 2.0
         face_x_lo = cx - nw / 2.0
 
-        # The outgoing flight extends away from the newel in one
-        # primary direction.  Clip the winder at the newel face on
-        # that side (the face facing the outgoing flight).
+        # Build a "corner" clip box past the newel — only the area that is
+        # past the newel face in the outgoing-flight direction AND past
+        # the newel face toward the winder body.  This preserves the rear
+        # portion of the tread that sits under the riser above it.
+        #
+        # A 1 mm offset on the perpendicular face avoids splitting the
+        # polygon at an exact vertex match (which would create two
+        # disconnected pieces).
+        OFFSET = 1.0
+        w_cx = w_poly.centroid.x
+        w_cy = w_poly.centroid.y
         if abs(dx) > abs(dy):
-            # Outgoing flight runs in X
+            # Outgoing flight runs in X; perpendicular is Y
             if dx > 0:
-                clip_away = shapely_box(face_x_hi, -1e9, 1e9, 1e9)
+                x_lo, x_hi = face_x_hi, 1e9
             else:
-                clip_away = shapely_box(-1e9, -1e9, face_x_lo, 1e9)
+                x_lo, x_hi = -1e9, face_x_lo
+            if w_cy > cy:
+                y_lo, y_hi = face_y_hi + OFFSET, 1e9
+            else:
+                y_lo, y_hi = -1e9, face_y_lo - OFFSET
         else:
-            # Outgoing flight runs in Y
+            # Outgoing flight runs in Y; perpendicular is X
             if dy > 0:
-                clip_away = shapely_box(-1e9, face_y_hi, 1e9, 1e9)
+                y_lo, y_hi = face_y_hi, 1e9
             else:
-                clip_away = shapely_box(-1e9, -1e9, 1e9, face_y_lo)
+                y_lo, y_hi = -1e9, face_y_lo
+            if w_cx > cx:
+                x_lo, x_hi = face_x_hi + OFFSET, 1e9
+            else:
+                x_lo, x_hi = -1e9, face_x_lo - OFFSET
+        clip_away = shapely_box(x_lo, y_lo, x_hi, y_hi)
 
         # Clip: remove the part of the winder past the newel face
         remaining = w_poly.difference(clip_away)
