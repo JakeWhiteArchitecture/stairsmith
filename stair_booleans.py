@@ -48,7 +48,7 @@ def apply_boolean_ops(meshes):
     #     doesn't extend past the newel into the outgoing flight zone.
     #     Only the last (highest-Z) winder overlapping each newel is
     #     clipped — the other winders are left untouched.
-    _clip_last_winder_at_newel(winder_treads, newels)
+    _clip_last_winder_at_newel(winder_treads, newels, flight_parts)
 
     # 2. Newels subtract from stringers (profile-plane boolean)
     #    Then flight treads/risers subtract from stringers
@@ -351,12 +351,15 @@ def _subtract_boxes_from_winder(winder, boxes):
 
 # ── winder face-clipping ───────────────────────────────────
 
-def _clip_last_winder_at_newel(winder_treads, newels):
-    """Clip the last winder tread that extends past a corner-newel face.
+def _clip_last_winder_at_newel(winder_treads, newels, flight_parts):
+    """Clip the last winder tread flush with the newel face on the
+    outgoing-flight side.
 
-    Only the highest-Z winder overlapping each newel is considered — it's
-    the one adjacent to the outgoing flight that can extend past the newel.
-    All other winders are left completely untouched.
+    Logic: as you climb up through the winders, the top winder should be
+    flush with the newel face that's beside you — the face that looks
+    toward the outgoing flight.  We determine which face that is by
+    finding the first outgoing flight tread (just above the top winder
+    in Z) and seeing which direction it extends from the newel.
     """
     if not winder_treads or not newels:
         return
@@ -396,45 +399,53 @@ def _clip_last_winder_at_newel(winder_treads, newels):
             if w_poly.is_empty:
                 continue
 
-        # Find the thin (narrowest) vertex of the winder — closest to
-        # the newel center.  That thin tip is what extends past a newel
-        # face and needs clipping.
-        coords = list(w_poly.exterior.coords[:-1])
-        thin_pt = min(coords, key=lambda p: (p[0] - cx) ** 2 + (p[1] - cy) ** 2)
+        last_winder_z = float(last_winder["z"])
+
+        # ── Determine outgoing flight direction from the newel ──
+        # Collect flight treads whose Z >= the top winder's Z, sorted
+        # by Z.  The direction between consecutive treads gives us the
+        # true flight direction (immune to the tread's large span in
+        # the stair-width perpendicular direction).
+        outgoing = []
+        for fp in flight_parts:
+            if fp.get("ifc_type") != "tread":
+                continue
+            fp_z = fp["ifc_center"][2] - fp["ifc_size"][2] / 2.0
+            if fp_z >= last_winder_z - 1.0:
+                outgoing.append(fp)
+        outgoing.sort(key=lambda t: t["ifc_center"][2])
+
+        if len(outgoing) < 2:
+            continue
+
+        # Direction = vector from tread 1 to tread 2
+        t1 = outgoing[0]["ifc_center"]
+        t2 = outgoing[1]["ifc_center"]
+        dx = t2[0] - t1[0]
+        dy = t2[1] - t1[1]
 
         face_y_hi = cy + nd / 2.0
         face_y_lo = cy - nd / 2.0
         face_x_hi = cx + nw / 2.0
         face_x_lo = cx - nw / 2.0
 
-        # Determine which newel face the thin tip extends past.
-        # Build a "wall" clip box: extends from the newel face outward
-        # in the overshoot direction, but only as wide as the newel in
-        # the perpendicular direction.  This trims just the thin end
-        # without cutting across the entire tread.
-        EPS = 1.0  # 1 mm tolerance
-        clip_away = None
-        if thin_pt[1] > face_y_hi + EPS:
-            # Thin tip extends past newel y+ face
-            clip_away = shapely_box(face_x_lo, face_y_hi,
-                                    face_x_hi, face_y_hi + 1e6)
-        elif thin_pt[1] < face_y_lo - EPS:
-            # Thin tip extends past newel y- face
-            clip_away = shapely_box(face_x_lo, face_y_lo - 1e6,
-                                    face_x_hi, face_y_lo)
-        elif thin_pt[0] > face_x_hi + EPS:
-            # Thin tip extends past newel x+ face
-            clip_away = shapely_box(face_x_hi, face_y_lo,
-                                    face_x_hi + 1e6, face_y_hi)
-        elif thin_pt[0] < face_x_lo - EPS:
-            # Thin tip extends past newel x- face
-            clip_away = shapely_box(face_x_lo - 1e6, face_y_lo,
-                                    face_x_lo, face_y_hi)
+        # The outgoing flight extends away from the newel in one
+        # primary direction.  Clip the winder at the newel face on
+        # that side (the face facing the outgoing flight).
+        if abs(dx) > abs(dy):
+            # Outgoing flight runs in X
+            if dx > 0:
+                clip_away = shapely_box(face_x_hi, -1e9, 1e9, 1e9)
+            else:
+                clip_away = shapely_box(-1e9, -1e9, face_x_lo, 1e9)
+        else:
+            # Outgoing flight runs in Y
+            if dy > 0:
+                clip_away = shapely_box(-1e9, face_y_hi, 1e9, 1e9)
+            else:
+                clip_away = shapely_box(-1e9, -1e9, 1e9, face_y_lo)
 
-        if clip_away is None:
-            continue
-
-        # Clip: remove only the sliver past the newel face
+        # Clip: remove the part of the winder past the newel face
         remaining = w_poly.difference(clip_away)
         if remaining.is_empty:
             continue
