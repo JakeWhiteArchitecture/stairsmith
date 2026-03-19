@@ -70,8 +70,8 @@ class _DxfWriter:
     def add_layer(self, name, color=7, linetype="CONTINUOUS"):
         self._layers[name] = {"color": color, "linetype": linetype}
 
-    def add_line(self, start, end, layer="0"):
-        self._entities.append((start, end, layer))
+    def add_line(self, start, end, layer="0", color=None, linetype=None):
+        self._entities.append((start, end, layer, color, linetype))
 
     def add_text(self, text, position, height=5.0, layer="0"):
         self._texts.append((text, position, height, layer))
@@ -79,7 +79,7 @@ class _DxfWriter:
     def _extents(self):
         """Return (min_x, min_y, max_x, max_y) across all entities and texts."""
         xs, ys = [], []
-        for start, end, _layer in self._entities:
+        for start, end, _layer, *_rest in self._entities:
             xs.extend([start[0], end[0]])
             ys.extend([start[1], end[1]])
         for _text, pos, _h, _l in self._texts:
@@ -92,8 +92,8 @@ class _DxfWriter:
     def shift_all(self, dx, dy):
         """Apply a global offset to all entities and texts."""
         self._entities = [
-            ((s[0] + dx, s[1] + dy), (e[0] + dx, e[1] + dy), l)
-            for s, e, l in self._entities
+            ((s[0] + dx, s[1] + dy), (e[0] + dx, e[1] + dy), l, c, lt)
+            for s, e, l, c, lt in self._entities
         ]
         self._texts = [
             (t, (p[0] + dx, p[1] + dy), h, l)
@@ -178,9 +178,13 @@ class _DxfWriter:
         # ENTITIES
         a("  0"); a("SECTION")
         a("  2"); a("ENTITIES")
-        for start, end, layer in self._entities:
+        for start, end, layer, color, linetype in self._entities:
             a("  0"); a("LINE")
             a("  8"); a(layer)
+            if color is not None:
+                a(" 62"); a("     %d" % color)
+            if linetype is not None:
+                a("  6"); a(linetype)
             a(" 10"); a("%.6f" % start[0])
             a(" 20"); a("%.6f" % start[1])
             a(" 30"); a("0.0")
@@ -445,7 +449,7 @@ def _trim_riser_line(start, end, boundaries):
     return (ts, te)
 
 
-def _emit_geometry(dxf, geom, layer):
+def _emit_geometry(dxf, geom, layer, color=None, linetype=None):
     """Draw a shapely geometry as DXF LINE entities.
 
     Handles LineString, MultiLineString, and GeometryCollection.
@@ -456,10 +460,11 @@ def _emit_geometry(dxf, geom, layer):
     if gt == "LineString":
         coords = list(geom.coords)
         for i in range(len(coords) - 1):
-            dxf.add_line(coords[i][:2], coords[i + 1][:2], layer=layer)
+            dxf.add_line(coords[i][:2], coords[i + 1][:2], layer=layer,
+                         color=color, linetype=linetype)
     elif gt in ("MultiLineString", "GeometryCollection"):
         for g in geom.geoms:
-            _emit_geometry(dxf, g, layer)
+            _emit_geometry(dxf, g, layer, color=color, linetype=linetype)
 
 
 # ── Elevation & Section helpers ──────────────────────────────────
@@ -632,7 +637,7 @@ def _safe_difference(geom, coverage):
         return geom  # give up, draw anyway
 
 
-def _emit_geometry_offset(dxf, geom, layer, ox, oy):
+def _emit_geometry_offset(dxf, geom, layer, ox, oy, color=None, linetype=None):
     """Draw a Shapely geometry as DXF LINEs with an (ox, oy) offset."""
     if geom.is_empty:
         return
@@ -642,10 +647,11 @@ def _emit_geometry_offset(dxf, geom, layer, ox, oy):
         for i in range(len(coords) - 1):
             dxf.add_line((coords[i][0] + ox, coords[i][1] + oy),
                          (coords[i + 1][0] + ox, coords[i + 1][1] + oy),
-                         layer=layer)
+                         layer=layer, color=color, linetype=linetype)
     elif gt in ("MultiLineString", "GeometryCollection"):
         for g in geom.geoms:
-            _emit_geometry_offset(dxf, g, layer, ox, oy)
+            _emit_geometry_offset(dxf, g, layer, ox, oy,
+                                  color=color, linetype=linetype)
 
 
 def _compute_view_bounds(meshes, view):
@@ -748,7 +754,7 @@ def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
     x_right = vb[2] + extension
     dxf.add_line((x_left + ox, floor_vy + oy),
                  (x_right + ox, floor_vy + oy),
-                 layer=_LINE_LAYER)
+                 layer=_LINE_LAYER, color=8)
 
 
 def _draw_elevation(dxf, meshes, view, ox, oy):
@@ -820,9 +826,10 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
         if not is_str:
             nostr_polys.append(poly)
 
-    # Emit HIDDEN segments.
+    # Emit HIDDEN segments (gray, dashed — per-entity override).
     for h in hidden_segs:
-        _emit_geometry_offset(dxf, h, _LINE_LAYER, ox, oy)
+        _emit_geometry_offset(dxf, h, _LINE_LAYER, ox, oy,
+                              color=8, linetype="DASHED")
 
     # Emit ELEVATION segments, subtracting any overlap with HIDDEN.
     if hidden_segs:
@@ -1190,8 +1197,9 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         cut_pos if cut_axis == "y" else 0,
         0, view)[2]
 
-    # Collect all items into a single list: (depth, poly, layer)
-    items = []  # (depth, Polygon, layer_name)
+    # Collect all items: (depth, poly, color).
+    # color=None → white (layer default), color=8 → gray.
+    items = []  # (depth, Polygon, color)
 
     # 1. Cut profiles — depth = cut plane depth.
     cut_polys = []
@@ -1200,9 +1208,9 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         if cpoly is None or cpoly.is_empty:
             continue
         cut_polys.append(cpoly)
-        items.append((cut_depth, cpoly, _LINE_LAYER))
+        items.append((cut_depth, cpoly, None))
 
-    # 2. Beyond geometry — depth from _mesh_to_elev_poly.
+    # 2. Beyond geometry — depth from _mesh_to_elev_poly (gray).
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
@@ -1210,13 +1218,13 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly, _LINE_LAYER))
+        items.append((depth, poly, 8))
 
     # Sort by depth (closest to viewer first) and draw with occlusion.
     items.sort(key=lambda t: t[0])
     covered = []
 
-    for _d, poly, layer in items:
+    for _d, poly, ent_color in items:
         exterior = list(poly.exterior.coords)
         for i in range(len(exterior) - 1):
             seg = LineString([exterior[i], exterior[i + 1]])
@@ -1227,7 +1235,8 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
-            _emit_geometry_offset(dxf, visible, layer, ox, oy)
+            _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
+                                  color=ent_color)
         covered.append(poly)
 
 
@@ -1764,6 +1773,7 @@ def meshes_to_dxf_string(meshes, params):
         str: complete DXF file content.
     """
     dxf = _DxfWriter()
+    dxf.add_linetype("DASHED", [10.0, 6.35, -3.175])
     for name, props in LAYERS.items():
         dxf.add_layer(name, color=props["color"], linetype=props["linetype"])
     layer = _LINE_LAYER
@@ -1818,7 +1828,8 @@ def meshes_to_dxf_string(meshes, params):
                 if result is None:
                     continue
                 start, end = result
-            dxf.add_line(start, end, layer=_LINE_LAYER)
+            dxf.add_line(start, end, layer=_LINE_LAYER,
+                        color=8, linetype="DASHED")
 
     # Step 5 — compute plan bounds and add disclaimer text.
     plan_max_x = 0
