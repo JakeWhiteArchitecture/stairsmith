@@ -31,15 +31,13 @@ from shapely.ops import unary_union
 
 # ── Layer definitions ────────────────────────────────────────────
 LAYERS = {
-    "STAIR_TREADS": {"color": 7, "linetype": "CONTINUOUS"},
-    "STAIR_RISERS": {"color": 8, "linetype": "DASHED"},
-    "ELEVATION":     {"color": 7, "linetype": "CONTINUOUS"},
-    "HIDDEN":        {"color": 8, "linetype": "DASHED"},
-    "SECTION_CUT":   {"color": 7, "linetype": "CONTINUOUS"},
-    "SECTION_BEYOND":{"color": 8, "linetype": "CONTINUOUS"},
-    "FLOOR_LINE":    {"color": 8, "linetype": "CONTINUOUS"},
-    "DIMENSIONS":    {"color": 7, "linetype": "CONTINUOUS"},
+    "STAIRSMITH_2D_LINES": {"color": 7, "linetype": "CONTINUOUS"},
+    "STAIRSMITH_2D_TEXT":   {"color": 7, "linetype": "CONTINUOUS"},
 }
+
+# Legacy layer names → unified layer mapping.
+_LINE_LAYER = "STAIRSMITH_2D_LINES"
+_TEXT_LAYER = "STAIRSMITH_2D_TEXT"
 
 # IFC types that participate in solid-occlusion (not risers).
 _SOLID_IFC_TYPES_EXCLUDED = frozenset({"riser", "winder_riser"})
@@ -685,7 +683,7 @@ def _clip_against_list(seg, polys):
     return remaining
 
 
-def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None, norm=None):
+def _draw_dim_line(dxf, p1, p2, offset, layer=_LINE_LAYER, label=None, norm=None):
     """Draw a simple linear dimension between *p1* and *p2*.
 
     *offset* — perpendicular distance from the geometry (always positive).
@@ -735,7 +733,7 @@ def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None, norm=Non
     text = label if label is not None else "%.0f" % length
     text = text.replace("\n", " ")
     mid = ((d1[0] + d2[0]) / 2 + nx * 30, (d1[1] + d2[1]) / 2 + ny * 30)
-    dxf.add_text(text, mid, height=50.0, layer=layer)
+    dxf.add_text(text, mid, height=50.0, layer=_TEXT_LAYER)
 
 
 def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
@@ -750,7 +748,7 @@ def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
     x_right = vb[2] + extension
     dxf.add_line((x_left + ox, floor_vy + oy),
                  (x_right + ox, floor_vy + oy),
-                 layer="FLOOR_LINE")
+                 layer=_LINE_LAYER)
 
 
 def _draw_elevation(dxf, meshes, view, ox, oy):
@@ -824,7 +822,7 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
 
     # Emit HIDDEN segments.
     for h in hidden_segs:
-        _emit_geometry_offset(dxf, h, "HIDDEN", ox, oy)
+        _emit_geometry_offset(dxf, h, _LINE_LAYER, ox, oy)
 
     # Emit ELEVATION segments, subtracting any overlap with HIDDEN.
     if hidden_segs:
@@ -845,10 +843,10 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
                 continue
             if hasattr(cleaned, "length") and cleaned.length < _MIN_LENGTH:
                 continue
-            _emit_geometry_offset(dxf, cleaned, "ELEVATION", ox, oy)
+            _emit_geometry_offset(dxf, cleaned, _LINE_LAYER, ox, oy)
     else:
         for e in elev_segs:
-            _emit_geometry_offset(dxf, e, "ELEVATION", ox, oy)
+            _emit_geometry_offset(dxf, e, _LINE_LAYER, ox, oy)
 
 
 # ── Section helpers ──────────────────────────────────────────────
@@ -1202,7 +1200,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         if cpoly is None or cpoly.is_empty:
             continue
         cut_polys.append(cpoly)
-        items.append((cut_depth, cpoly, "SECTION_CUT"))
+        items.append((cut_depth, cpoly, _LINE_LAYER))
 
     # 2. Beyond geometry — depth from _mesh_to_elev_poly.
     for mesh in meshes:
@@ -1212,7 +1210,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly, "SECTION_BEYOND"))
+        items.append((depth, poly, _LINE_LAYER))
 
     # Sort by depth (closest to viewer first) and draw with occlusion.
     items.sort(key=lambda t: t[0])
@@ -1766,10 +1764,9 @@ def meshes_to_dxf_string(meshes, params):
         str: complete DXF file content.
     """
     dxf = _DxfWriter()
-    dxf.add_linetype("DASHED", [10.0, 6.35, -3.175])
     for name, props in LAYERS.items():
         dxf.add_layer(name, color=props["color"], linetype=props["linetype"])
-    layer = "STAIR_TREADS"
+    layer = _LINE_LAYER
 
     # Step 1 — convert each non-riser mesh to (top_z, polygon).
     items = []
@@ -1821,7 +1818,7 @@ def meshes_to_dxf_string(meshes, params):
                 if result is None:
                     continue
                 start, end = result
-            dxf.add_line(start, end, layer="STAIR_RISERS")
+            dxf.add_line(start, end, layer=_LINE_LAYER)
 
     # Step 5 — compute plan bounds and add disclaimer text.
     plan_max_x = 0
@@ -1843,8 +1840,8 @@ def meshes_to_dxf_string(meshes, params):
     text_y = plan_min_y - 500
     _LINE1 = "StairSmith \u2014 Preliminary design aid only."
     _LINE2 = "User must verify all outputs before use."
-    dxf.add_text(_LINE1, (text_x, text_y), height=60.0, layer="0")
-    dxf.add_text(_LINE2, (text_x, text_y - 80), height=60.0, layer="0")
+    dxf.add_text(_LINE1, (text_x, text_y), height=60.0, layer=_TEXT_LAYER)
+    dxf.add_text(_LINE2, (text_x, text_y - 80), height=60.0, layer=_TEXT_LAYER)
 
     # Step 6 — Orthographic elevation views (Front, Right, Back, Left).
     _ELEV_VIEWS = ["front", "right", "back", "left"]
@@ -1875,7 +1872,7 @@ def meshes_to_dxf_string(meshes, params):
         _draw_floor_line(dxf, vb, ox, oy)
         # Label below the view.
         dxf.add_text(label, (elev_x, elev_y_top - vh - 150),
-                     height=80.0, layer="0")
+                     height=80.0, layer=_TEXT_LAYER)
         bottom = elev_y_top - vh - 150 - 100
         if bottom < elev_bottom:
             elev_bottom = bottom
@@ -1920,7 +1917,7 @@ def meshes_to_dxf_string(meshes, params):
                 _draw_floor_line(dxf, vb, ox, oy)
                 label = "Flight %d (%s facing section)" % (fnum, facing)
                 dxf.add_text(label, (sect_x, sect_y_top - vh - 150),
-                             height=80.0, layer="0")
+                             height=80.0, layer=_TEXT_LAYER)
                 sect_x += vw + _SECT_GAP
 
     # Step 8 — Plan dimensions following flight directions.
