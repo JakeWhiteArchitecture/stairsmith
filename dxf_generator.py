@@ -1242,10 +1242,17 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                     _emit_geometry_offset(dxf, seg, _LINE_LAYER, ox, oy,
                                           color=None)
 
-    # 2. Beyond geometry — depth-sorted with occlusion.
-    # Start the coverage mask with the unioned cut profile so beyond
-    # geometry is correctly occluded by the full section cut shape.
-    items = []  # (depth, Polygon, color)
+    # 2. Beyond geometry — clipped only against the cut union.
+    # No per-element depth-sorted occlusion (causes O(n²) hangs on
+    # complex staircases).  Beyond geometry is background detail in
+    # gray; only the cut profile needs to occlude it.
+    cut_cover = []
+    if cut_union is not None and not cut_union.is_empty:
+        if cut_union.geom_type == "Polygon":
+            cut_cover.append(cut_union)
+        elif cut_union.geom_type == "MultiPolygon":
+            cut_cover.extend(list(cut_union.geoms))
+
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
@@ -1253,33 +1260,18 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly, 8))
-
-    # Sort by depth (closest to viewer first) and draw with occlusion.
-    items.sort(key=lambda t: t[0])
-    covered = []
-    # Seed coverage with the unioned cut profile so beyond geometry
-    # behind the cut plane is occluded by the cut shape.
-    if cut_union is not None and not cut_union.is_empty:
-        if cut_union.geom_type == "Polygon":
-            covered.append(cut_union)
-        elif cut_union.geom_type == "MultiPolygon":
-            covered.extend(list(cut_union.geoms))
-
-    for _d, poly, ent_color in items:
         exterior = list(poly.exterior.coords)
         for i in range(len(exterior) - 1):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            visible = _clip_against_list(seg, covered)
+            visible = _clip_against_list(seg, cut_cover)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
             _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
-                                  color=ent_color)
-        covered.append(poly)
+                                  color=8)
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
