@@ -672,22 +672,24 @@ def _compute_view_bounds(meshes, view):
     return (min(xs), min(ys), max(xs), max(ys))
 
 
-def _clip_against_list(seg, polys):
-    """Remove parts of *seg* inside any polygon in *polys*.
+def _clip_against_list(seg, polys_with_bounds):
+    """Remove parts of *seg* inside any polygon in *polys_with_bounds*.
 
-    Clips against individual polygons one at a time (no union needed),
-    which avoids GEOS TopologyException in Pyodide/WASM.
+    *polys_with_bounds* is a list of ``(poly, (minx, miny, maxx, maxy))``
+    tuples.  A fast bounding-box pre-check skips expensive Shapely calls
+    when the segment clearly doesn't overlap a polygon.
     """
     remaining = seg
-    for poly in polys:
+    sb = seg.bounds  # (minx, miny, maxx, maxy)
+    for poly, pb in polys_with_bounds:
         if remaining.is_empty:
             break
+        # Fast bbox pre-check — pure arithmetic, no Shapely.
+        if pb[2] < sb[0] or pb[0] > sb[2] or pb[3] < sb[1] or pb[1] > sb[3]:
+            continue
         try:
-            if not poly.intersects(remaining):
-                continue
             remaining = remaining.difference(poly)
         except Exception:
-            # Single-polygon difference almost never fails, but be safe.
             continue
     return remaining
 
@@ -1237,44 +1239,55 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                     _emit_geometry_offset(dxf, seg, _LINE_LAYER, ox, oy,
                                           color=None)
 
-    # 2. Beyond geometry — union all into one solid, draw the boundary.
-    # No depth sorting or painter's algorithm needed: the boundary of
-    # the union IS the correct visible silhouette with proper occlusion.
-    beyond_polys = []
+    # 2. Beyond geometry — depth-sorted with occlusion (3D visibility).
+    # Elements closer to the viewer occlude elements further away.
+    # Each polygon is simplified to cap vertex count, and a bbox
+    # pre-filter skips expensive Shapely calls for non-overlapping pairs.
+    _SIMP = 2.0  # mm — invisible at drawing scale
+
+    items = []  # (depth, poly, color)
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
             continue
-        poly, _depth, _s = _mesh_to_elev_poly(clipped, view)
+        poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        beyond_polys.append(poly)
+        # Simplify complex shapes (winder hulls, stringer profiles)
+        # to reduce vertex count and speed up difference operations.
+        spoly = poly.simplify(_SIMP, preserve_topology=True)
+        if spoly.is_empty or spoly.geom_type != "Polygon":
+            spoly = poly
+        items.append((depth, poly, spoly, 8))
 
-    if beyond_polys:
-        # Include cut_union so beyond edges behind the cut are clipped.
-        all_polys = list(beyond_polys)
-        if cut_union is not None and not cut_union.is_empty:
-            all_polys.append(cut_union)
-        try:
-            solid = unary_union(all_polys)
-        except Exception:
-            solid = None
+    # Sort front-to-back (closest to viewer first).
+    items.sort(key=lambda t: t[0])
 
-        if solid is not None and not solid.is_empty:
-            # Draw the boundary of the solid, minus the cut profile
-            # (cut edges are already drawn in section 1).
-            try:
-                if cut_union is not None and not cut_union.is_empty:
-                    beyond_boundary = solid.boundary.difference(
-                        cut_union.boundary)
-                else:
-                    beyond_boundary = solid.boundary
-            except Exception:
-                beyond_boundary = solid.boundary
+    # Coverage list: (simplified_poly, bbox) tuples for fast clipping.
+    covered = []
+    # Seed with cut union so beyond geometry is clipped by cut profile.
+    if cut_union is not None and not cut_union.is_empty:
+        if cut_union.geom_type == "Polygon":
+            covered.append((cut_union, cut_union.bounds))
+        elif cut_union.geom_type == "MultiPolygon":
+            for g in cut_union.geoms:
+                covered.append((g, g.bounds))
 
-            if not beyond_boundary.is_empty:
-                _emit_geometry_offset(dxf, beyond_boundary, _LINE_LAYER,
-                                      ox, oy, color=8)
+    for _d, poly, spoly, ent_color in items:
+        exterior = list(poly.exterior.coords)
+        for i in range(len(exterior) - 1):
+            seg = LineString([exterior[i], exterior[i + 1]])
+            if seg.length < _MIN_LENGTH:
+                continue
+            visible = _clip_against_list(seg, covered)
+            if visible.is_empty:
+                continue
+            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
+                continue
+            _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
+                                  color=ent_color)
+        # Add simplified poly with pre-computed bbox to coverage.
+        covered.append((spoly, spoly.bounds))
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
