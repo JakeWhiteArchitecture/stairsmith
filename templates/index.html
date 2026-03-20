@@ -218,14 +218,32 @@
             background: #1a4a80;
         }
 
-        @keyframes btn-throb {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(0.97); }
+        @keyframes btn-load {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(-1.75rem); }
         }
         .btn-generating {
-            animation: btn-throb 1s ease-in-out infinite;
+            position: relative;
+            overflow: hidden;
             pointer-events: none;
-            opacity: 1 !important;
+            cursor: wait;
+        }
+        .btn-generating::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 150%;
+            height: 100%;
+            background: repeating-linear-gradient(60deg,
+                        transparent,
+                        transparent 0.75rem,
+                        rgba(255,255,255,0.1) 0.75rem,
+                        rgba(255,255,255,0.1) 1.5rem);
+            animation: btn-load 1s infinite linear;
+        }
+        .btn-generating .btn__text {
+            position: relative;
         }
 
         /* ─── 3D VIEWPORT ─── */
@@ -1964,7 +1982,7 @@
         function downloadIFC() {
             const params = getParams();
             const btn = document.getElementById('ifc-btn');
-            btn.textContent = 'Generating 3D IFC\u2026';
+            btn.innerHTML = '<span class="btn__text">Generating 3D IFC\u2026</span>';
             btn.disabled = true;
             btn.classList.add('btn-generating');
 
@@ -2002,7 +2020,7 @@
             if (!window.pyodideReady) { alert('Pyodide is still loading. Please wait.'); return; }
             const params = getParams();
             const btn = document.getElementById('dxf-btn');
-            btn.textContent = 'Generating 2D DXF\u2026';
+            btn.innerHTML = '<span class="btn__text">Generating 2D DXF\u2026</span>';
             btn.disabled = true;
             btn.classList.add('btn-generating');
             await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
