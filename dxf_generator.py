@@ -1243,12 +1243,12 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                                           color=None)
 
     # 2. Beyond geometry — depth-sorted with occlusion.
-    # Strategy: maintain a single consolidated coverage polygon plus a
-    # small pending buffer.  Clip each segment against the consolidated
-    # shape (one fast operation) then against the pending list (≤ BATCH
-    # items).  Every BATCH items, merge pending into consolidated via
-    # unary_union (cascaded algorithm, much faster than iterative union).
-    _BATCH = 6
+    # Process in groups of _GRP.  Within each group elements have similar
+    # depth so they overlap minimally — no inter-group occlusion needed.
+    # After each group, unary_union the group into the cumulative shape
+    # and simplify to cap vertex count and keep WASM Shapely fast.
+    _GRP = 8
+    _SIMPLIFY_TOL = 0.5  # 0.5 mm — invisible at drawing scale
 
     items = []  # (depth, Polygon, color)
     for mesh in meshes:
@@ -1260,49 +1260,48 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             continue
         items.append((depth, poly, 8))
 
-    # Sort by depth (closest to viewer first) and draw with occlusion.
+    # Sort by depth (closest to viewer first).
     items.sort(key=lambda t: t[0])
 
-    # Seed consolidated coverage with the cut union.
+    # Seed cumulative coverage with the cut union.
     if cut_union is not None and not cut_union.is_empty:
-        covered = cut_union
+        cumul = cut_union
     else:
-        covered = Polygon()
-    pending = []  # small buffer merged periodically
+        cumul = Polygon()
 
-    for _d, poly, ent_color in items:
-        exterior = list(poly.exterior.coords)
-        for i in range(len(exterior) - 1):
-            seg = LineString([exterior[i], exterior[i + 1]])
-            if seg.length < _MIN_LENGTH:
-                continue
-            # Fast clip against consolidated shape.
-            try:
-                if not covered.is_empty and covered.intersects(seg):
-                    visible = seg.difference(covered)
-                else:
+    # Process in groups.
+    for g_start in range(0, len(items), _GRP):
+        group = items[g_start:g_start + _GRP]
+
+        # Draw each element's edges clipped against cumulative coverage.
+        for _d, poly, ent_color in group:
+            exterior = list(poly.exterior.coords)
+            for i in range(len(exterior) - 1):
+                seg = LineString([exterior[i], exterior[i + 1]])
+                if seg.length < _MIN_LENGTH:
+                    continue
+                try:
+                    if not cumul.is_empty and cumul.intersects(seg):
+                        visible = seg.difference(cumul)
+                    else:
+                        visible = seg
+                except Exception:
                     visible = seg
-            except Exception:
-                visible = seg
-            # Then clip against small pending list.
-            if not visible.is_empty and pending:
-                visible = _clip_against_list(visible, pending)
-            if visible.is_empty:
-                continue
-            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
-                continue
-            _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
-                                  color=ent_color)
-        pending.append(poly)
-        # Consolidate pending into covered every _BATCH elements.
-        if len(pending) >= _BATCH:
-            try:
-                covered = unary_union([covered] + pending)
-            except Exception:
-                pass  # keep existing covered on failure
-            pending = []
+                if visible.is_empty:
+                    continue
+                if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
+                    continue
+                _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
+                                      color=ent_color)
 
-    # Final consolidation not needed — we're done drawing.
+        # Merge this group into cumulative coverage.
+        group_polys = [poly for _, poly, _ in group]
+        try:
+            cumul = unary_union(group_polys + [cumul])
+            # Simplify to prevent vertex count from exploding.
+            cumul = cumul.simplify(_SIMPLIFY_TOL, preserve_topology=True)
+        except Exception:
+            pass  # keep existing cumul on failure
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
