@@ -569,49 +569,55 @@ def _mesh_to_elev_poly(mesh, view):
 
         if mtype == "winder_polygon":
             fp = mesh.get("profile")
+            ifc_t = mesh.get("ifc_type", "")
+            name = mesh.get("name", "unnamed")
+            print(f"[WINDER DEBUG] mesh={name!r} ifc_type={ifc_t!r} view={view!r}")
             if not fp or len(fp) < 3:
+                print(f"[WINDER DEBUG] SKIP: bad profile len={len(fp) if fp else 0}")
                 return None, None, False
             z = mesh.get("z", 0)
             thick = mesh.get("thickness", 0)
+            print(f"[WINDER DEBUG] z={z} thick={thick} profile_pts={len(fp)}")
+            print(f"[WINDER DEBUG] profile={fp}")
             proj_all = []
             for pt in fp:
                 proj_all.append(_project_point(pt[0], pt[1], z, view))
                 proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
-            # Build the TRUE silhouette by unioning the projected top and
-            # bottom face polygons. This preserves any concave notch cut
-            # by apply_boolean_ops() (e.g. where the newel was subtracted).
-            # convex_hull would fill the notch back in and re-cover the
-            # newel area, causing the painter's algorithm to hide the post.
             top_pts = [_project_point(pt[0], pt[1], z + thick, view)[:2]
                        for pt in fp]
             bot_pts = [_project_point(pt[0], pt[1], z, view)[:2]
                        for pt in fp]
+            print(f"[WINDER DEBUG] top_pts={top_pts}")
+            print(f"[WINDER DEBUG] bot_pts={bot_pts}")
             try:
                 from shapely.geometry import Polygon as _Polygon
                 from shapely.ops import unary_union as _unary_union
                 top_poly = _Polygon(top_pts)
                 bot_poly = _Polygon(bot_pts)
+                print(f"[WINDER DEBUG] top_poly valid={top_poly.is_valid} empty={top_poly.is_empty} area={top_poly.area:.2f}")
+                print(f"[WINDER DEBUG] bot_poly valid={bot_poly.is_valid} empty={bot_poly.is_empty} area={bot_poly.area:.2f}")
                 if not top_poly.is_valid:
                     top_poly = top_poly.buffer(0)
+                    print(f"[WINDER DEBUG] top_poly after buffer(0): valid={top_poly.is_valid} empty={top_poly.is_empty}")
                 if not bot_poly.is_valid:
                     bot_poly = bot_poly.buffer(0)
+                    print(f"[WINDER DEBUG] bot_poly after buffer(0): valid={bot_poly.is_valid} empty={bot_poly.is_empty}")
                 poly = _unary_union([top_poly, bot_poly])
+                print(f"[WINDER DEBUG] union type={poly.geom_type} empty={poly.is_empty} area={poly.area:.2f}")
                 if poly.is_empty or poly.geom_type not in ("Polygon", "MultiPolygon"):
+                    print(f"[WINDER DEBUG] SKIP: union produced unusable geometry type={poly.geom_type}")
                     return None, None, False
                 if poly.geom_type == "MultiPolygon":
                     poly = max(poly.geoms, key=lambda g: g.area)
-            except Exception:
+                    print(f"[WINDER DEBUG] picked largest from MultiPolygon area={poly.area:.2f}")
+            except Exception as e:
+                print(f"[WINDER DEBUG] EXCEPTION: {e!r}")
                 return None, None, False
-            # Winder risers: centroid depth (average) — min_depth picks
-            # the closest corner which incorrectly places risers in
-            # front of adjacent newel posts.
-            # Winder treads: min_depth so the projection's depth
-            # naturally reflects the viewing direction.
-            ifc_t = mesh.get("ifc_type", "")
             if ifc_t == "winder_riser":
                 depth = sum(p[2] for p in proj_all) / len(proj_all)
             else:
                 depth = min(p[2] for p in proj_all)
+            print(f"[WINDER DEBUG] OK depth={depth:.2f} poly_area={poly.area:.2f}")
             return poly, depth, is_str
 
     except Exception:
