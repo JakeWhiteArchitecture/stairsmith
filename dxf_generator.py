@@ -590,12 +590,16 @@ def _mesh_to_elev_poly(mesh, view):
                 poly = hull
             except Exception:
                 return None, None, False
-            # Use centroid depth for ALL winder polygons (treads & risers).
-            # min_depth picks the closest corner vertex, which makes
-            # winder treads/risers sort in front of newel posts they
-            # should be behind.  Centroid depth is more representative
-            # of the element's true position.
-            depth = sum(p[2] for p in proj_all) / len(proj_all)
+            # Winder risers: centroid depth (average) — min_depth picks
+            # the closest corner which incorrectly places risers in
+            # front of adjacent newel posts.
+            # Winder treads: min_depth so the projection's depth
+            # naturally reflects the viewing direction.
+            ifc_t = mesh.get("ifc_type", "")
+            if ifc_t == "winder_riser":
+                depth = sum(p[2] for p in proj_all) / len(proj_all)
+            else:
+                depth = min(p[2] for p in proj_all)
             return poly, depth, is_str
 
     except Exception:
@@ -672,21 +676,25 @@ def _compute_view_bounds(meshes, view):
     return (min(xs), min(ys), max(xs), max(ys))
 
 
-def _clip_against_list(seg, polys_with_bounds):
-    """Remove parts of *seg* inside any polygon in *polys_with_bounds*.
+def _clip_against_list(seg, polys):
+    """Remove parts of *seg* inside any polygon in *polys*.
 
-    *polys_with_bounds* is a list of ``(poly, (minx, miny, maxx, maxy))``
-    tuples.  A fast bounding-box pre-check skips expensive Shapely calls
-    when the segment clearly doesn't overlap a polygon.
+    Each element of *polys* may be a bare ``Polygon`` or a
+    ``(Polygon, (minx, miny, maxx, maxy))`` tuple.  When a bbox is
+    provided a fast arithmetic pre-check skips expensive Shapely calls.
     """
     remaining = seg
     sb = seg.bounds  # (minx, miny, maxx, maxy)
-    for poly, pb in polys_with_bounds:
+    for item in polys:
         if remaining.is_empty:
             break
-        # Fast bbox pre-check — pure arithmetic, no Shapely.
-        if pb[2] < sb[0] or pb[0] > sb[2] or pb[3] < sb[1] or pb[1] > sb[3]:
-            continue
+        if isinstance(item, tuple):
+            poly, pb = item
+            # Fast bbox pre-check — pure arithmetic, no Shapely.
+            if pb[2] < sb[0] or pb[0] > sb[2] or pb[3] < sb[1] or pb[1] > sb[3]:
+                continue
+        else:
+            poly = item
         try:
             remaining = remaining.difference(poly)
         except Exception:
@@ -1243,14 +1251,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     # Elements closer to the viewer occlude elements further away.
     # Each polygon is simplified to cap vertex count, and a bbox
     # pre-filter skips expensive Shapely calls for non-overlapping pairs.
-    # Newel posts get sort priority (drawn first) since winder treads
-    # wrap around them and no single depth value sorts correctly.
     _SIMP = 2.0  # mm — invisible at drawing scale
-    # Sort priority: lower = drawn first (in front).  Newels always
-    # in front of winder geometry they share space with.
-    _SORT_PRIORITY = {"newel": 0, "stringer": 2,
-                      "winder_tread": 3, "winder_riser": 3}
-    _DEFAULT_PRIORITY = 1
 
     items = []
     for mesh in meshes:
@@ -1265,12 +1266,10 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         spoly = poly.simplify(_SIMP, preserve_topology=True)
         if spoly.is_empty or spoly.geom_type != "Polygon":
             spoly = poly
-        ifc_t = mesh.get("ifc_type", "")
-        pri = _SORT_PRIORITY.get(ifc_t, _DEFAULT_PRIORITY)
-        items.append((pri, depth, poly, spoly, 8))
+        items.append((depth, poly, spoly, 8))
 
-    # Sort by (priority, depth) — priority groups first, then front-to-back.
-    items.sort(key=lambda t: (t[0], t[1]))
+    # Sort front-to-back by depth — no priority overrides.
+    items.sort(key=lambda t: t[0])
 
     # Coverage list: (simplified_poly, bbox) tuples for fast clipping.
     covered = []
@@ -1282,7 +1281,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             for g in cut_union.geoms:
                 covered.append((g, g.bounds))
 
-    for _pri, _d, poly, spoly, ent_color in items:
+    for _d, poly, spoly, ent_color in items:
         exterior = list(poly.exterior.coords)
         for i in range(len(exterior) - 1):
             seg = LineString([exterior[i], exterior[i + 1]])
