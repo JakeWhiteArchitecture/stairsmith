@@ -1237,69 +1237,44 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                     _emit_geometry_offset(dxf, seg, _LINE_LAYER, ox, oy,
                                           color=None)
 
-    # 2. Beyond geometry — depth-sorted with occlusion.
-    # Use simplified actual polygons for occlusion (not bounding boxes,
-    # which over-occlude diagonal winder shapes).  Simplify each polygon
-    # upfront to cap vertex count, then process in groups with cumulative
-    # coverage simplified after each merge.
-    _GRP = 8
-    _SIMP = 2.0  # 2 mm simplification — invisible at drawing scale
-
-    items = []  # (depth, draw_poly, occlude_poly, color)
+    # 2. Beyond geometry — union all into one solid, draw the boundary.
+    # No depth sorting or painter's algorithm needed: the boundary of
+    # the union IS the correct visible silhouette with proper occlusion.
+    beyond_polys = []
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
             continue
-        poly, depth, _s = _mesh_to_elev_poly(clipped, view)
+        poly, _depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        # Simplify for occlusion — reduces winder hull vertices.
-        occ = poly.simplify(_SIMP, preserve_topology=True)
-        if occ.is_empty or occ.geom_type != "Polygon":
-            occ = poly.envelope  # fallback to bbox
-        items.append((depth, poly, occ, 8))
+        beyond_polys.append(poly)
 
-    # Sort by depth (closest to viewer first).
-    items.sort(key=lambda t: t[0])
-
-    # Seed cumulative coverage with the cut union.
-    if cut_union is not None and not cut_union.is_empty:
-        cumul = cut_union
-    else:
-        cumul = Polygon()
-
-    # Process in groups.
-    for g_start in range(0, len(items), _GRP):
-        group = items[g_start:g_start + _GRP]
-
-        # Draw each element's actual edges clipped against cumulative.
-        for _d, poly, _occ, ent_color in group:
-            exterior = list(poly.exterior.coords)
-            for i in range(len(exterior) - 1):
-                seg = LineString([exterior[i], exterior[i + 1]])
-                if seg.length < _MIN_LENGTH:
-                    continue
-                try:
-                    if not cumul.is_empty and cumul.intersects(seg):
-                        visible = seg.difference(cumul)
-                    else:
-                        visible = seg
-                except Exception:
-                    visible = seg
-                if visible.is_empty:
-                    continue
-                if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
-                    continue
-                _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
-                                      color=ent_color)
-
-        # Merge simplified polygons into coverage and simplify result.
-        group_occ = [occ for _, _, occ, _ in group]
+    if beyond_polys:
+        # Include cut_union so beyond edges behind the cut are clipped.
+        all_polys = list(beyond_polys)
+        if cut_union is not None and not cut_union.is_empty:
+            all_polys.append(cut_union)
         try:
-            cumul = unary_union(group_occ + [cumul])
-            cumul = cumul.simplify(_SIMP, preserve_topology=True)
+            solid = unary_union(all_polys)
         except Exception:
-            pass
+            solid = None
+
+        if solid is not None and not solid.is_empty:
+            # Draw the boundary of the solid, minus the cut profile
+            # (cut edges are already drawn in section 1).
+            try:
+                if cut_union is not None and not cut_union.is_empty:
+                    beyond_boundary = solid.boundary.difference(
+                        cut_union.boundary)
+                else:
+                    beyond_boundary = solid.boundary
+            except Exception:
+                beyond_boundary = solid.boundary
+
+            if not beyond_boundary.is_empty:
+                _emit_geometry_offset(dxf, beyond_boundary, _LINE_LAYER,
+                                      ox, oy, color=8)
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
