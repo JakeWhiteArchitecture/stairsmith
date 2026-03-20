@@ -590,13 +590,18 @@ def _mesh_to_elev_poly(mesh, view):
                 poly = hull
             except Exception:
                 return None, None, False
-            # Use centroid depth (average of all projected depths) for
-            # winder polygons.  min_depth picks up the closest corner
-            # vertex, which incorrectly places winders in front of
-            # adjacent newel posts.  The centroid is always on the
-            # correct side of any neighbouring element.
-            centroid_depth = sum(p[2] for p in proj_all) / len(proj_all)
-            return poly, centroid_depth, is_str
+            # Winder risers: use centroid depth (average of all projected
+            # depths).  min_depth picks up the closest corner vertex,
+            # which incorrectly places risers in front of adjacent newel
+            # posts.  The centroid is always on the correct side.
+            # Winder treads: keep min_depth so they sort in front of
+            # elements behind them (like stringers and far-side geometry).
+            ifc_t = mesh.get("ifc_type", "")
+            if ifc_t == "winder_riser":
+                depth = sum(p[2] for p in proj_all) / len(proj_all)
+            else:
+                depth = min(p[2] for p in proj_all)
+            return poly, depth, is_str
 
     except Exception:
         pass
