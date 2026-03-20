@@ -590,17 +590,12 @@ def _mesh_to_elev_poly(mesh, view):
                 poly = hull
             except Exception:
                 return None, None, False
-            # Winder risers: use centroid depth (average of all projected
-            # depths).  min_depth picks up the closest corner vertex,
-            # which incorrectly places risers in front of adjacent newel
-            # posts.  The centroid is always on the correct side.
-            # Winder treads: keep min_depth so they sort in front of
-            # elements behind them (like stringers and far-side geometry).
-            ifc_t = mesh.get("ifc_type", "")
-            if ifc_t == "winder_riser":
-                depth = sum(p[2] for p in proj_all) / len(proj_all)
-            else:
-                depth = min(p[2] for p in proj_all)
+            # Use centroid depth for ALL winder polygons (treads & risers).
+            # min_depth picks the closest corner vertex, which makes
+            # winder treads/risers sort in front of newel posts they
+            # should be behind.  Centroid depth is more representative
+            # of the element's true position.
+            depth = sum(p[2] for p in proj_all) / len(proj_all)
             return poly, depth, is_str
 
     except Exception:
@@ -1243,12 +1238,14 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                                           color=None)
 
     # 2. Beyond geometry — depth-sorted with occlusion.
-    # Use bounding-box envelopes for occlusion (always 4 vertices, fast
-    # unions) while drawing the actual polygon edges.  Process in groups
-    # and simplify the cumulative shape to stay fast in WASM Shapely.
-    _GRP = 10
+    # Use simplified actual polygons for occlusion (not bounding boxes,
+    # which over-occlude diagonal winder shapes).  Simplify each polygon
+    # upfront to cap vertex count, then process in groups with cumulative
+    # coverage simplified after each merge.
+    _GRP = 8
+    _SIMP = 2.0  # 2 mm simplification — invisible at drawing scale
 
-    items = []  # (depth, draw_poly, occlude_box, color)
+    items = []  # (depth, draw_poly, occlude_poly, color)
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
@@ -1256,7 +1253,11 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly, poly.envelope, 8))
+        # Simplify for occlusion — reduces winder hull vertices.
+        occ = poly.simplify(_SIMP, preserve_topology=True)
+        if occ.is_empty or occ.geom_type != "Polygon":
+            occ = poly.envelope  # fallback to bbox
+        items.append((depth, poly, occ, 8))
 
     # Sort by depth (closest to viewer first).
     items.sort(key=lambda t: t[0])
@@ -1272,7 +1273,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         group = items[g_start:g_start + _GRP]
 
         # Draw each element's actual edges clipped against cumulative.
-        for _d, poly, _bbox, ent_color in group:
+        for _d, poly, _occ, ent_color in group:
             exterior = list(poly.exterior.coords)
             for i in range(len(exterior) - 1):
                 seg = LineString([exterior[i], exterior[i + 1]])
@@ -1292,10 +1293,11 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                 _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
                                       color=ent_color)
 
-        # Merge bounding-box envelopes (not full polygons) into coverage.
-        group_boxes = [bbox for _, _, bbox, _ in group]
+        # Merge simplified polygons into coverage and simplify result.
+        group_occ = [occ for _, _, occ, _ in group]
         try:
-            cumul = unary_union(group_boxes + [cumul])
+            cumul = unary_union(group_occ + [cumul])
+            cumul = cumul.simplify(_SIMP, preserve_topology=True)
         except Exception:
             pass
 
