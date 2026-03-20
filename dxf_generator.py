@@ -577,17 +577,29 @@ def _mesh_to_elev_poly(mesh, view):
             for pt in fp:
                 proj_all.append(_project_point(pt[0], pt[1], z, view))
                 proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
-            # Build the TRUE silhouette polygon (convex hull of projected
-            # points) rather than an axis-aligned bounding rectangle.
-            # This prevents the winder from over-occluding geometry
-            # (like newel posts) that should appear in front.
-            pts_2d = [(p[0], p[1]) for p in proj_all]
+            # Build the TRUE silhouette by unioning the projected top and
+            # bottom face polygons. This preserves any concave notch cut
+            # by apply_boolean_ops() (e.g. where the newel was subtracted).
+            # convex_hull would fill the notch back in and re-cover the
+            # newel area, causing the painter's algorithm to hide the post.
+            top_pts = [_project_point(pt[0], pt[1], z + thick, view)[:2]
+                       for pt in fp]
+            bot_pts = [_project_point(pt[0], pt[1], z, view)[:2]
+                       for pt in fp]
             try:
-                from shapely.geometry import MultiPoint
-                hull = MultiPoint(pts_2d).convex_hull
-                if hull.is_empty or hull.geom_type != "Polygon":
+                from shapely.geometry import Polygon as _Polygon
+                from shapely.ops import unary_union as _unary_union
+                top_poly = _Polygon(top_pts)
+                bot_poly = _Polygon(bot_pts)
+                if not top_poly.is_valid:
+                    top_poly = top_poly.buffer(0)
+                if not bot_poly.is_valid:
+                    bot_poly = bot_poly.buffer(0)
+                poly = _unary_union([top_poly, bot_poly])
+                if poly.is_empty or poly.geom_type not in ("Polygon", "MultiPolygon"):
                     return None, None, False
-                poly = hull
+                if poly.geom_type == "MultiPolygon":
+                    poly = max(poly.geoms, key=lambda g: g.area)
             except Exception:
                 return None, None, False
             # Winder risers: centroid depth (average) — min_depth picks
