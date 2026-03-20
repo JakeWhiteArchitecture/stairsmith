@@ -1243,8 +1243,12 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                                           color=None)
 
     # 2. Beyond geometry — depth-sorted with occlusion.
-    # Maintain a single running union polygon for occlusion (O(1) clip
-    # per segment) instead of a growing list (O(n) clip per segment).
+    # Use a capped coverage list to prevent O(n²) slowdown in WASM.
+    # Elements are sorted front-to-back so the most important occlusion
+    # (closest to viewer) always happens; distant elements just skip
+    # adding to coverage once the cap is reached.
+    _MAX_COVER = 12  # max polygons in coverage list
+
     items = []  # (depth, Polygon, color)
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
@@ -1257,13 +1261,14 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
 
     # Sort by depth (closest to viewer first) and draw with occlusion.
     items.sort(key=lambda t: t[0])
-
+    covered = []
     # Seed coverage with the cut union so beyond geometry behind the
-    # cut plane is properly occluded by the cut shape.
+    # cut plane is occluded by the cut shape.
     if cut_union is not None and not cut_union.is_empty:
-        covered = cut_union
-    else:
-        covered = Polygon()
+        if cut_union.geom_type == "Polygon":
+            covered.append(cut_union)
+        elif cut_union.geom_type == "MultiPolygon":
+            covered.extend(list(cut_union.geoms))
 
     for _d, poly, ent_color in items:
         exterior = list(poly.exterior.coords)
@@ -1271,25 +1276,16 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
             seg = LineString([exterior[i], exterior[i + 1]])
             if seg.length < _MIN_LENGTH:
                 continue
-            # Clip against the single covered union — one operation.
-            try:
-                if not covered.is_empty and covered.intersects(seg):
-                    visible = seg.difference(covered)
-                else:
-                    visible = seg
-            except Exception:
-                visible = seg
+            visible = _clip_against_list(seg, covered)
             if visible.is_empty:
                 continue
             if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
                 continue
             _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
                                   color=ent_color)
-        # Incrementally union this polygon into the covered shape.
-        try:
-            covered = covered.union(poly)
-        except Exception:
-            pass  # skip if union fails (rare GEOS edge case)
+        # Only add to coverage if under the cap — keeps clipping fast.
+        if len(covered) < _MAX_COVER:
+            covered.append(poly)
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
