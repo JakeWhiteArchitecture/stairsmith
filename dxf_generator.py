@@ -1243,14 +1243,12 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                                           color=None)
 
     # 2. Beyond geometry — depth-sorted with occlusion.
-    # Process in groups of _GRP.  Within each group elements have similar
-    # depth so they overlap minimally — no inter-group occlusion needed.
-    # After each group, unary_union the group into the cumulative shape
-    # and simplify to cap vertex count and keep WASM Shapely fast.
-    _GRP = 8
-    _SIMPLIFY_TOL = 0.5  # 0.5 mm — invisible at drawing scale
+    # Use bounding-box envelopes for occlusion (always 4 vertices, fast
+    # unions) while drawing the actual polygon edges.  Process in groups
+    # and simplify the cumulative shape to stay fast in WASM Shapely.
+    _GRP = 10
 
-    items = []  # (depth, Polygon, color)
+    items = []  # (depth, draw_poly, occlude_box, color)
     for mesh in meshes:
         clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
         if clipped is None:
@@ -1258,7 +1256,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
         poly, depth, _s = _mesh_to_elev_poly(clipped, view)
         if poly is None or not poly.is_valid or poly.is_empty:
             continue
-        items.append((depth, poly, 8))
+        items.append((depth, poly, poly.envelope, 8))
 
     # Sort by depth (closest to viewer first).
     items.sort(key=lambda t: t[0])
@@ -1273,8 +1271,8 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     for g_start in range(0, len(items), _GRP):
         group = items[g_start:g_start + _GRP]
 
-        # Draw each element's edges clipped against cumulative coverage.
-        for _d, poly, ent_color in group:
+        # Draw each element's actual edges clipped against cumulative.
+        for _d, poly, _bbox, ent_color in group:
             exterior = list(poly.exterior.coords)
             for i in range(len(exterior) - 1):
                 seg = LineString([exterior[i], exterior[i + 1]])
@@ -1294,14 +1292,12 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
                 _emit_geometry_offset(dxf, visible, _LINE_LAYER, ox, oy,
                                       color=ent_color)
 
-        # Merge this group into cumulative coverage.
-        group_polys = [poly for _, poly, _ in group]
+        # Merge bounding-box envelopes (not full polygons) into coverage.
+        group_boxes = [bbox for _, _, bbox, _ in group]
         try:
-            cumul = unary_union(group_polys + [cumul])
-            # Simplify to prevent vertex count from exploding.
-            cumul = cumul.simplify(_SIMPLIFY_TOL, preserve_topology=True)
+            cumul = unary_union(group_boxes + [cumul])
         except Exception:
-            pass  # keep existing cumul on failure
+            pass
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
