@@ -62,15 +62,11 @@
         /* ── Header bar ── */
         header.site {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 28px;
+            padding: 10px 28px;
             border-bottom: 1px solid var(--line);
         }
-        .brand { display: flex; align-items: center; gap: 12px; }
-        .brand img { width: 34px; height: 34px; }
-        .brand .name {
-            font-size: 21px; font-weight: 800; letter-spacing: 4px; color: #fff;
-        }
-        .brand .name .accent { color: var(--accent); }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand img.logo-img { height: 54px; width: auto; }
         .beta {
             font-size: 11px; font-weight: 700; letter-spacing: 1px;
             color: var(--accent); border: 1px solid var(--accent);
@@ -250,8 +246,7 @@
 
     <header class="site">
         <div class="brand">
-            <img src="StairSmith-Logo.png" alt="StairSmith logo" width="34" height="34">
-            <span class="name">STAIR<span class="accent">SMITH</span></span>
+            <img src="StairSmith-Logo.png" alt="StairSmith" class="logo-img">
             <span class="beta">BETA</span>
         </div>
         <a class="site-link" href="https://jakewhitearchitecture.com/">jakewhitearchitecture.com</a>
