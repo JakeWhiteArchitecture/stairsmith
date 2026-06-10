@@ -1,7 +1,0 @@
-flask==3.0.0
-ifcopenshell
-gunicorn==22.0.0
-ezdxf
-shapely
-numpy>=1.22.0
-zipp>=3.19.1
