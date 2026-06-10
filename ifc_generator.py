@@ -2407,7 +2407,7 @@ _STAIR_DIRECT_TYPES = frozenset({"landing", "threshold"})
 # Uniclass 2015 classification (NBS).  Codes verified against the
 # published Uniclass 2015 tables.  Elements without a dedicated product
 # code carry the system-level reference.
-_UNICLASS_SYSTEM = ("Ss_35_10_85_90", "Timber stair systems")
+_UNICLASS_SYSTEM = ("Ss_35_10_85_90", "Timber stair or ramp systems")
 _UNICLASS_PRODUCTS = {
     "tread":        ("Pr_25_30_90_89", "Timber stair treads"),
     "winder_tread": ("Pr_25_30_90_89", "Timber stair treads"),
