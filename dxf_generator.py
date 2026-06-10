@@ -23,6 +23,7 @@ Public entry points
     meshes_to_dxf(meshes, params) -> str           # path to temp DXF file
 """
 
+import math
 import re
 import tempfile
 from shapely.geometry import Polygon, LineString, box as shapely_box
@@ -447,207 +448,304 @@ def _project_point(x, y, z, view):
     return (x, z, y)
 
 
-def _mesh_to_elev_poly(mesh, view):
-    """Return *(Polygon, min_depth, is_stringer)* for *mesh* in *view*.
+# Every preview mesh is an axis-aligned prism: a 2D profile polygon
+# extruded along one world axis.  All elevation/section logic works on
+# this single representation instead of per-mesh-type special cases.
+#
+#   prism = {"axis": 'x'|'y'|'z',   extrusion axis
+#            "poly": Polygon,        profile in the two other coords
+#            "lo": float, "hi":      extrusion interval along axis
+#            "ifc_type": str,
+#            "is_rect": bool}        True → profile is an axis-aligned rect
+#
+# Profile coordinate order per axis (matches the mesh dict conventions):
+_PROFILE_AXES = {"x": ("y", "z"), "y": ("x", "z"), "z": ("x", "y")}
 
-    Returns *(None, None, False)* if the mesh cannot be projected.
-    """
+# view → (vx world axis, vx sign, depth world axis, depth sign).
+# Mirrors _project_point; vy is always +z.
+_VIEW_INFO = {
+    "front": ("x", 1.0, "y", 1.0),
+    "right": ("y", 1.0, "x", -1.0),
+    "back":  ("x", -1.0, "y", -1.0),
+    "left":  ("y", -1.0, "x", 1.0),
+}
+
+# Two surfaces within this depth (mm) of each other do not occlude one
+# another (prevents coplanar faces from hiding their own edges).
+_DEPTH_TOL = 0.5
+
+
+def _world_point(axis, u, w, a):
+    """Map profile coords *(u, w)* + extrusion coord *a* to world (x, y, z)."""
+    if axis == "z":
+        return (u, w, a)
+    if axis == "y":
+        return (u, a, w)
+    return (a, u, w)
+
+
+def _iter_polygons(geom):
+    """Yield all Polygon parts of a shapely geometry."""
+    if geom.is_empty:
+        return
+    if geom.geom_type == "Polygon":
+        yield geom
+    elif geom.geom_type in ("MultiPolygon", "GeometryCollection"):
+        for g in geom.geoms:
+            yield from _iter_polygons(g)
+
+
+def _iter_linestrings(geom):
+    """Yield all LineString parts of a shapely geometry."""
+    if geom.is_empty:
+        return
+    if geom.geom_type == "LineString":
+        yield geom
+    elif geom.geom_type in ("MultiLineString", "GeometryCollection"):
+        for g in geom.geoms:
+            yield from _iter_linestrings(g)
+
+
+def _as_prisms(mesh):
+    """Convert a preview mesh dict to a list of prisms (usually one)."""
     mtype = mesh.get("type", "")
-    ifc_type = mesh.get("ifc_type", "")
-    is_str = ifc_type in _STRINGER_IFC
-
+    ifc = mesh.get("ifc_type", "")
     try:
         if mtype == "box":
-            center = mesh.get("ifc_center")
-            size = mesh.get("ifc_size")
-            if not center or not size:
-                return None, None, False
-            cx, cy, cz = center
-            sx, sy, sz = size
-            corners = []
-            for dx in (-1, 1):
-                for dy in (-1, 1):
-                    for dz in (-1, 1):
-                        corners.append(_project_point(
-                            cx + dx * sx / 2,
-                            cy + dy * sy / 2,
-                            cz + dz * sz / 2, view))
-            min_vx = min(c[0] for c in corners)
-            max_vx = max(c[0] for c in corners)
-            min_vy = min(c[1] for c in corners)
-            max_vy = max(c[1] for c in corners)
-            min_d = min(c[2] for c in corners)
-            poly = Polygon([(min_vx, min_vy), (max_vx, min_vy),
-                            (max_vx, max_vy), (min_vx, max_vy)])
-            return poly, min_d, is_str
+            c = mesh.get("ifc_center")
+            s = mesh.get("ifc_size")
+            if not c or not s:
+                return []
+            poly = shapely_box(c[0] - s[0] / 2, c[1] - s[1] / 2,
+                               c[0] + s[0] / 2, c[1] + s[1] / 2)
+            return [{"axis": "z", "poly": poly,
+                     "lo": c[2] - s[2] / 2, "hi": c[2] + s[2] / 2,
+                     "ifc_type": ifc, "is_rect": True}]
 
         if mtype == "stringer":
             profile = mesh.get("profile")
             thickness = mesh.get("thickness", 0)
             if not profile or len(profile) < 3 or thickness == 0:
-                return None, None, False
-            axis = mesh.get("axis")
+                return []
+            axis = "y" if mesh.get("axis") == "y" else "x"
+            lo = mesh.get(axis, 0)
+            poly = Polygon([(p[0], p[1]) for p in profile])
+        elif mtype == "winder_polygon":
+            profile = mesh.get("profile")
+            if not profile or len(profile) < 3:
+                return []
+            axis = "z"
+            lo = mesh.get("z", 0)
+            thickness = mesh.get("thickness", 0)
+            poly = Polygon([(p[0], p[1]) for p in profile])
+        else:
+            return []
 
-            if axis == "y":
-                # Profile in XZ, extruded along Y from y0
-                y0 = mesh.get("y", 0)
-                proj_all = []
-                for xv, zv in profile:
-                    proj_all.append(_project_point(xv, y0, zv, view))
-                    proj_all.append(_project_point(xv, y0 + thickness, zv, view))
-                if view in ("front", "back"):
-                    # Looking along Y → see profile (XZ) shape
-                    pts = [_project_point(xv, y0, zv, view)[:2]
-                           for xv, zv in profile]
-                    poly = Polygon(pts)
-                    if not poly.is_valid:
-                        poly = poly.buffer(0)
-                    if poly.is_empty:
-                        return None, None, False
-                    return poly, min(p[2] for p in proj_all), True
-                else:
-                    # Perpendicular → bounding rectangle
-                    return _rect_from_projected(proj_all, True)
-
-            else:
-                # Profile in YZ, extruded along X from x0
-                x0 = mesh.get("x", 0)
-                proj_all = []
-                for yv, zv in profile:
-                    proj_all.append(_project_point(x0, yv, zv, view))
-                    proj_all.append(_project_point(x0 + thickness, yv, zv, view))
-                if view in ("right", "left"):
-                    # Looking along X → see profile (YZ) shape
-                    pts = [_project_point(x0, yv, zv, view)[:2]
-                           for yv, zv in profile]
-                    poly = Polygon(pts)
-                    if not poly.is_valid:
-                        poly = poly.buffer(0)
-                    if poly.is_empty:
-                        return None, None, False
-                    return poly, min(p[2] for p in proj_all), True
-                else:
-                    return _rect_from_projected(proj_all, True)
-
-        if mtype == "winder_polygon":
-            fp = mesh.get("profile")
-            if not fp or len(fp) < 3:
-                return None, None, False
-            z = mesh.get("z", 0)
-            thick = mesh.get("thickness", 0)
-            proj_all = []
-            for pt in fp:
-                proj_all.append(_project_point(pt[0], pt[1], z, view))
-                proj_all.append(_project_point(pt[0], pt[1], z + thick, view))
-            # Build the TRUE silhouette polygon (convex hull of projected
-            # points) rather than an axis-aligned bounding rectangle.
-            # This prevents the winder from over-occluding geometry
-            # (like newel posts) that should appear in front.
-            pts_2d = [(p[0], p[1]) for p in proj_all]
-            try:
-                from shapely.geometry import MultiPoint
-                hull = MultiPoint(pts_2d).convex_hull
-                if hull.is_empty or hull.geom_type != "Polygon":
-                    return None, None, False
-                poly = hull
-            except Exception:
-                return None, None, False
-            # Use max depth (furthest from viewer) so winders sort
-            # behind closer elements like newel posts.
-            max_depth = max(p[2] for p in proj_all)
-            return poly, max_depth, is_str
-
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        return [{"axis": axis, "poly": g, "lo": lo, "hi": lo + thickness,
+                 "ifc_type": ifc, "is_rect": False}
+                for g in _iter_polygons(poly)]
     except Exception:
-        pass
-
-    return None, None, False
+        return []
 
 
-def _rect_from_projected(proj_pts, is_stringer):
-    """Build a bounding rectangle Polygon from projected points."""
-    if not proj_pts:
-        return None, None, False
-    min_vx = min(p[0] for p in proj_pts)
-    max_vx = max(p[0] for p in proj_pts)
-    min_vy = min(p[1] for p in proj_pts)
-    max_vy = max(p[1] for p in proj_pts)
-    min_d = min(p[2] for p in proj_pts)
-    if max_vx - min_vx < _MIN_LENGTH or max_vy - min_vy < _MIN_LENGTH:
-        return None, None, False
-    poly = Polygon([(min_vx, min_vy), (max_vx, min_vy),
-                    (max_vx, max_vy), (min_vx, max_vy)])
-    return poly, min_d, is_stringer
+def _profile_depth_fn(poly, isec, sec_from_vy, sec_sign, idep, d_sign):
+    """Depth function for a prism whose depth varies across its silhouette.
 
-
-def _safe_difference(geom, coverage):
-    """Compute geom.difference(coverage), surviving GEOS TopologyException.
-
-    In Pyodide/WASM the C++ TopologyException from GEOS is not always
-    caught by Python ``try/except``.  We mitigate by pre-buffering the
-    coverage polygon when the raw call fails validation.
+    At a view point, the world coordinate ``(vy if sec_from_vy else vx) *
+    sec_sign`` selects a 1D section through the profile polygon (taken on
+    profile coord *isec*); the nearest depth there is the minimum of
+    ``d_sign * coord[idep]`` over that section.
     """
-    if coverage.is_empty:
-        return geom
-    try:
-        # Fast path — works in the vast majority of cases.
-        return geom.difference(coverage)
-    except Exception:
-        pass
-    try:
-        return geom.difference(coverage.buffer(0))
-    except Exception:
-        return geom  # give up, draw anyway
+    b = poly.bounds
+    dlo, dhi = (b[0], b[2]) if idep == 0 else (b[1], b[3])
+    near_global = min(d_sign * dlo, d_sign * dhi)
+
+    def depth_fn(vx, vy):
+        coord = (vy if sec_from_vy else vx) * sec_sign
+        if isec == 0:
+            line = LineString([(coord, b[1] - 10), (coord, b[3] + 10)])
+        else:
+            line = LineString([(b[0] - 10, coord), (b[2] + 10, coord)])
+        try:
+            inter = poly.intersection(line)
+        except Exception:
+            return near_global
+        pts = _collect_points(inter)
+        if not pts:
+            return near_global
+        return min(d_sign * p[idep] for p in pts)
+
+    return depth_fn
 
 
-def _emit_geometry_offset(dxf, geom, layer, ox, oy):
-    """Draw a Shapely geometry as DXF LINEs with an (ox, oy) offset."""
-    if geom.is_empty:
-        return
-    gt = geom.geom_type
-    if gt == "LineString":
-        coords = list(geom.coords)
-        for i in range(len(coords) - 1):
-            dxf.add_line((coords[i][0] + ox, coords[i][1] + oy),
-                         (coords[i + 1][0] + ox, coords[i + 1][1] + oy),
-                         layer=layer)
-    elif gt in ("MultiLineString", "GeometryCollection"):
-        for g in geom.geoms:
-            _emit_geometry_offset(dxf, g, layer, ox, oy)
+def _prism_silhouette(prism, view):
+    """Return *(silhouette Polygon in view coords, depth_fn)* or (None, None).
+
+    The silhouette is exact for an axis-aligned prism in an axis-aligned
+    orthographic view; *depth_fn(vx, vy)* gives the prism's nearest depth
+    at a 2D view point (smaller = closer to the viewer).
+    """
+    vx_axis, vx_sign, d_axis, d_sign = _VIEW_INFO[view]
+    axis = prism["axis"]
+    poly = prism["poly"]
+    lo, hi = prism["lo"], prism["hi"]
+    b = poly.bounds
+
+    try:
+        if axis == "z":
+            # Vertical prism: vy spans [lo, hi]; vx is one profile coord.
+            u_axis, _w = _PROFILE_AXES[axis]
+            iu = 0 if u_axis == vx_axis else 1
+            idd = 1 - iu
+            umin, umax = (b[0], b[2]) if iu == 0 else (b[1], b[3])
+            vx0, vx1 = sorted((vx_sign * umin, vx_sign * umax))
+            if vx1 - vx0 < _MIN_LENGTH or hi - lo < _MIN_LENGTH:
+                return None, None
+            sil = shapely_box(vx0, lo, vx1, hi)
+            if prism.get("is_rect"):
+                dlo, dhi = (b[0], b[2]) if idd == 0 else (b[1], b[3])
+                near = min(d_sign * dlo, d_sign * dhi)
+                return sil, (lambda vx, vy, _n=near: _n)
+            return sil, _profile_depth_fn(poly, iu, False, vx_sign,
+                                          idd, d_sign)
+
+        if axis == d_axis:
+            # Extruded along the view direction → silhouette is the profile
+            # itself (profile coords are (horizontal, z)).
+            pts = [(vx_sign * u, w) for u, w in poly.exterior.coords]
+            sil = Polygon(pts)
+            if not sil.is_valid:
+                sil = sil.buffer(0)
+            polys = list(_iter_polygons(sil))
+            if not polys:
+                return None, None
+            sil = max(polys, key=lambda g: g.area)
+            near = min(d_sign * lo, d_sign * hi)
+            return sil, (lambda vx, vy, _n=near: _n)
+
+        # axis == vx_axis: extruded across the view → bounding rectangle;
+        # depth varies with vy (= the profile's second coord).
+        vx0, vx1 = sorted((vx_sign * lo, vx_sign * hi))
+        if vx1 - vx0 < _MIN_LENGTH or b[3] - b[1] < _MIN_LENGTH:
+            return None, None
+        sil = shapely_box(vx0, b[1], vx1, b[3])
+        return sil, _profile_depth_fn(poly, 1, True, 1.0, 0, d_sign)
+    except Exception:
+        return None, None
 
 
 def _compute_view_bounds(meshes, view):
     """Return *(min_vx, min_vy, max_vx, max_vy)* bounding box in view coords."""
     xs, ys = [], []
     for mesh in meshes:
-        poly, _d, _s = _mesh_to_elev_poly(mesh, view)
-        if poly is None:
-            continue
-        b = poly.bounds
-        xs.extend([b[0], b[2]])
-        ys.extend([b[1], b[3]])
+        for prism in _as_prisms(mesh):
+            sil, _d = _prism_silhouette(prism, view)
+            if sil is None:
+                continue
+            b = sil.bounds
+            xs.extend([b[0], b[2]])
+            ys.extend([b[1], b[3]])
     if not xs:
         return (0, 0, 0, 0)
     return (min(xs), min(ys), max(xs), max(ys))
 
 
-def _clip_against_list(seg, polys):
-    """Remove parts of *seg* inside any polygon in *polys*.
+# ── Depth-aware hidden-line occlusion ────────────────────────────
+#
+# Each drawn segment is tracked as parameter intervals [(t0, t1)] along
+# its own straight line, and an occluder removes an interval only where
+# it is genuinely IN FRONT of the segment's owner at that point.  This
+# replaces global painter's-algorithm sorting, which fails whenever
+# depth ranges overlap (winders vs. diagonal stringers, newels vs.
+# winder treads, ...).  Interval arithmetic also avoids the repeated
+# shapely line differences that triggered GEOS TopologyException in
+# Pyodide/WASM.
 
-    Clips against individual polygons one at a time (no union needed),
-    which avoids GEOS TopologyException in Pyodide/WASM.
+def _geom_param_intervals(a, b, geom, seg_len):
+    """Parameter intervals of segment *a*→*b* covered by line parts of *geom*."""
+    if seg_len < _MIN_LENGTH:
+        return []
+    abx = b[0] - a[0]
+    aby = b[1] - a[1]
+    inv_len2 = 1.0 / (seg_len * seg_len)
+    out = []
+    for ls in _iter_linestrings(geom):
+        coords = list(ls.coords)
+        ts = [((c[0] - a[0]) * abx + (c[1] - a[1]) * aby) * inv_len2
+              for c in coords]
+        t0 = max(0.0, min(ts))
+        t1 = min(1.0, max(ts))
+        if t1 - t0 > _MIN_LENGTH / seg_len:
+            out.append((t0, t1))
+    return out
+
+
+def _subtract_intervals(base, cuts):
+    """Subtract *cuts* intervals from *base* intervals (both [(t0, t1)])."""
+    out = []
+    for b0, b1 in base:
+        pieces = [(b0, b1)]
+        for c0, c1 in cuts:
+            nxt = []
+            for s0, s1 in pieces:
+                if c1 <= s0 or c0 >= s1:
+                    nxt.append((s0, s1))
+                    continue
+                if c0 > s0:
+                    nxt.append((s0, c0))
+                if c1 < s1:
+                    nxt.append((c1, s1))
+            pieces = nxt
+        out.extend(pieces)
+    return [iv for iv in out if iv[1] - iv[0] > 1e-9]
+
+
+def _visible_intervals(a, b, own_depth_fn, occluders):
+    """Visible parameter intervals of segment *a*→*b* against *occluders*.
+
+    *occluders* is a list of ``(silhouette Polygon, depth_fn)``.  A part of
+    the segment is hidden only where an occluder's depth at that point is
+    smaller (closer) than the owner's by more than ``_DEPTH_TOL``.
     """
-    remaining = seg
-    for poly in polys:
-        if remaining.is_empty:
+    seg_len = math.hypot(b[0] - a[0], b[1] - a[1])
+    if seg_len < _MIN_LENGTH:
+        return []
+    seg = LineString([a, b])
+    sb = seg.bounds
+    vis = [(0.0, 1.0)]
+    for poly, dfn in occluders:
+        if not vis:
             break
-        try:
-            if not poly.intersects(remaining):
-                continue
-            remaining = remaining.difference(poly)
-        except Exception:
-            # Single-polygon difference almost never fails, but be safe.
+        pb = poly.bounds
+        if pb[0] > sb[2] or pb[2] < sb[0] or pb[1] > sb[3] or pb[3] < sb[1]:
             continue
-    return remaining
+        try:
+            inter = poly.intersection(seg)
+        except Exception:
+            continue
+        cuts = []
+        for t0, t1 in _geom_param_intervals(a, b, inter, seg_len):
+            tm = (t0 + t1) / 2.0
+            mx = a[0] + (b[0] - a[0]) * tm
+            my = a[1] + (b[1] - a[1]) * tm
+            if dfn(mx, my) < own_depth_fn(mx, my) - _DEPTH_TOL:
+                cuts.append((t0, t1))
+        if cuts:
+            vis = _subtract_intervals(vis, cuts)
+    return vis
+
+
+def _emit_intervals(dxf, a, b, intervals, layer, ox, oy):
+    """Draw parameter intervals of segment *a*→*b* as DXF lines."""
+    seg_len = math.hypot(b[0] - a[0], b[1] - a[1])
+    for t0, t1 in intervals:
+        if (t1 - t0) * seg_len < _MIN_LENGTH:
+            continue
+        p = (a[0] + (b[0] - a[0]) * t0 + ox, a[1] + (b[1] - a[1]) * t0 + oy)
+        q = (a[0] + (b[0] - a[0]) * t1 + ox, a[1] + (b[1] - a[1]) * t1 + oy)
+        dxf.add_line(p, q, layer=layer)
 
 
 def _draw_dim_line(dxf, p1, p2, offset, layer="DIMENSIONS", label=None, norm=None):
@@ -719,75 +817,36 @@ def _draw_floor_line(dxf, vb, ox, oy, extension=500.0):
 
 
 def _draw_elevation(dxf, meshes, view, ox, oy):
-    """Draw one orthographic elevation with solid-occlusion.
+    """Draw one orthographic elevation with depth-aware hidden-line removal.
 
     Visible edges → ELEVATION layer (white).
     Tread/riser edges hidden *only* by stringers → HIDDEN layer (dashed grey).
-
-    Uses per-polygon clipping (no union) to avoid GEOS TopologyException
-    that cannot be caught in Pyodide/WASM.
     """
-    items = []  # (depth, poly, is_stringer, is_tread_riser)
+    items = []
     for mesh in meshes:
-        poly, depth, is_str = _mesh_to_elev_poly(mesh, view)
-        if poly is None or not poly.is_valid or poly.is_empty:
-            continue
-        is_tr = mesh.get("ifc_type", "") in _TREAD_RISER_IFC
-        items.append((depth, poly, is_str, is_tr))
+        for prism in _as_prisms(mesh):
+            sil, dfn = _prism_silhouette(prism, view)
+            if sil is None or sil.is_empty or not sil.is_valid:
+                continue
+            ifc = prism["ifc_type"]
+            items.append({"sil": sil, "depth": dfn,
+                          "is_str": ifc in _STRINGER_IFC,
+                          "is_tr": ifc in _TREAD_RISER_IFC})
 
-    items.sort(key=lambda t: t[0])
-
-    # Build coverage lists incrementally (no union needed).
-    all_polys = []      # all polygons closer than current
-    nostr_polys = []    # non-stringer polygons closer than current
-
-    for _d, poly, is_str, is_tr in items:
-        exterior = list(poly.exterior.coords)
-
+    for it in items:
+        occl_all = [(o["sil"], o["depth"]) for o in items if o is not it]
+        occl_nostr = [(o["sil"], o["depth"]) for o in items
+                      if o is not it and not o["is_str"]]
+        exterior = list(it["sil"].exterior.coords)
         for i in range(len(exterior) - 1):
-            seg = LineString([exterior[i], exterior[i + 1]])
-            if seg.length < _MIN_LENGTH:
-                continue
-            visible = _clip_against_list(seg, all_polys)
-            if visible.is_empty:
-                continue
-            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
-                continue
-            _emit_geometry_offset(dxf, visible, "ELEVATION", ox, oy)
-
-        # Hidden-through-stringer pass for treads / risers.
-        if is_tr:
-            for i in range(len(exterior) - 1):
-                seg = LineString([exterior[i], exterior[i + 1]])
-                if seg.length < _MIN_LENGTH:
-                    continue
-                vis_no_str = _clip_against_list(seg, nostr_polys)
-                if vis_no_str.is_empty:
-                    continue
-                vis_all = _clip_against_list(seg, all_polys)
-                if vis_all.is_empty:
-                    hidden = vis_no_str
-                else:
-                    hidden = _clip_against_list(vis_no_str, [vis_all]) \
-                        if vis_all.geom_type in ("LineString", "MultiLineString") \
-                        else vis_no_str
-                    # vis_all is a line geometry; we need the AREA that hides.
-                    # Simpler: hidden = parts in vis_no_str not in vis_all.
-                    # Since both are line subsets of the same original seg,
-                    # hidden = vis_no_str minus the visible portions.
-                    try:
-                        hidden = vis_no_str.difference(vis_all)
-                    except Exception:
-                        hidden = vis_no_str
-                if hidden.is_empty:
-                    continue
-                if hasattr(hidden, "length") and hidden.length < _MIN_LENGTH:
-                    continue
-                _emit_geometry_offset(dxf, hidden, "HIDDEN", ox, oy)
-
-        all_polys.append(poly)
-        if not is_str:
-            nostr_polys.append(poly)
+            a, b = exterior[i], exterior[i + 1]
+            vis_all = _visible_intervals(a, b, it["depth"], occl_all)
+            _emit_intervals(dxf, a, b, vis_all, "ELEVATION", ox, oy)
+            if it["is_tr"]:
+                # Parts hidden only by stringers → dashed grey.
+                vis_nostr = _visible_intervals(a, b, it["depth"], occl_nostr)
+                hidden = _subtract_intervals(vis_nostr, vis_all)
+                _emit_intervals(dxf, a, b, hidden, "HIDDEN", ox, oy)
 
 
 # ── Section helpers ──────────────────────────────────────────────
@@ -795,145 +854,50 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
 _BIG = 1e7  # half-plane extent for clipping
 
 
-def _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive):
-    """Return a copy of *mesh* clipped to the beyond side of the cut plane, or None.
+def _clip_prism(prism, cut_axis, cut_pos, keep_positive):
+    """Clip *prism* to one side of the axis-aligned vertical cut plane.
 
-    The "beyond" side is the half-space visible from the section viewpoint:
-    if *look_positive* the beyond range is ``[cut_pos, +inf)``, else ``(-inf, cut_pos]``.
+    Returns a list of prisms: empty if nothing remains, several if the cut
+    splits the profile into pieces (all pieces are kept — discarding the
+    smaller ones loses geometry, e.g. kite-shaped winder treads).
     """
-    mtype = mesh.get("type", "")
-    idx = 0 if cut_axis == "x" else 1
     TOL = 1.0  # mm
-
+    axis = prism["axis"]
     try:
-        if mtype == "box":
-            c = list(mesh.get("ifc_center", []))
-            s = list(mesh.get("ifc_size", []))
-            if not c or not s:
-                return None
-            lo = c[idx] - s[idx] / 2.0
-            hi = c[idx] + s[idx] / 2.0
-            if look_positive:
-                new_lo = max(lo, cut_pos)
-                new_hi = hi
+        if cut_axis == axis:
+            # Cut along the extrusion axis — clamp the interval.
+            lo, hi = prism["lo"], prism["hi"]
+            if keep_positive:
+                lo = max(lo, cut_pos)
             else:
-                new_lo = lo
-                new_hi = min(hi, cut_pos)
-            if new_hi - new_lo < TOL:
-                return None
-            new_center = list(c)
-            new_size = list(s)
-            new_center[idx] = (new_lo + new_hi) / 2.0
-            new_size[idx] = new_hi - new_lo
-            out = dict(mesh)
-            out["ifc_center"] = new_center
-            out["ifc_size"] = new_size
-            return out
+                hi = min(hi, cut_pos)
+            if hi - lo < TOL:
+                return []
+            out = dict(prism)
+            out["lo"] = lo
+            out["hi"] = hi
+            return [out]
 
-        if mtype == "winder_polygon":
-            fp = mesh.get("profile")
-            if not fp or len(fp) < 3:
-                return None
-            poly = Polygon(fp)
-            if look_positive:
-                clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG) if idx == 0 else shapely_box(-_BIG, cut_pos, _BIG, _BIG)
-            else:
-                clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG) if idx == 0 else shapely_box(-_BIG, -_BIG, _BIG, cut_pos)
-            clipped = poly.intersection(clip_rect)
-            if clipped.is_empty:
-                return None
-            # Take largest polygon if MultiPolygon
-            if clipped.geom_type == "MultiPolygon":
-                clipped = max(clipped.geoms, key=lambda g: g.area)
-            if clipped.geom_type != "Polygon" or clipped.is_empty:
-                return None
-            out = dict(mesh)
-            out["profile"] = list(clipped.exterior.coords[:-1])
-            return out
-
-        if mtype == "stringer":
-            profile = mesh.get("profile")
-            thickness = mesh.get("thickness", 0)
-            if not profile or len(profile) < 3 or thickness == 0:
-                return None
-            ma = mesh.get("axis")  # extrusion axis
-
-            # Determine which world axis corresponds to what
-            if ma == "y":
-                # Profile in XZ, extruded along Y from y0
-                if cut_axis == "y":
-                    # Cut along extrusion axis — clamp origin/thickness
-                    y0 = mesh.get("y", 0)
-                    if look_positive:
-                        new_y0 = max(y0, cut_pos)
-                        new_end = y0 + thickness
-                    else:
-                        new_y0 = y0
-                        new_end = min(y0 + thickness, cut_pos)
-                    new_thick = new_end - new_y0
-                    if new_thick < TOL:
-                        return None
-                    out = dict(mesh)
-                    out["y"] = new_y0
-                    out["thickness"] = new_thick
-                    return out
-                else:
-                    # cut_axis == "x", perpendicular to extrusion
-                    # Profile coords are (x, z) — clip x dimension
-                    poly = Polygon(profile)
-                    if look_positive:
-                        clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG)
-                    else:
-                        clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG)
-                    clipped = poly.intersection(clip_rect)
-                    if clipped.is_empty:
-                        return None
-                    if clipped.geom_type == "MultiPolygon":
-                        clipped = max(clipped.geoms, key=lambda g: g.area)
-                    if clipped.geom_type != "Polygon" or clipped.is_empty:
-                        return None
-                    out = dict(mesh)
-                    out["profile"] = [list(c) for c in clipped.exterior.coords[:-1]]
-                    return out
-            else:
-                # axis == "x": profile in YZ, extruded along X from x0
-                if cut_axis == "x":
-                    x0 = mesh.get("x", 0)
-                    if look_positive:
-                        new_x0 = max(x0, cut_pos)
-                        new_end = x0 + thickness
-                    else:
-                        new_x0 = x0
-                        new_end = min(x0 + thickness, cut_pos)
-                    new_thick = new_end - new_x0
-                    if new_thick < TOL:
-                        return None
-                    out = dict(mesh)
-                    out["x"] = new_x0
-                    out["thickness"] = new_thick
-                    return out
-                else:
-                    # cut_axis == "y", perpendicular to extrusion
-                    poly = Polygon(profile)
-                    if look_positive:
-                        clip_rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG)
-                    else:
-                        clip_rect = shapely_box(-_BIG, -_BIG, cut_pos, _BIG)
-                    clipped = poly.intersection(clip_rect)
-                    if clipped.is_empty:
-                        return None
-                    if clipped.geom_type == "MultiPolygon":
-                        clipped = max(clipped.geoms, key=lambda g: g.area)
-                    if clipped.geom_type != "Polygon" or clipped.is_empty:
-                        return None
-                    out = dict(mesh)
-                    out["profile"] = [list(c) for c in clipped.exterior.coords[:-1]]
-                    return out
-
+        # Cut crosses the profile plane — half-plane intersection.
+        u_axis, _w = _PROFILE_AXES[axis]
+        idx = 0 if cut_axis == u_axis else 1
+        if idx == 0:
+            rect = shapely_box(cut_pos, -_BIG, _BIG, _BIG) if keep_positive \
+                else shapely_box(-_BIG, -_BIG, cut_pos, _BIG)
+        else:
+            rect = shapely_box(-_BIG, cut_pos, _BIG, _BIG) if keep_positive \
+                else shapely_box(-_BIG, -_BIG, _BIG, cut_pos)
+        clipped = prism["poly"].intersection(rect)
+        out = []
+        for g in _iter_polygons(clipped):
+            if g.area < TOL:
+                continue
+            p = dict(prism)
+            p["poly"] = g
+            out.append(p)
+        return out
     except Exception:
-        return None
-
-    return None
+        return []
 
 
 def _identify_flights(meshes):
@@ -990,118 +954,55 @@ def _identify_flights(meshes):
     return result
 
 
-def _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view):
-    """Return a Polygon in *view* coords for the cross-section, or None."""
-    mtype = mesh.get("type", "")
+def _prism_cut_profiles(prism, cut_axis, cut_pos, view):
+    """Return Polygons (view coords) where the cut plane slices *prism*.
+
+    One polygon per chord when the plane crosses the profile (a concave
+    profile can be entered/exited more than once), or the projected
+    profile itself when the plane is perpendicular to the extrusion axis.
+    """
     TOL = 1.0  # mm tolerance
+    axis = prism["axis"]
+    poly = prism["poly"]
+    lo, hi = prism["lo"], prism["hi"]
 
     try:
-        if mtype == "box":
-            c = mesh.get("ifc_center")
-            s = mesh.get("ifc_size")
-            if not c or not s:
-                return None
-            cx, cy, cz = c
-            sx, sy, sz = s
-            if cut_axis == "x":
-                if not (cx - sx / 2 - TOL <= cut_pos <= cx + sx / 2 + TOL):
-                    return None
-                pts = [(cut_pos, cy - sy / 2, cz - sz / 2),
-                       (cut_pos, cy + sy / 2, cz - sz / 2),
-                       (cut_pos, cy + sy / 2, cz + sz / 2),
-                       (cut_pos, cy - sy / 2, cz + sz / 2)]
-            else:
-                if not (cy - sy / 2 - TOL <= cut_pos <= cy + sy / 2 + TOL):
-                    return None
-                pts = [(cx - sx / 2, cut_pos, cz - sz / 2),
-                       (cx + sx / 2, cut_pos, cz - sz / 2),
-                       (cx + sx / 2, cut_pos, cz + sz / 2),
-                       (cx - sx / 2, cut_pos, cz + sz / 2)]
-            pts2 = [_project_point(*p, view)[:2] for p in pts]
-            return Polygon(pts2)
+        if cut_axis == axis:
+            # Plane perpendicular to extrusion → cross-section is the profile.
+            if not (lo - TOL <= cut_pos <= hi + TOL):
+                return []
+            pts = [_world_point(axis, u, w, cut_pos)
+                   for u, w in poly.exterior.coords]
+            p2 = Polygon([_project_point(*p, view)[:2] for p in pts])
+            if not p2.is_valid:
+                p2 = p2.buffer(0)
+            return list(_iter_polygons(p2))
 
-        if mtype == "stringer":
-            profile = mesh.get("profile")
-            thickness = mesh.get("thickness", 0)
-            if not profile or len(profile) < 3 or thickness == 0:
-                return None
-            ma = mesh.get("axis")
-            if ma == "y":
-                y0 = mesh.get("y", 0)
-                if cut_axis == "y":
-                    if not (y0 - TOL <= cut_pos <= y0 + thickness + TOL):
-                        return None
-                    pts = [(xv, cut_pos, zv) for xv, zv in profile]
-                else:
-                    xs = [p[0] for p in profile]
-                    if not (min(xs) - TOL <= cut_pos <= max(xs) + TOL):
-                        return None
-                    zs = [p[1] for p in profile]
-                    pts = [(cut_pos, y0, min(zs)),
-                           (cut_pos, y0 + thickness, min(zs)),
-                           (cut_pos, y0 + thickness, max(zs)),
-                           (cut_pos, y0, max(zs))]
-            else:
-                x0 = mesh.get("x", 0)
-                if cut_axis == "x":
-                    if not (x0 - TOL <= cut_pos <= x0 + thickness + TOL):
-                        return None
-                    pts = [(cut_pos, yv, zv) for yv, zv in profile]
-                else:
-                    ys = [p[0] for p in profile]
-                    if not (min(ys) - TOL <= cut_pos <= max(ys) + TOL):
-                        return None
-                    zs = [p[1] for p in profile]
-                    pts = [(x0, cut_pos, min(zs)),
-                           (x0 + thickness, cut_pos, min(zs)),
-                           (x0 + thickness, cut_pos, max(zs)),
-                           (x0, cut_pos, max(zs))]
-            pts2 = [_project_point(*p, view)[:2] for p in pts]
-            poly = Polygon(pts2)
-            if not poly.is_valid:
-                poly = poly.buffer(0)
-            return poly if not poly.is_empty else None
-
-        if mtype == "winder_polygon":
-            fp = mesh.get("profile")
-            if not fp or len(fp) < 3:
-                return None
-            z = mesh.get("z", 0)
-            thick = mesh.get("thickness", 0)
-            fp_poly = Polygon([(p[0], p[1]) for p in fp])
-            if cut_axis == "x":
-                ys = [p[1] for p in fp]
-                cut_line = LineString([(cut_pos, min(ys) - 100),
-                                      (cut_pos, max(ys) + 100)])
-            else:
-                xs = [p[0] for p in fp]
-                cut_line = LineString([(min(xs) - 100, cut_pos),
-                                      (max(xs) + 100, cut_pos)])
-            inter = fp_poly.intersection(cut_line)
-            if inter.is_empty:
-                return None
-            ic = _collect_points(inter)
-            if len(ic) < 2:
-                return None
-            if cut_axis == "x":
-                yvals = [c[1] for c in ic]
-                pts = [(cut_pos, min(yvals), z),
-                       (cut_pos, max(yvals), z),
-                       (cut_pos, max(yvals), z + thick),
-                       (cut_pos, min(yvals), z + thick)]
-            else:
-                xvals = [c[0] for c in ic]
-                pts = [(min(xvals), cut_pos, z),
-                       (max(xvals), cut_pos, z),
-                       (max(xvals), cut_pos, z + thick),
-                       (min(xvals), cut_pos, z + thick)]
-            pts2 = [_project_point(*p, view)[:2] for p in pts]
-            poly = Polygon(pts2)
-            return poly if poly.is_valid and not poly.is_empty else None
-
+        # Plane crosses the profile plane — slice the profile polygon.
+        u_axis, _w = _PROFILE_AXES[axis]
+        idx = 0 if cut_axis == u_axis else 1
+        b = poly.bounds
+        if idx == 0:
+            cut_line = LineString([(cut_pos, b[1] - 100), (cut_pos, b[3] + 100)])
+        else:
+            cut_line = LineString([(b[0] - 100, cut_pos), (b[2] + 100, cut_pos)])
+        inter = poly.intersection(cut_line)
+        out = []
+        for chord in _iter_linestrings(inter):
+            cs = list(chord.coords)
+            p0, p1 = cs[0], cs[-1]
+            if math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < _MIN_LENGTH:
+                continue
+            corners = [_world_point(axis, p0[0], p0[1], lo),
+                       _world_point(axis, p1[0], p1[1], lo),
+                       _world_point(axis, p1[0], p1[1], hi),
+                       _world_point(axis, p0[0], p0[1], hi)]
+            cp = Polygon([_project_point(*p, view)[:2] for p in corners])
+            if cp.is_valid and not cp.is_empty:
+                out.append(cp)
+        return out
     except Exception:
-        pass
-    return None
+        return []
 
 
 def _section_view_for(cut_axis, look_positive):
@@ -1120,55 +1021,44 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     *look_positive*: True → look toward +axis from the cut plane.
     """
     view = _section_view_for(cut_axis, look_positive)
+    prisms = [p for mesh in meshes for p in _as_prisms(mesh)]
 
-    # 1. Cut profiles (white, SECTION_CUT) — always fully drawn.
-    #    Collect cut profile polygons to seed the beyond-pass coverage,
-    #    so grey beyond lines don't duplicate the white cut lines.
+    # 1. Cut profiles (white, SECTION_CUT) — the slice through everything
+    #    crossing the plane, always fully drawn.  They also seed occlusion
+    #    for the beyond pass so grey lines don't duplicate the white ones.
     cut_polys = []
-    for mesh in meshes:
-        cpoly = _mesh_cut_profile_2d(mesh, cut_axis, cut_pos, view)
-        if cpoly is None or cpoly.is_empty:
-            continue
-        cut_polys.append(cpoly)
-        try:
+    for prism in prisms:
+        for cpoly in _prism_cut_profiles(prism, cut_axis, cut_pos, view):
+            cut_polys.append(cpoly)
             ext = list(cpoly.exterior.coords)
-        except Exception:
-            continue
-        for i in range(len(ext) - 1):
-            dxf.add_line((ext[i][0] + ox, ext[i][1] + oy),
-                         (ext[i + 1][0] + ox, ext[i + 1][1] + oy),
-                         layer="SECTION_CUT")
+            for i in range(len(ext) - 1):
+                dxf.add_line((ext[i][0] + ox, ext[i][1] + oy),
+                             (ext[i + 1][0] + ox, ext[i + 1][1] + oy),
+                             layer="SECTION_CUT")
 
-    # 2. Beyond geometry (grey, SECTION_BEYOND) with occlusion.
-    #    Seed coverage with cut profile polygons so their edges aren't
-    #    redrawn in grey, while still allowing winder treads that span
-    #    across the cut plane to show their beyond-view edges.
+    # 2. Beyond geometry (grey, SECTION_BEYOND): remove the half of the
+    #    stair in front of the plane, project the rest, and occlude with
+    #    per-point depth comparison.
     items = []
-    for mesh in meshes:
-        clipped = _clip_mesh_beyond(mesh, cut_axis, cut_pos, look_positive)
-        if clipped is None:
-            continue
-        poly, depth, _s = _mesh_to_elev_poly(clipped, view)
-        if poly is None or not poly.is_valid or poly.is_empty:
-            continue
-        items.append((depth, poly))
+    for prism in prisms:
+        for clipped in _clip_prism(prism, cut_axis, cut_pos, look_positive):
+            sil, dfn = _prism_silhouette(clipped, view)
+            if sil is None or sil.is_empty or not sil.is_valid:
+                continue
+            items.append((sil, dfn))
 
-    items.sort(key=lambda t: t[0])
-    covered = list(cut_polys)  # seed with cut profiles to prevent grey duplicates
+    # Cut profiles sit on the plane itself — in front of all beyond
+    # geometry, so they occlude unconditionally.
+    at_cut = -_BIG
+    occl_cut = [(c, (lambda vx, vy, _d=at_cut: _d)) for c in cut_polys]
 
-    for _d, poly in items:
-        exterior = list(poly.exterior.coords)
+    for sil, dfn in items:
+        occl = occl_cut + [(s, d) for s, d in items if s is not sil]
+        exterior = list(sil.exterior.coords)
         for i in range(len(exterior) - 1):
-            seg = LineString([exterior[i], exterior[i + 1]])
-            if seg.length < _MIN_LENGTH:
-                continue
-            visible = _clip_against_list(seg, covered)
-            if visible.is_empty:
-                continue
-            if hasattr(visible, "length") and visible.length < _MIN_LENGTH:
-                continue
-            _emit_geometry_offset(dxf, visible, "SECTION_BEYOND", ox, oy)
-        covered.append(poly)
+            a, b = exterior[i], exterior[i + 1]
+            vis = _visible_intervals(a, b, dfn, occl)
+            _emit_intervals(dxf, a, b, vis, "SECTION_BEYOND", ox, oy)
 
 
 # ── Plan dimension helpers ──────────────────────────────────────
