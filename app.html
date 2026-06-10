@@ -1,0 +1,2870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StairSmith — Staircase Design Tool</title>
+    <meta name="description" content="Design straight, single winder and double winder staircases in 3D with live Building Regulations checks and IFC / DXF export.">
+    <link rel="canonical" href="https://jakewhitearchitecture.com/stairsmith/">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ─── LEFT PANEL ─── */
+        .panel {
+            width: 380px;
+            min-width: 380px;
+            background: #16213e;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #0f3460;
+            position: relative;
+            overflow: visible;
+            transition: margin-left 0.3s ease;
+        }
+        .panel.collapsed {
+            margin-left: -380px;
+        }
+
+        .panel-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+        .panel-top { padding: 20px 20px 0 20px; }
+        .panel-mid { padding: 8px 20px 8px 0; }
+        .panel-bot { padding: 0 20px 20px 20px; }
+
+        .panel-actions {
+            padding: 12px 20px 16px;
+            border-top: 1px solid #0f3460;
+            background: #16213e;
+            flex-shrink: 0;
+        }
+
+        .panel h1 {
+            font-size: 18px;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+
+        .panel .subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .section h2 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #e94560;
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 3px;
+        }
+
+        .field input, .field select {
+            width: 100%;
+            padding: 6px 10px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .field input:focus, .field select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .field .unit {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        .field-row .field {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .side-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+
+        .side-row .field {
+            flex: 0 0 auto;
+        }
+
+.derived {
+            background: #1a1a2e;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .derived span {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+/* ─── BUTTONS ─── */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #d63851;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #1a4a80;
+        }
+
+        /* ─── PANEL COLLAPSE TAB ─── */
+        .panel-collapse-tab {
+            position: absolute;
+            top: 50%;
+            right: -18px;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 48px;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-left: none;
+            border-radius: 0 6px 6px 0;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            font-size: 12px;
+            z-index: 10;
+            transition: color 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            padding: 0;
+        }
+        .panel-collapse-tab:hover {
+            color: #e94560;
+        }
+        .panel-collapse-tab svg {
+            transition: transform 0.3s;
+        }
+        .panel.collapsed .panel-collapse-tab svg {
+            transform: rotate(180deg);
+        }
+
+        /* ─── 3D VIEWPORT ─── */
+        .viewport {
+            flex: 1;
+            position: relative;
+            background: #0a0a1a;
+        }
+
+        .viewport canvas {
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        .viewport-info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 11px;
+            color: #00ccff;
+            z-index: 5;
+        }
+
+        .winder-options {
+            display: none;
+        }
+
+        .winder-options.visible {
+            display: block;
+        }
+
+        .turn2-options {
+            display: none;
+        }
+
+        .turn2-options.visible {
+            display: block;
+        }
+
+        .turn-toggle {
+            display: flex;
+            margin: 8px 0 4px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #555;
+        }
+        .turn-btn {
+            flex: 1;
+            padding: 10px 0;
+            font-size: 13px;
+            font-weight: 600;
+            background: #1a1a2e;
+            color: #aaa;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .turn-btn:first-child {
+            border-right: 1px solid #555;
+        }
+        .turn-btn.active {
+            background: #e94560;
+            color: #fff;
+        }
+        .turn-btn:hover:not(.active) {
+            color: #e94560;
+        }
+
+        .toggle-field {
+            margin-bottom: 8px;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #ccc;
+        }
+
+        .toggle-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+
+        #mirror-btn {
+            display: block;
+            width: 80%;
+            margin: 12px auto 4px;
+            padding: 12px 0;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            border: 2px solid #555;
+            border-radius: 8px;
+            background: #1a1a2e;
+            color: #aaa;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        #mirror-btn.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+        #mirror-btn:hover:not(.active) {
+            border-color: #e94560;
+            color: #e94560;
+        }
+
+        .turn-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        /* ─── DIMENSION ANNOTATIONS ─── */
+        .dim-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 5;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.8;
+            border: 1px solid #0f3460;
+        }
+
+        .dim-overlay .dim-label {
+            color: #888;
+        }
+
+        .dim-overlay .dim-value {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+
+        /* ─── MEASURE TOOL ─── */
+        .btn-measure {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-measure.active {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-measure.active:hover {
+            background: #d63851;
+        }
+
+        .measure-overlay {
+            display: none;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 5;
+            background: rgba(22, 33, 62, 0.95);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            border: 1px solid #e94560;
+            min-width: 180px;
+        }
+
+        .measure-overlay.visible {
+            display: block;
+        }
+
+        .measure-overlay .measure-title {
+            color: #e94560;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .measure-overlay .measure-result {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .measure-overlay .measure-hint {
+            color: #666;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .measure-overlay .measure-components {
+            color: #aaa;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .viewport.measuring {
+            cursor: crosshair;
+        }
+
+        /* ─── FLIGHT DISTRIBUTION ─── */
+        .dist-track {
+            display: flex;
+            align-items: center;
+            justify-content: space-evenly;
+            padding: 6px 20px;
+            gap: 0;
+        }
+
+        .dist-flight {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .dist-flight strong {
+            font-size: 22px;
+            color: #e94560;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        #dist-f3-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .dist-arrows {
+            display: flex;
+            flex-direction: row;
+            gap: 4px;
+        }
+
+        .dist-btn {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4a80;
+            border-radius: 4px;
+            width: 20px;
+            height: 44px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            padding: 0;
+        }
+
+        .dist-btn:hover:not(:disabled) {
+            background: #1a4a80;
+        }
+
+        .dist-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── SHARE MODAL ─── */
+        #share-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.78);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        #share-modal.open { display: flex; }
+
+        .share-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+        }
+
+        .share-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .share-header h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .share-close {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            transition: color 0.15s;
+        }
+        .share-close:hover { color: #e0e0e0; }
+
+        #share-preview {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            background: #0a0a1a;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+        #share-preview.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .share-field-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .share-textarea {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 13px;
+            padding: 9px 11px;
+            resize: vertical;
+            min-height: 68px;
+            font-family: inherit;
+            box-sizing: border-box;
+            line-height: 1.5;
+            transition: border-color 0.15s;
+        }
+        .share-input {
+            width: 100%;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 6px;
+            color: #e94560;
+            font-size: 13px;
+            padding: 9px 11px;
+            font-family: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.15s;
+        }
+        .share-textarea:focus,
+        .share-input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .share-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .share-btn {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 8px;
+            border: none;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: opacity 0.15s, transform 0.1s;
+            white-space: nowrap;
+        }
+        .share-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .share-btn:active { transform: translateY(0); }
+        .share-btn-save  { background: #0f3460; color: #e0e0e0; border: 1px solid #1a4a80; flex: 0 0 auto; padding: 10px 14px; }
+        .share-btn-x     { background: #000; color: #fff; }
+        .share-btn-fb    { background: #1877f2; color: #fff; }
+        .share-btn-li    { background: #0a66c2; color: #fff; }
+
+        /* ─── LOGO ─── */
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .logo-container .logo-tagline {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin: 0;
+            text-align: center;
+        }
+
+        /* ─── STARTUP SCREEN (terms + loading) ─── */
+        #startup-screen {
+            position: fixed;
+            inset: 0;
+            background: #1a1a2e;
+            z-index: 10000;
+            display: flex;
+            transition: opacity 0.4s;
+        }
+        #startup-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .startup-left {
+            width: 380px;
+            min-width: 380px;
+            background: #16213e;
+            display: flex;
+            flex-direction: column;
+            padding: 32px 28px;
+            border-right: 1px solid #0f3460;
+        }
+
+        .startup-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 28px;
+        }
+        .startup-logo .logo-tagline {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin: 0;
+        }
+
+        .startup-loading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: #0d1b40;
+            border: 1px solid #1a4a80;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .startup-spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid #0f3460;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        .startup-spinner.done {
+            border-color: #2ecc71;
+            border-top-color: #2ecc71;
+            animation: none;
+            position: relative;
+        }
+        .startup-spinner.done::after {
+            content: '';
+            position: absolute;
+            top: 1px; left: 5px;
+            width: 5px; height: 9px;
+            border: solid #2ecc71;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg);
+        }
+        .startup-loading-text {
+            font-size: 12px;
+            color: #888;
+        }
+        .startup-loading-text.ready {
+            color: #2ecc71;
+            font-weight: 600;
+        }
+
+        .startup-checkboxes {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .startup-checkboxes.locked {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+        .startup-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: #bbb;
+            line-height: 1.55;
+            cursor: pointer;
+        }
+        .startup-checkbox-label input[type="checkbox"] {
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            accent-color: #e94560;
+            cursor: pointer;
+        }
+
+        .startup-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+        .startup-btn {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .startup-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .startup-btn:active:not(:disabled) { transform: translateY(0); }
+        .startup-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .startup-btn-accept {
+            background: #e94560;
+            color: #fff;
+        }
+        .startup-btn-decline {
+            background: #0f3460;
+            color: #e0e0e0;
+            border: 1px solid #1a4a80;
+        }
+
+        .startup-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 32px 40px;
+            overflow-y: auto;
+        }
+        .startup-terms-heading {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e0e0e0;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 4px;
+        }
+        .startup-terms-effective {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        .startup-terms-body {
+            font-size: 13px;
+            color: #bbb;
+            line-height: 1.8;
+        }
+        .startup-terms-body h4 {
+            color: #e94560;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            margin: 18px 0 6px 0;
+        }
+        .startup-terms-body h4:first-child {
+            margin-top: 0;
+        }
+        .startup-terms-body p {
+            margin-bottom: 10px;
+        }
+        .startup-terms-body ul {
+            margin: 4px 0 10px 18px;
+            padding: 0;
+        }
+        .startup-terms-body ul li {
+            margin-bottom: 4px;
+        }
+        .startup-terms-body .terms-attribution {
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid #0f3460;
+            font-size: 11px;
+            color: #666;
+        }
+        .startup-terms-body .terms-attribution a {
+            color: #e94560;
+            text-decoration: none;
+        }
+        .startup-terms-body .terms-attribution a:hover {
+            text-decoration: underline;
+        }
+
+        /* ─── DOWNLOAD REMINDER MODAL ─── */
+        #download-reminder {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+        #download-reminder.open { display: flex; }
+        .reminder-dialog {
+            background: #16213e;
+            border: 1px solid #1a4a80;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 460px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+            text-align: center;
+        }
+        .reminder-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+        .reminder-heading {
+            font-size: 15px;
+            font-weight: 700;
+            color: #e94560;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .reminder-text {
+            font-size: 13px;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        .reminder-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 36px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: opacity 0.15s, transform 0.1s;
+            width: 100%;
+            max-width: 260px;
+        }
+        .reminder-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .reminder-btn:active { transform: translateY(0); }
+
+        /* ─── HAMBURGER BUTTON (hidden on desktop) ─── */
+        .hamburger-btn {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1100;
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(22, 33, 62, 0.92);
+            border: 1px solid #0f3460;
+            cursor: pointer;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hamburger-btn span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: #e0e0e0;
+            border-radius: 1px;
+            transition: transform 0.25s, opacity 0.25s;
+        }
+        .hamburger-btn.open span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        .hamburger-btn.open span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger-btn.open span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
+        /* ─── DRAWER BACKDROP (hidden on desktop) ─── */
+        .drawer-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .drawer-backdrop.visible {
+            opacity: 1;
+        }
+
+        /* ─── MOBILE MEASURE BUTTON (hidden on desktop) ─── */
+        .mobile-measure-btn {
+            display: none;
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            z-index: 100;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #0f3460;
+            border: 1px solid #1a4a80;
+            color: #e0e0e0;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mobile-measure-btn.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+
+        /* ─── MOBILE RESPONSIVE ─── */
+        @media (max-width: 768px) {
+            /* Startup screen: stack vertically */
+            #startup-screen {
+                flex-direction: column;
+            }
+            .startup-left {
+                width: 100%;
+                min-width: 0;
+                padding: 24px 20px;
+                border-right: none;
+                border-bottom: 1px solid #0f3460;
+                flex-shrink: 0;
+            }
+            .startup-logo img {
+                width: 200px !important;
+            }
+            .startup-logo {
+                margin-bottom: 16px;
+            }
+            .startup-loading {
+                margin-bottom: 16px;
+            }
+            .startup-checkboxes {
+                margin-bottom: 16px;
+            }
+            .startup-right {
+                padding: 20px;
+                flex: 1;
+                min-height: 0;
+            }
+
+            /* Main layout: viewport fills screen, panel is a drawer */
+            body {
+                flex-direction: column;
+            }
+
+            .panel {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 320px;
+                min-width: 0;
+                z-index: 1000;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: none;
+            }
+            .panel.drawer-open {
+                transform: translateX(0);
+                box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            }
+            .panel.collapsed {
+                margin-left: 0;
+            }
+            .panel-collapse-tab {
+                display: flex;
+                width: 27px;
+                height: 72px;
+                right: -27px;
+                border-radius: 0 8px 8px 0;
+                font-size: 16px;
+            }
+            .panel-collapse-tab svg {
+                width: 12px;
+                height: 20px;
+            }
+            .panel.drawer-open .panel-collapse-tab svg {
+                transform: rotate(0deg);
+            }
+            .panel:not(.drawer-open) .panel-collapse-tab svg {
+                transform: rotate(180deg);
+            }
+
+            .viewport {
+                width: 100%;
+                height: 100vh;
+            }
+
+            /* Hide hamburger — collapse tab replaces it */
+            .hamburger-btn {
+                display: none !important;
+            }
+            .mobile-measure-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Bigger inputs for touch */
+            .field input, .field select {
+                font-size: 16px;
+                padding: 10px 12px;
+            }
+            .field label {
+                font-size: 13px;
+                margin-bottom: 4px;
+            }
+
+            /* Bigger toggle buttons */
+            .turn-btn {
+                padding: 12px 0;
+                font-size: 14px;
+            }
+            .dist-btn {
+                width: 36px;
+                height: 44px;
+                font-size: 16px;
+            }
+
+            /* Hide viewport hints, stats overlay and measure button on mobile */
+            .viewport-info { display: none; }
+            .dim-overlay { display: none; }
+            .mobile-measure-btn { display: none !important; }
+
+            /* Measure overlay below hamburger */
+            .measure-overlay {
+                top: 64px;
+                left: 12px;
+            }
+
+            /* Share modal full width */
+            .share-dialog {
+                max-width: 100%;
+            }
+        }
+
+        /* Desktop: hide touch hints, show desktop hints */
+        @media (min-width: 769px) {
+            .viewport-info .desktop-hint { display: inline; }
+            .viewport-info .touch-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Startup Screen (terms + loading) -->
+    <div id="startup-screen">
+        <!-- Left: logo, loading, checkboxes, buttons -->
+        <div class="startup-left">
+            <div class="startup-logo">
+                <img src="StairSmith-Logo.png" alt="StairSmith" style="width:260px;height:auto;">
+                <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
+            </div>
+
+            <div class="startup-loading">
+                <div class="startup-spinner" id="startup-spinner"></div>
+                <span class="startup-loading-text" id="startup-loading-text">Initialising...</span>
+            </div>
+
+            <div class="startup-checkboxes locked" id="startup-checkboxes">
+                <label class="startup-checkbox-label">
+                    <input type="checkbox" id="terms-check-1" autocomplete="off" onchange="updateStartupAcceptBtn()">
+                    I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only.
+                </label>
+                <label class="startup-checkbox-label">
+                    <input type="checkbox" id="terms-check-2" autocomplete="off" onchange="updateStartupAcceptBtn()">
+                    I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.
+                </label>
+            </div>
+
+            <div class="startup-actions">
+                <button class="startup-btn startup-btn-decline" onclick="declineTerms()">Decline</button>
+                <button class="startup-btn startup-btn-accept" id="startup-accept-btn" onclick="acceptTerms()" disabled>I Accept</button>
+            </div>
+        </div>
+
+        <!-- Right: full-height terms text -->
+        <div class="startup-right">
+            <div class="startup-terms-heading">Terms of Use &amp; Disclaimer</div>
+            <p class="startup-terms-effective">Effective Date: March 2026</p>
+            <div class="startup-terms-body">
+                <h4>1. Nature of the Tool</h4>
+                <p>The Tool is a preliminary design aid only, intended to assist with the visual exploration and conceptual development of building components. It is not a substitute for professional design, structural engineering, or compliance verification. The Tool does not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
+
+                <h4>2. No Compliance Warranty</h4>
+                <p>Outputs have not been verified against any building regulations, standards, or codes of practice — including the Building Regulations 2010 (England and Wales), associated Approved Documents, British Standards or any international equivalent. No representation or warranty is made that any output complies with any regulatory requirement.</p>
+
+                <h4>3. User Responsibility</h4>
+                <p>By using the Tool, you acknowledge that:</p>
+                <ul>
+                    <li>You are solely responsible for verifying the accuracy, suitability, and regulatory compliance of all outputs.</li>
+                    <li>You will not rely on any output as a final design or instruction for construction without your own verification.</li>
+                    <li>You will ensure all outputs are reviewed and validated by you as a competent person, in consultation with others as necessary, before any stair design or associated works are built.</li>
+                    <li>Any use of IFC or other file exports is entirely at your own risk.</li>
+                </ul>
+
+                <h4>4. Limitation of Liability</h4>
+                <p>The Tool is provided "as is" without warranty of any kind, whether express or implied. To the fullest extent permitted by law, the provider shall not be liable for any loss, damage, injury, cost, or expense (whether direct, indirect, or consequential) arising from the use of or reliance upon any output, any errors or omissions in the outputs, any decisions or actions taken based on the outputs, or any failure of the Tool to identify non-compliant configurations.</p>
+
+                <h4>5. Professional Advice</h4>
+                <p>Nothing provided by the Tool constitutes professional advice. Users remain responsible for obtaining any specialist input (structural, fire, regulatory) that falls outside their own competence. Provision of this free tool does not constitute BRPD appointment formally or informally.</p>
+
+                <h4>6. Intellectual Property</h4>
+                <p>The Tool is provided free of charge. Outputs (including IFC files, DXF files and visual previews) may be used freely at your own discretion. The Tool itself, including source code and design, remains the intellectual property of the provider. Credit to ATPT (Architectural Technologist Power Team) — inspiration for development of the Tool was as a result of a group discussion.</p>
+
+                <h4>7. Changes to These Terms</h4>
+                <p>These terms may be updated from time to time. Continued use of the Tool following any changes constitutes acceptance of the revised terms.</p>
+
+                <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Reminder Modal -->
+    <div id="download-reminder" role="dialog" aria-modal="true" aria-label="Download Reminder">
+        <div class="reminder-dialog">
+            <div class="reminder-heading">Reminder</div>
+            <p class="reminder-text">The user must check all outputs / downloads for compliance with UK or other relevant local regulation or standard.</p>
+            <button class="reminder-btn" onclick="confirmDownload()">Understood, proceed to download</button>
+        </div>
+    </div>
+
+    <!-- Loading overlay removed: loading status is now shown in the startup screen -->
+
+    <!-- Mobile drawer toggle -->
+    <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle controls" onclick="toggleDrawer()">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+
+    <div class="panel" id="panel">
+      <button class="panel-collapse-tab" id="panel-collapse-tab" onclick="togglePanelCollapse()" aria-label="Collapse panel">
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="panel-scroll">
+        <div class="panel-top">
+        <!-- Logo -->
+        <div class="logo-container">
+            <img src="StairSmith-Logo.png" alt="StairSmith" style="width:234px;height:auto;">
+            <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
+        </div>
+
+        <!-- Staircase Type -->
+        <div class="section">
+            <h2>Staircase Type</h2>
+            <div class="field">
+                <select id="staircase_type" onchange="onTypeChange(); updatePreview();">
+                    <option value="straight" selected>Straight Flight</option>
+                    <option value="single_winder">Single Winder (L-shape)</option>
+                    <option value="double_winder">Double Winder (U-shape)</option>
+                    <!-- Y-shaped Stair hidden pending further development -->
+                    <!-- <option value="y_shaped">Y-shaped Stair</option> -->
+                </select>
+            </div>
+            <div id="mirror-toggle-row">
+                <button id="mirror-btn" onclick="this.classList.toggle('active'); mirrorSides(); updatePreview();">
+                    &#8596; Mirror Staircase
+                </button>
+            </div>
+        </div>
+
+        <h2 id="flight-dist-heading" style="display:none; font-size:13px; text-transform:uppercase; letter-spacing:0.08em; color:#e94560; padding-bottom:8px; border-bottom:1px solid #1a4a80; margin-bottom:12px;">Flight Distribution</h2>
+        </div><!-- /panel-top -->
+        <div class="panel-mid" style="padding-left:0;">
+        <div id="flight-dist-section" style="display:none;">
+            <div class="dist-track">
+                <div class="dist-flight">
+                    <strong id="dist-f1">0</strong>
+                    <span>Flight 1</span>
+                </div>
+                <div class="dist-arrows">
+                    <button class="dist-btn" id="btn-f2-to-f1" onclick="transferStep(2,1)" title="Move step from Flight 2 to Flight 1">&#9664;</button>
+                    <button class="dist-btn" id="btn-f1-to-f2" onclick="transferStep(1,2)" title="Move step from Flight 1 to Flight 2">&#9654;</button>
+                </div>
+                <div class="dist-flight">
+                    <strong id="dist-f2">0</strong>
+                    <span>Flight 2</span>
+                </div>
+                <div id="dist-f3-group" style="display:none;">
+                    <div class="dist-arrows">
+                        <button class="dist-btn" id="btn-f3-to-f2" onclick="transferStep(3,2)" title="Move step from Flight 3 to Flight 2">&#9664;</button>
+                        <button class="dist-btn" id="btn-f2-to-f3" onclick="transferStep(2,3)" title="Move step from Flight 2 to Flight 3">&#9654;</button>
+                    </div>
+                    <div class="dist-flight">
+                        <strong id="dist-f3">0</strong>
+                        <span>Flight 3</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div><!-- /panel-mid -->
+        <div class="panel-bot">
+        <!-- Global Parameters -->
+        <div class="section">
+            <h2>Dimensions</h2>
+            <div class="field-row">
+                <div class="field">
+                    <label>Floor to Floor Height <span class="unit">mm</span></label>
+                    <input type="number" id="floor_to_floor" value="2700" min="2200" max="3200" step="10" oninput="updateDerived(); updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Number of Risers</label>
+                    <input type="number" id="num_risers" value="14" min="10" max="18" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Stair Width (outside to outside) <span class="unit">mm</span></label>
+                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Individual Going <span class="unit">mm</span></label>
+                    <input type="number" id="going" value="227" min="220" max="300" step="1" oninput="updateDerived(); updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Tread Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="tread_thickness" value="22" min="18" max="40" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Riser Thickness <span class="unit">mm</span></label>
+                    <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Nosing Overhang <span class="unit">mm</span></label>
+                    <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Landing Threshold <span class="unit">mm</span></label>
+                    <input type="number" id="threshold_depth" value="100" min="50" max="150" step="5" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Winder X <span class="unit">mm</span></label>
+                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
+                </div>
+                <div class="field">
+                    <label>Winder Y <span class="unit">mm</span></label>
+                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
+                </div>
+            </div>
+            <div class="field">
+                <label>Newel Post Size <span class="unit">mm</span></label>
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
+            </div>
+
+        </div>
+
+        <!-- Balustrade -->
+        <div class="section">
+            <h2>Balustrade</h2>
+            <div style="display:flex; gap:10px;">
+                <div style="flex:1;">
+                    <label>Left Side</label>
+                    <div id="left-side-toggle" class="turn-toggle">
+                        <button class="turn-btn active" data-value="balustrade" onclick="selectTurn('left-side-toggle');">Balustrade</button>
+                        <button class="turn-btn" data-value="wall" onclick="selectTurn('left-side-toggle');">Wall</button>
+                    </div>
+                </div>
+                <div style="flex:1;">
+                    <label>Right Side</label>
+                    <div id="right-side-toggle" class="turn-toggle">
+                        <button class="turn-btn" data-value="balustrade" onclick="selectTurn('right-side-toggle');">Balustrade</button>
+                        <button class="turn-btn active" data-value="wall" onclick="selectTurn('right-side-toggle');">Wall</button>
+                    </div>
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Handrail Width <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_width" value="70" min="40" max="100" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Handrail Height <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_height" value="40" min="20" max="80" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Handrail Rise <span class="unit">mm</span></label>
+                    <input type="number" id="handrail_rise" value="900" min="800" max="1100" step="10" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Spindle Width <span class="unit">mm</span></label>
+                    <input type="number" id="spindle_width" value="32" min="20" max="50" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Baserail Width <span class="unit">mm</span></label>
+                    <input type="number" id="baserail_width" value="50" min="30" max="100" step="1" oninput="updatePreview();">
+                </div>
+                <div class="field">
+                    <label>Baserail Height <span class="unit">mm</span></label>
+                    <input type="number" id="baserail_height" value="30" min="15" max="60" step="1" oninput="updatePreview();">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Winder Options -->
+        <div class="section winder-options" id="winder-options">
+            <h2>Corner 1</h2>
+            <div id="turn1-toggle" class="turn-toggle">
+                <button class="turn-btn active" data-value="winder" onclick="selectWinderTurn('turn1-toggle');">Winder Treads</button>
+                <button class="turn-btn" data-value="landing" onclick="selectWinderTurn('turn1-toggle');">Flat Landing</button>
+            </div>
+        </div>
+
+        <div class="section turn2-options" id="turn2-options">
+            <h2>Corner 2</h2>
+            <div id="turn2-toggle" class="turn-toggle">
+                <button class="turn-btn active" data-value="winder" onclick="selectWinderTurn('turn2-toggle');">Winder Treads</button>
+                <button class="turn-btn" data-value="landing" onclick="selectWinderTurn('turn2-toggle');">Flat Landing</button>
+            </div>
+        </div>
+
+        </div><!-- /panel-bot -->
+
+      </div>
+        <!-- Actions (pinned to bottom) -->
+        <div class="panel-actions">
+            <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
+            <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
+            <div style="display:flex; gap:6px; margin-top:8px; align-items:center;">
+                <button class="btn btn-secondary" style="margin-top:0; flex:0 0 auto; width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center;" onclick="openShareModal()" title="Share"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+                <a class="btn btn-secondary" style="margin-top:0; flex:0 0 auto; width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center; text-decoration:none;" href="mailto:stairsmith@jakewhitearchitecture.com?subject=StairSmith%20Feedback" title="Report a bug"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 116 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 014-4h4a4 4 0 014 4v3c0 3.3-2.7 6-6 6z"/><path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M6 17l-4 1M17.47 9c1.93-.2 3.53-1.9 3.53-4M18 13h4M18 17l4 1"/></svg></a>
+                <a class="btn btn-secondary" style="margin-top:0; flex:1; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:6px; height:32px; padding:0 8px; font-size:13px;" href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> JWA Home</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+        <div class="viewport-info"><span class="desktop-hint">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</span><span class="touch-hint">Rotate: drag | Zoom: pinch | Pan: two-finger drag</span></div>
+        <div class="measure-overlay" id="measure-overlay">
+            <div class="measure-title">Measure</div>
+            <div class="measure-result" id="measure-result">--</div>
+            <div class="measure-components" id="measure-components"></div>
+            <div class="measure-hint" id="measure-hint">Click a point on the staircase</div>
+        </div>
+        <div class="dim-overlay" id="dim-overlay">
+            <div><span class="dim-label">Rise:</span> <span class="dim-value" id="dim-rise">200.0 mm</span></div>
+            <div><span class="dim-label">Going:</span> <span class="dim-value" id="dim-going">227 mm</span></div>
+            <div><span class="dim-label">Total Height:</span> <span class="dim-value" id="dim-height">2600 mm</span></div>
+            <div><span class="dim-label">Width:</span> <span class="dim-value" id="dim-width">810 mm</span></div>
+            <div><span class="dim-label">Pitch:</span> <span class="dim-value" id="dim-pitch">41.4°</span></div>
+        </div>
+    </div>
+
+    <!-- Mobile measure button -->
+    <button class="mobile-measure-btn" id="mobile-measure-btn" onclick="toggleMeasureMobile()" aria-label="Measure">M</button>
+
+    <!-- Share Modal -->
+    <div id="share-modal" role="dialog" aria-modal="true" aria-label="Share your staircase">
+        <div class="share-dialog">
+            <div class="share-header">
+                <h3>Share Your Staircase</h3>
+                <button class="share-close" onclick="closeShareModal()" aria-label="Close">&#10005;</button>
+            </div>
+            <img id="share-preview" alt="Staircase preview">
+            <div>
+                <div class="share-field-label">Message</div>
+                <textarea id="share-text" class="share-textarea">Check out this staircase I designed with StairSmith! 🪜 Generate your own at</textarea>
+            </div>
+            <div>
+                <div class="share-field-label">Hashtags</div>
+                <input id="share-tags" class="share-input" type="text" value="#Architecture #Stairs #BIM #BIM2.0 #StairSmith">
+            </div>
+            <div class="share-actions">
+                <button class="share-btn share-btn-save" onclick="downloadShareImage()" title="Save image">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Save
+                </button>
+                <button class="share-btn share-btn-x" onclick="shareToX()">
+                    <svg width="13" height="13" viewBox="0 0 1200 1227" fill="currentColor"><path d="M714.163 519.284L1160.89 0h-105.86L667.137 450.887 357.328 0H0l468.492 681.821L0 1226.37h105.866l409.625-476.152 327.181 476.152H1200L714.163 519.284zm-144.838 168.06-47.468-67.894-377.686-540.24h162.604l304.797 435.991 47.468 67.894 396.2 566.721H892.214L569.325 687.344z"/></svg>
+                    Post
+                </button>
+                <button class="share-btn share-btn-fb" onclick="shareToFacebook()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                    Facebook
+                </button>
+                <button class="share-btn share-btn-li" onclick="shareToLinkedIn()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <script>
+        // ─── STARTUP SCREEN (terms + loading) ───
+        // Reset checkboxes on every page load (prevent browser autofill restoring ticks)
+        document.getElementById('terms-check-1').checked = false;
+        document.getElementById('terms-check-2').checked = false;
+        document.getElementById('startup-accept-btn').disabled = true;
+
+        window.pyodideLoaded = false;
+
+        function unlockCheckboxesIfReady() {
+            // Unlock checkboxes only when Pyodide has finished loading
+            if (window.pyodideLoaded) {
+                document.getElementById('startup-checkboxes').classList.remove('locked');
+            }
+        }
+
+        function onPyodideReady() {
+            window.pyodideLoaded = true;
+            var spinner = document.getElementById('startup-spinner');
+            var text = document.getElementById('startup-loading-text');
+            spinner.classList.add('done');
+            text.textContent = 'Ready';
+            text.classList.add('ready');
+            unlockCheckboxesIfReady();
+        }
+
+        function updateStartupAcceptBtn() {
+            var c1 = document.getElementById('terms-check-1').checked;
+            var c2 = document.getElementById('terms-check-2').checked;
+            document.getElementById('startup-accept-btn').disabled = !(c1 && c2);
+        }
+
+        function acceptTerms() {
+            document.getElementById('startup-screen').classList.add('hidden');
+            if (window.pyodideReady) updatePreview();
+            // On mobile, open the drawer so the sidebar is visible on start
+            if (window.innerWidth <= 768) {
+                setTimeout(function() { toggleDrawer(); }, 100);
+            }
+        }
+
+        function declineTerms() {
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="index.html" style="color:#e94560;">Return to the StairSmith home page</a></p></div></div>';
+        }
+
+        // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
+        function togglePanelCollapse() {
+            if (window.innerWidth <= 768) {
+                toggleDrawer();
+            } else {
+                var panel = document.getElementById('panel');
+                panel.classList.toggle('collapsed');
+                // Trigger a resize so the 3D viewport fills the freed space
+                setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 320);
+            }
+        }
+
+        // ─── MOBILE DRAWER ───
+        function toggleDrawer() {
+            var panel = document.getElementById('panel');
+            var btn = document.getElementById('hamburger-btn');
+            var backdrop = document.getElementById('drawer-backdrop');
+            var isOpen = panel.classList.toggle('drawer-open');
+            btn.classList.toggle('open', isOpen);
+            backdrop.style.display = 'block';
+            // Force reflow so transition fires
+            void backdrop.offsetWidth;
+            backdrop.classList.toggle('visible', isOpen);
+            if (!isOpen) {
+                backdrop.addEventListener('transitionend', function hide() {
+                    if (!panel.classList.contains('drawer-open')) backdrop.style.display = 'none';
+                    backdrop.removeEventListener('transitionend', hide);
+                });
+            }
+        }
+
+        function closeDrawer() {
+            var panel = document.getElementById('panel');
+            if (!panel.classList.contains('drawer-open')) return;
+            toggleDrawer();
+        }
+
+        function toggleMeasureMobile() {
+            var btn = document.getElementById('mobile-measure-btn');
+            // Simulate pressing M key
+            var evt = new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', bubbles: true });
+            document.dispatchEvent(evt);
+            btn.classList.toggle('active');
+        }
+
+        let pendingDownloadBlob = null;
+        let pendingDownloadExt = 'ifc';
+        function showDownloadReminder(blob, ext) {
+            pendingDownloadBlob = blob;
+            pendingDownloadExt = ext || 'ifc';
+            document.getElementById('download-reminder').classList.add('open');
+        }
+        function confirmDownload() {
+            document.getElementById('download-reminder').classList.remove('open');
+            if (pendingDownloadBlob) {
+                const url = URL.createObjectURL(pendingDownloadBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = getDownloadFilename(pendingDownloadExt);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                pendingDownloadBlob = null;
+            }
+        }
+
+        // Startup screen is visible by default — no DOMContentLoaded trigger needed
+
+        // ─── THREE.JS SETUP ───
+        let scene, camera, renderer, controls;
+        let staircaseGroup = null;
+        let updateTimeout = null;
+
+        function initThree() {
+            const container = document.getElementById('viewport');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+
+            camera = new THREE.PerspectiveCamera(45, w / h, 1, 50000);
+            camera.position.set(2000, 2000, 2000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(w, h);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(400, 1000, -500);
+            controls.update();
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambient);
+
+            const dir1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir1.position.set(2000, 3000, 1000);
+            scene.add(dir1);
+
+            const dir2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+            dir2.position.set(-1000, 1000, -2000);
+            scene.add(dir2);
+
+            // Ground grid
+            const grid = new THREE.GridHelper(5000, 50, 0x222244, 0x111133);
+            scene.add(grid);
+
+            // Axes helper
+            const axes = new THREE.AxesHelper(500);
+            scene.add(axes);
+
+            window.addEventListener('resize', () => {
+                const w = container.clientWidth;
+                const h = container.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            // Scale dimension sprites to maintain constant screen size
+            if (dimensionGroup) {
+                dimensionGroup.traverse(child => {
+                    if (child.isSprite && child.userData.isDimLabel) {
+                        const dist = camera.position.distanceTo(child.position);
+                        const scale = dist * 0.15;
+                        child.scale.set(scale * 2, scale * 0.25, 1);
+                    }
+                });
+            }
+            renderer.render(scene, camera);
+        }
+
+        function resetCamera() {
+            camera.position.set(2000, 2000, 2000);
+            controls.target.set(400, 1000, -500);
+            controls.update();
+        }
+
+        // ─── SHARE WIDGET ───
+        let _shareImageDataUrl = null;
+
+        async function openShareModal() {
+            const btn = event.currentTarget;
+            const origText = btn.innerHTML;
+            btn.innerHTML = 'Capturing…';
+            btn.disabled = true;
+            try {
+                // Force a fresh render then grab the WebGL frame directly.
+                // html2canvas cannot read WebGL buffers, so we use the renderer's
+                // own toDataURL which is always reliable.
+                renderer.render(scene, camera);
+                _shareImageDataUrl = renderer.domElement.toDataURL('image/png');
+                document.getElementById('share-preview').src = _shareImageDataUrl;
+
+                const base = 'Check out this staircase I designed with StairSmith! 🪜 Generate your own at';
+                document.getElementById('share-text').value = base + ' ' + window.location.href;
+
+                document.getElementById('share-modal').classList.add('open');
+            } catch (err) {
+                console.error('Share capture failed:', err);
+                alert('Could not capture screenshot. Please try again.');
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.remove('open');
+            _shareImageDataUrl = null;
+            document.getElementById('share-preview').src = '';
+        }
+
+        function downloadShareImage() {
+            if (!_shareImageDataUrl) return;
+            const a = document.createElement('a');
+            a.href = _shareImageDataUrl;
+            a.download = 'stairsmith-staircase.png';
+            a.click();
+        }
+
+        function _getShareParts() {
+            const text = document.getElementById('share-text').value.trim();
+            const tagsRaw = document.getElementById('share-tags').value;
+            // Strip # and spaces, join with comma for Twitter; space-separate for display
+            const tags = tagsRaw.replace(/#/g, '').trim().replace(/\s+/g, ',');
+            const url  = window.location.href;
+            return { text, tags, url };
+        }
+
+        function shareToX() {
+            const { text, tags, url } = _getShareParts();
+            const params = new URLSearchParams({ text: text, hashtags: tags, url });
+            window.open('https://twitter.com/intent/tweet?' + params, '_blank',
+                'width=600,height=420,noopener,noreferrer');
+        }
+
+        function shareToFacebook() {
+            const { text, url } = _getShareParts();
+            const params = new URLSearchParams({ u: url, quote: text });
+            window.open('https://www.facebook.com/sharer/sharer.php?' + params, '_blank',
+                'width=600,height=460,noopener,noreferrer');
+        }
+
+        function shareToLinkedIn() {
+            const { url } = _getShareParts();
+            const params = new URLSearchParams({ url });
+            window.open('https://www.linkedin.com/sharing/share-offsite/?' + params, '_blank',
+                'width=600,height=500,noopener,noreferrer');
+        }
+
+        // Close on backdrop click
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('share-modal').addEventListener('click', function(e) {
+                if (e.target === this) closeShareModal();
+            });
+        });
+
+        // ─── FLIGHT DISTRIBUTION ───
+        let flightDist = { f1: 0, f2: 0, f3: 0 };
+
+        function getStraightTreads() {
+            const type = document.getElementById('staircase_type').value;
+            const numTreads = parseInt(document.getElementById('num_risers').value) - 1;
+            if (type === 'single_winder') {
+                const t1 = isTurnWinder('turn1-toggle') ? 3 : 0;
+                return Math.max(0, numTreads - t1);
+            } else if (type === 'double_winder') {
+                const t1 = isTurnWinder('turn1-toggle') ? 3 : 0;
+                const t2 = isTurnWinder('turn2-toggle') ? 3 : 0;
+                return Math.max(0, numTreads - t1 - t2);
+            }
+            return numTreads;
+        }
+
+        function redistributeFlights() {
+            const type = document.getElementById('staircase_type').value;
+            const st = getStraightTreads();
+            if (type === 'single_winder') {
+                flightDist.f1 = Math.floor(st / 2);
+                flightDist.f2 = st - flightDist.f1;
+                flightDist.f3 = 0;
+            } else if (type === 'double_winder') {
+                flightDist.f1 = Math.floor(st / 3);
+                flightDist.f2 = Math.floor(st / 3);
+                flightDist.f3 = st - flightDist.f1 - flightDist.f2;
+                if (flightDist.f2 < 1 && st > 0) {
+                    flightDist.f2 = 1;
+                    const rem = st - 1;
+                    flightDist.f1 = Math.floor(rem / 2);
+                    flightDist.f3 = rem - flightDist.f1;
+                }
+            } else if (type === 'y_shaped') {
+                flightDist.f1 = 7;
+                flightDist.f2 = 6;
+                flightDist.f3 = 0;
+            } else {
+                flightDist.f1 = st;
+                flightDist.f2 = 0;
+                flightDist.f3 = 0;
+            }
+            updateFlightDistUI();
+        }
+
+        function ensureFlightDistValid() {
+            const st = getStraightTreads();
+            const type = document.getElementById('staircase_type').value;
+            let total;
+            if (type === 'double_winder') {
+                total = flightDist.f1 + flightDist.f2 + flightDist.f3;
+            } else {
+                total = flightDist.f1 + flightDist.f2;
+            }
+            if (total !== st) {
+                redistributeFlights();
+            } else {
+                updateFlightDistUI();
+            }
+        }
+
+        function transferStep(fromFlight, toFlight) {
+            const type = document.getElementById('staircase_type').value;
+
+            // Calculate dynamic minimums based on flat landing mode
+            // isTurnWinder returns true for winder treads, false for flat landing
+            // Flight 1 (bottom) can always be 0, but flight 2 and 3 need minimum 1 when adjacent to flat landing
+            let minF1 = 0;
+            let minF2 = 0;
+            let minF3 = 0;
+
+            if (type === 'y_shaped') {
+                minF1 = 1;
+                minF2 = 1;
+            } else if (type === 'single_winder') {
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn1 is flat landing
+                }
+            } else if (type === 'double_winder') {
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn1 is flat landing
+                }
+                if (!isTurnWinder('turn2-toggle')) {
+                    minF2 = 1;  // Flight 2 needs minimum 1 when turn2 is flat landing
+                    minF3 = 1;  // Flight 3 needs minimum 1 when turn2 is flat landing
+                }
+            }
+
+            const mins = { f1: minF1, f2: minF2, f3: minF3 };
+            const fromKey = 'f' + fromFlight;
+            const toKey = 'f' + toFlight;
+            if (flightDist[fromKey] > mins[fromKey]) {
+                flightDist[fromKey]--;
+                flightDist[toKey]++;
+                updateFlightDistUI();
+                updatePreview();
+            }
+        }
+
+        function updateFlightDistUI() {
+            const type = document.getElementById('staircase_type').value;
+            const section = document.getElementById('flight-dist-section');
+            const heading = document.getElementById('flight-dist-heading');
+            if (type === 'straight') {
+                section.style.display = 'none';
+                heading.style.display = 'none';
+                return;
+            }
+            section.style.display = 'block';
+            heading.style.display = 'block';
+            document.getElementById('dist-f3-group').style.display =
+                (type === 'double_winder') ? 'flex' : 'none';
+
+            document.getElementById('dist-f1').textContent = flightDist.f1;
+            document.getElementById('dist-f2').textContent = flightDist.f2;
+            document.getElementById('dist-f3').textContent = flightDist.f3;
+
+            // Calculate dynamic minimums based on flat landing mode
+            // isTurnWinder returns true for winder treads, false for flat landing
+            // Flight 1 (bottom) can always be 0, but flight 2 and 3 need minimum 1 when adjacent to flat landing
+            let minF1 = 0;
+            let minF2 = 0;
+            let minF3 = 0;
+
+            if (type === 'y_shaped') {
+                minF1 = 1;
+                minF2 = 1;
+            } else if (type === 'single_winder') {
+                // If turn1 uses flat landing, flight 2 needs minimum 1 step
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 1;
+                }
+            } else if (type === 'double_winder') {
+                // If turn1 uses flat landing, flight 2 needs minimum 1 step
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 1;
+                }
+                // If turn2 uses flat landing, flight 2 and flight 3 need minimum 1 step
+                if (!isTurnWinder('turn2-toggle')) {
+                    minF2 = 1;
+                    minF3 = 1;
+                }
+            }
+
+            // F1 ↔ F2 buttons
+            document.getElementById('btn-f1-to-f2').disabled = (flightDist.f1 <= minF1);
+            document.getElementById('btn-f2-to-f1').disabled = (flightDist.f2 <= minF2);
+            if (type === 'double_winder') {
+                // F2 ↔ F3 buttons
+                document.getElementById('btn-f2-to-f3').disabled = (flightDist.f2 <= minF2);
+                document.getElementById('btn-f3-to-f2').disabled = (flightDist.f3 <= minF3);
+            }
+        }
+
+        // ─── PARAMETER GATHERING ───
+        function getParams() {
+            return {
+                floor_to_floor: parseFloat(document.getElementById('floor_to_floor').value),
+                stair_width: parseFloat(document.getElementById('stair_width').value),
+                num_risers: parseInt(document.getElementById('num_risers').value),
+                going: parseFloat(document.getElementById('going').value),
+                tread_thickness: parseFloat(document.getElementById('tread_thickness').value),
+                riser_thickness: parseFloat(document.getElementById('riser_thickness').value),
+                nosing: parseFloat(document.getElementById('nosing').value),
+                threshold_depth: parseFloat(document.getElementById('threshold_depth').value),
+                staircase_type: document.getElementById('staircase_type').value,
+                turn1_direction: document.getElementById('mirror-btn').classList.contains('active') ? 'right' : 'left',
+                turn1_enabled: isTurnWinder('turn1-toggle'),
+                turn2_direction: document.getElementById('mirror-btn').classList.contains('active') ? 'right' : 'left',
+                turn2_enabled: isTurnWinder('turn2-toggle'),
+                newel_size: parseFloat(document.getElementById('newel_size').value),
+                winder_x: parseFloat(document.getElementById('winder_x').value),
+                winder_y: parseFloat(document.getElementById('winder_y').value),
+                flight1_steps: flightDist.f1,
+                flight2_steps: flightDist.f2,
+                flight3_steps: flightDist.f3,
+                handrail_width: parseFloat(document.getElementById('handrail_width').value),
+                handrail_height: parseFloat(document.getElementById('handrail_height').value),
+                handrail_rise: parseFloat(document.getElementById('handrail_rise').value),
+                baserail_width: parseFloat(document.getElementById('baserail_width').value),
+                baserail_height: parseFloat(document.getElementById('baserail_height').value),
+                spindle_width: parseFloat(document.getElementById('spindle_width').value),
+                left_condition: getSideCondition('left-side-toggle'),
+                right_condition: getSideCondition('right-side-toggle'),
+            };
+        }
+
+        function updateDerived() {
+            const ftf = parseFloat(document.getElementById('floor_to_floor').value);
+            const risers = parseInt(document.getElementById('num_risers').value);
+            const going = parseFloat(document.getElementById('going').value);
+            const rise = ftf / risers;
+            const pitch = Math.atan2(rise, going) * 180 / Math.PI;
+            const treads = risers - 1;
+            const totalGoing = treads * going;
+
+            // Dimension overlay
+            document.getElementById('dim-rise').textContent = rise.toFixed(1) + ' mm';
+            document.getElementById('dim-going').textContent = going + ' mm';
+            document.getElementById('dim-height').textContent = ftf + ' mm';
+            document.getElementById('dim-width').textContent = document.getElementById('stair_width').value + ' mm';
+            document.getElementById('dim-pitch').textContent = pitch.toFixed(1) + '\u00B0';
+
+            // Revalidate flight distribution when risers change
+            ensureFlightDistValid();
+        }
+
+        function onTypeChange() {
+            const type = document.getElementById('staircase_type').value;
+            const winderOpts = document.getElementById('winder-options');
+            const turn2Opts = document.getElementById('turn2-options');
+            const mirrorRow = document.getElementById('mirror-toggle-row');
+
+            winderOpts.classList.toggle('visible', type !== 'straight');
+            turn2Opts.classList.toggle('visible', type === 'double_winder');
+            mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
+
+            // Update turn labels and reset flight distribution
+            updateToggleState();
+            redistributeFlights();
+        }
+
+        function selectTurn(groupId) {
+            const group = document.getElementById(groupId);
+            const btn = event.target;
+            group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
+            updateToggleState();
+            updatePreview();
+        }
+
+        // For winder/landing corner toggles — absorbs/releases the 3 winder
+        // treads into the adjacent flight so the user's distribution is preserved.
+        function selectWinderTurn(groupId) {
+            const group = document.getElementById(groupId);
+            const btn = event.target;
+            const wasWinder = isTurnWinder(groupId);
+            group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
+            const isWinder = isTurnWinder(groupId);
+
+            if (wasWinder !== isWinder) {
+                const type = document.getElementById('staircase_type').value;
+                // +3 when switching TO flat (winders become straight treads)
+                // -3 when switching TO winder (straight treads become winders)
+                const delta = isWinder ? -3 : 3;
+
+                if (type === 'double_winder') {
+                    if (groupId === 'turn1-toggle') {
+                        flightDist.f1 += delta;
+                    } else {
+                        flightDist.f3 += delta;
+                    }
+                } else if (type === 'single_winder') {
+                    flightDist.f1 += delta;
+                }
+
+                // If any flight went negative, fall back to full redistribution
+                if (flightDist.f1 < 0 || flightDist.f2 < 0 || flightDist.f3 < 0) {
+                    redistributeFlights();
+                } else {
+                    updateFlightDistUI();
+                }
+            }
+
+            updatePreview();
+        }
+
+        function isTurnWinder(groupId) {
+            const group = document.getElementById(groupId);
+            const active = group.querySelector('.turn-btn.active');
+            return !active || active.dataset.value === 'winder';
+        }
+
+        function getSideCondition(groupId) {
+            const active = document.getElementById(groupId).querySelector('.turn-btn.active');
+            return active ? active.dataset.value : 'balustrade';
+        }
+
+        function mirrorSides() {
+            const L = document.getElementById('left-side-toggle');
+            const R = document.getElementById('right-side-toggle');
+            const lVal = L.querySelector('.turn-btn.active').dataset.value;
+            const rVal = R.querySelector('.turn-btn.active').dataset.value;
+            L.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b.dataset.value === rVal));
+            R.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b.dataset.value === lVal));
+        }
+
+        function updateToggleState() {
+            ensureFlightDistValid();
+        }
+
+        // ─── 3D PREVIEW UPDATE ───
+        let winderDebounceTimer = null;
+        function winderInputChanged() {
+            // 1-second debounce for Winder X/Y to let user finish input
+            if (winderDebounceTimer) clearTimeout(winderDebounceTimer);
+            winderDebounceTimer = setTimeout(updatePreview, 1000);
+        }
+
+        function updatePreview() {
+            // Debounce
+            if (updateTimeout) clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(_doUpdate, 150);
+        }
+
+        let _updateSeq = 0;
+        async function _doUpdate() {
+            if (!window.pyodideReady) return;
+            const params = getParams();
+            const seq = ++_updateSeq;
+            const paramsJSON = JSON.stringify(params);
+            updateDerived();
+            try {
+                const resultJSON = await pyodide.runPythonAsync(`
+import json as _json
+import math as _math
+from dxf_generator import _compute_plan_dimensions as _cpd
+_params = _json.loads('''${paramsJSON}''')
+_geo = generate_preview_geometry(_params)
+try:
+    _dims_raw = _cpd(_geo, _params, 0, 0)
+    _dim_data = []
+    for _d in _dims_raw:
+        _l = _math.hypot(_d["p2"][0]-_d["p1"][0], _d["p2"][1]-_d["p1"][1])
+        _lbl = _d.get("label") or ("%.0f" % _l)
+        _dim_data.append({"p1": list(_d["p1"]), "p2": list(_d["p2"]), "label": _lbl, "offset": _d.get("offset", 300), "norm": list(_d.get("norm", (1, 0)))})
+except Exception:
+    _dim_data = []
+_json.dumps({"geometry": _geo, "dimensions": _dim_data})
+`);
+                if (seq !== _updateSeq) return;
+                const result = JSON.parse(resultJSON);
+                renderGeometry(result.geometry);
+                renderDimensions(result.dimensions || []);
+            } catch (e) {
+                console.error('Preview error:', e);
+            }
+        }
+
+function renderGeometry(meshes) {
+            // Remove old geometry
+            if (staircaseGroup) {
+                scene.remove(staircaseGroup);
+                staircaseGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+
+            staircaseGroup = new THREE.Group();
+
+            meshes.forEach(m => {
+                if (m.type === 'box') {
+                    const geo = new THREE.BoxGeometry(m.size[0], m.size[1], m.size[2]);
+                    const mat = new THREE.MeshPhongMaterial({
+                        color: new THREE.Color(m.color),
+                        flatShading: true,
+                    });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(m.position[0], m.position[1], m.position[2]);
+                    staircaseGroup.add(mesh);
+
+                    // Wireframe edge
+                    const edges = new THREE.EdgesGeometry(geo);
+                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+                    line.position.copy(mesh.position);
+                    staircaseGroup.add(line);
+
+                } else if (m.type === 'winder_polygon') {
+                    const polyMesh = createWinderPolygonMesh(m);
+                    if (polyMesh) staircaseGroup.add(polyMesh);
+
+                } else if (m.type === 'stringer') {
+                    const strMesh = createStringerMesh(m);
+                    if (strMesh) staircaseGroup.add(strMesh);
+
+                } else if (m.type === 'winder' || m.type === 'winder_turn2') {
+                    const winderMesh = createWinderMesh(m);
+                    if (winderMesh) staircaseGroup.add(winderMesh);
+                }
+            });
+
+            scene.add(staircaseGroup);
+        }
+
+        let dimensionGroup = null;
+
+        function renderDimensions(dims) {
+            // Remove old dimension objects
+            if (dimensionGroup) {
+                scene.remove(dimensionGroup);
+                dimensionGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+            dimensionGroup = new THREE.Group();
+
+            if (!dims || dims.length === 0) { scene.add(dimensionGroup); return; }
+
+            const DIM_OFFSET = 350;  // mm offset from stair edge
+            const TICK_LEN = 80;     // tick mark length
+            const LINE_COLOR = 0x00ccff;
+
+            dims.forEach(d => {
+                // d.p1, d.p2 are in IFC plan coords (X, Y at Z=0)
+                // Three.js: X=ifc_x, Y=ifc_z, Z=-ifc_y
+                const FLOOR_Y = 10;
+                const p1 = new THREE.Vector3(d.p1[0], FLOOR_Y, -d.p1[1]);
+                const p2 = new THREE.Vector3(d.p2[0], FLOOR_Y, -d.p2[1]);
+
+                // Use explicit normal from backend (IFC 2D coords),
+                // converted to Three.js: (ifc_nx, 0, -ifc_ny)
+                const ifc_nx = d.norm ? d.norm[0] : 1;
+                const ifc_ny = d.norm ? d.norm[1] : 0;
+                const norm = new THREE.Vector3(ifc_nx, 0, -ifc_ny);
+
+                const o1 = p1.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+                const o2 = p2.clone().add(norm.clone().multiplyScalar(DIM_OFFSET));
+
+                // Helper: create a thin cylinder between two points
+                function addTube(a, b, radius) {
+                    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+                    const length = a.distanceTo(b);
+                    if (length < 0.1) return;
+                    const geo = new THREE.CylinderGeometry(radius, radius, length, 6);
+                    const mat = new THREE.MeshBasicMaterial({ color: LINE_COLOR, depthTest: false });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.copy(mid);
+                    const axis = new THREE.Vector3().subVectors(b, a).normalize();
+                    const up = new THREE.Vector3(0, 1, 0);
+                    const quat = new THREE.Quaternion().setFromUnitVectors(up, axis);
+                    mesh.quaternion.copy(quat);
+                    mesh.renderOrder = 999;
+                    dimensionGroup.add(mesh);
+                }
+
+                // Dimension line (main line between offset endpoints)
+                addTube(o1, o2, 3);
+
+                // Extension lines (from measurement point to beyond dimension line)
+                const extEnd1 = o1.clone().add(norm.clone().multiplyScalar(40));
+                const extEnd2 = o2.clone().add(norm.clone().multiplyScalar(40));
+                addTube(p1, extEnd1, 2);
+                addTube(p2, extEnd2, 2);
+
+                // Tick marks at each end
+                const t1a = o1.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t1b = o1.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t1a, t1b, 3);
+                const t2a = o2.clone().add(norm.clone().multiplyScalar(-TICK_LEN/2));
+                const t2b = o2.clone().add(norm.clone().multiplyScalar(TICK_LEN/2));
+                addTube(t2a, t2b, 3);
+
+                // Label sprite at midpoint of dimension line
+                const mid = new THREE.Vector3().addVectors(o1, o2).multiplyScalar(0.5);
+                mid.add(norm.clone().multiplyScalar(80));
+                const sprite = makeLabelSprite(d.label);
+                sprite.position.copy(mid);
+                sprite.userData.isDimLabel = true;
+                sprite.scale.set(600, 75, 1);  // initial; overridden in animate()
+                sprite.renderOrder = 1000;
+                dimensionGroup.add(sprite);
+            });
+
+            scene.add(dimensionGroup);
+        }
+
+        function makeLabelSprite(text) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 1024, 128);
+            const lines = text.split('\n');
+            const nLines = lines.length;
+            // Auto-size font to fit the canvas
+            let fontSize = nLines > 1 ? 40 : 56;
+            ctx.font = 'bold ' + fontSize + 'px Arial';
+            const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            while (maxLineW > 980 && fontSize > 20) {
+                fontSize -= 2;
+                ctx.font = 'bold ' + fontSize + 'px Arial';
+            }
+            // Background: sized to text content + small padding
+            const pad = 24;
+            const measuredW = Math.max(...lines.map(l => ctx.measureText(l).width));
+            const bgW = measuredW + pad * 2;
+            const lineH = fontSize * 1.2;
+            const totalTextH = nLines * lineH;
+            const bgH = totalTextH + pad;
+            const bgX = (1024 - bgW) / 2;
+            const bgY = (128 - bgH) / 2;
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.7)';
+            ctx.fillRect(bgX, bgY, bgW, bgH);
+            // Draw text lines
+            ctx.fillStyle = '#00ccff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const startY = 64 - (nLines - 1) * lineH / 2;
+            for (let i = 0; i < nLines; i++) {
+                ctx.fillText(lines[i], 512, startY + i * lineH);
+            }
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+            return new THREE.Sprite(mat);
+        }
+
+        function createWinderPolygonMesh(m) {
+            // Render a winder tread from an explicit 2D profile polygon.
+            // Profile points are in IFC coordinates (X, Y). Z is the base height.
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.lineTo(pts[0][0], pts[0][1]);
+
+            const extrudeSettings = {
+                depth: m.thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal (Y-up in Three.js).
+            mesh.rotation.x = -Math.PI / 2;
+            // Position: IFC Z maps to Three.js Y
+            mesh.position.set(0, m.z, 0);
+
+            // Add wireframe edges
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.x = -Math.PI / 2;
+            line.position.set(0, m.z, 0);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
+        }
+
+        function createStringerMesh(m) {
+            // Stringer: side profile in IFC Y-Z plane, extruded by thickness in X.
+            // m.profile = [[y,z], ...] in IFC coords
+            // m.x = IFC X position of the stringer centre
+            // m.thickness = extrusion depth (25mm)
+            // m.axis = 'y' (extrude along IFC Y) or 'x' (extrude along IFC X, default)
+            const pts = m.profile;
+            if (!pts || pts.length < 3) return null;
+
+            const shape = new THREE.Shape();
+            shape.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                shape.lineTo(pts[i][0], pts[i][1]);
+            }
+            shape.closePath();
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: m.thickness,
+                bevelEnabled: false,
+            });
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(m.color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            if (m.axis === 'y') {
+                // Profile in IFC X-Z plane, extrude along IFC +Y (Three.js -Z).
+                // No rotation: local X→X, local Y→Y (IFC Z→Three Y), extrude→+Z.
+                // Position so extrusion spans from Three.js Z = -m.y to -(m.y+thickness).
+                mesh.position.set(0, 0, -(m.y + m.thickness));
+            } else {
+                // Profile in IFC Y-Z plane, extrude along IFC +X (Three.js +X).
+                // Rotate Y 90°: local X (IFC Y)→-Z, local Y (IFC Z)→+Y, extrude→+X.
+                mesh.rotation.y = Math.PI / 2;
+                mesh.position.set(m.x, 0, 0);
+            }
+
+            const edges = new THREE.EdgesGeometry(geo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+            line.rotation.copy(mesh.rotation);
+            line.position.copy(mesh.position);
+
+            const group = new THREE.Group();
+            group.add(mesh);
+            group.add(line);
+            return group;
+        }
+
+        function createWinderMesh(m) {
+            const width = m.width;
+            const thickness = m.thickness;
+            const aStart = m.angleStart;
+            const aEnd = m.angleEnd;
+            const color = m.color;
+            const hp = m.halfPost || 0;
+            const quarter = Math.PI / 4;
+            const eps = 1e-9;
+
+            const shape = new THREE.Shape();
+
+            // Shape coords (local_x, local_y) map to IFC (X, Y) offsets from pivot.
+            // If halfPost > 0, inner tip wraps around the newel post.
+
+            if (m.type === 'winder') {
+                const turnDir = m.turnDirection || 'left';
+                const xSign = turnDir === 'left' ? 1 : -1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
+
+                function outer1(angle) {
+                    if (angle < eps) return [xSign * width, 0];
+                    if (angle > Math.PI / 2 - eps) return [0, width];
+                    if (angle < quarter)
+                        return [xSign * width, width * Math.tan(angle)];
+                    return [xSign * width / Math.tan(angle), width];
+                }
+
+                if (hp <= 0) {
+                    const s = outer1(aStart), e = outer1(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner1(angle) {
+                        if (angle < eps) return [xSign * hp, 0];
+                        if (angle > Math.PI / 2 - eps) return [0, hp];
+                        if (angle < quarter)
+                            return [xSign * hp, hp * Math.tan(angle)];
+                        return [xSign * hp / Math.tan(angle), hp];
+                    }
+                    const iS = inner1(aStart), oS = outer1(aStart);
+                    const oE = outer1(aEnd), iE = inner1(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
+                }
+            } else {
+                // Turn 2 winder
+                const t1d = m.turn1Direction || 'left';
+                const t2d = m.turn2Direction || 'left';
+                const xSign = ((t1d === 'left' && t2d === 'left') ||
+                               (t1d === 'right' && t2d === 'left')) ? -1 : 1;
+                const straddles = aStart < quarter - eps && aEnd > quarter + eps;
+
+                function outer2(angle) {
+                    if (angle < eps) return [0, width];
+                    if (angle > Math.PI / 2 - eps) return [xSign * width, 0];
+                    if (angle < quarter)
+                        return [xSign * width * Math.tan(angle), width];
+                    return [xSign * width, width / Math.tan(angle)];
+                }
+
+                if (hp <= 0) {
+                    const s = outer2(aStart), e = outer2(aEnd);
+                    shape.moveTo(0, 0);
+                    shape.lineTo(s[0], s[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(e[0], e[1]);
+                    shape.lineTo(0, 0);
+                } else {
+                    function inner2(angle) {
+                        if (angle < eps) return [0, hp];
+                        if (angle > Math.PI / 2 - eps) return [xSign * hp, 0];
+                        if (angle < quarter)
+                            return [xSign * hp * Math.tan(angle), hp];
+                        return [xSign * hp, hp / Math.tan(angle)];
+                    }
+                    const iS = inner2(aStart), oS = outer2(aStart);
+                    const oE = outer2(aEnd), iE = inner2(aEnd);
+                    shape.moveTo(iS[0], iS[1]);
+                    shape.lineTo(oS[0], oS[1]);
+                    if (straddles) shape.lineTo(xSign * width, width);
+                    shape.lineTo(oE[0], oE[1]);
+                    shape.lineTo(iE[0], iE[1]);
+                    if (straddles) shape.lineTo(xSign * hp, hp);
+                    shape.lineTo(iS[0], iS[1]);
+                }
+            }
+
+            const extrudeSettings = {
+                depth: thickness,
+                bevelEnabled: false,
+            };
+
+            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(color),
+                flatShading: true,
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ExtrudeGeometry extrudes along +Z. Rotate -90° around X to make horizontal.
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(m.position[0], m.position[1], m.position[2]);
+
+            return mesh;
+        }
+
+        // ─── MEASURE TOOL ───
+        let measureActive = false;
+        let measurePoints = [];      // array of THREE.Vector3 (0, 1, or 2 points)
+        let measureGroup = null;     // THREE.Group for markers + line
+        let snapMarker = null;       // visual snap indicator
+        const SNAP_RADIUS = 30;      // pixel radius for vertex snapping
+
+        function toggleMeasure() {
+            measureActive = !measureActive;
+            const overlay = document.getElementById('measure-overlay');
+            const viewport = document.getElementById('viewport');
+
+            overlay.classList.toggle('visible', measureActive);
+            viewport.classList.toggle('measuring', measureActive);
+
+            if (measureActive) {
+                clearMeasurement();
+                document.getElementById('measure-hint').textContent = 'Click a corner or edge — snaps to vertices';
+                document.getElementById('measure-result').textContent = '--';
+                document.getElementById('measure-components').textContent = '';
+                document.getElementById('viewport').addEventListener('mousemove', onMeasureHover);
+            } else {
+                clearMeasurement();
+                removeSnapMarker();
+                document.getElementById('viewport').removeEventListener('mousemove', onMeasureHover);
+            }
+        }
+
+        function clearMeasurement() {
+            measurePoints = [];
+            if (measureGroup) {
+                scene.remove(measureGroup);
+                measureGroup.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                measureGroup = null;
+            }
+        }
+
+        function removeSnapMarker() {
+            if (snapMarker) {
+                scene.remove(snapMarker);
+                if (snapMarker.geometry) snapMarker.geometry.dispose();
+                if (snapMarker.material) snapMarker.material.dispose();
+                snapMarker = null;
+            }
+        }
+
+        function showSnapMarker(point) {
+            removeSnapMarker();
+            const geo = new THREE.SphereGeometry(6, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.9 });
+            snapMarker = new THREE.Mesh(geo, mat);
+            snapMarker.position.copy(point);
+            scene.add(snapMarker);
+        }
+
+        function getWorldVertices(mesh) {
+            // Extract unique world-space vertices from a mesh's geometry
+            const geo = mesh.geometry;
+            const verts = [];
+            const seen = new Set();
+            if (geo.index) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < geo.index.count; i++) {
+                    const idx = geo.index.getX(i);
+                    const key = idx;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, idx);
+                    mesh.localToWorld(v);
+                    verts.push(v);
+                }
+            } else if (geo.attributes.position) {
+                const pos = geo.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                    mesh.localToWorld(v);
+                    // Deduplicate by rounding to 0.1mm
+                    const k = Math.round(v.x*10) + ',' + Math.round(v.y*10) + ',' + Math.round(v.z*10);
+                    if (!seen.has(k)) {
+                        seen.add(k);
+                        verts.push(v);
+                    }
+                }
+            }
+            return verts;
+        }
+
+        function findSnapPoint(mouse, raycaster) {
+            // Cast ray to find hit surface, then snap to nearest vertex
+            const intersects = raycaster.intersectObjects(staircaseGroup.children, true);
+            if (intersects.length === 0) return null;
+
+            const hit = intersects[0];
+            const hitPoint = hit.point.clone();
+
+            // Collect vertices from the hit mesh and nearby meshes
+            let candidates = [];
+
+            // Get vertices from the hit object
+            if (hit.object && hit.object.geometry) {
+                candidates = candidates.concat(getWorldVertices(hit.object));
+            }
+
+            // Also check sibling meshes near the hit point for edge/corner snapping
+            if (hit.object.parent) {
+                hit.object.parent.traverse(child => {
+                    if (child === hit.object) return;
+                    if (!child.geometry || !child.geometry.attributes) return;
+                    // Only consider nearby geometry (within stair width distance)
+                    if (child.position.distanceTo(hit.object.position) < 2000) {
+                        candidates = candidates.concat(getWorldVertices(child));
+                    }
+                });
+            }
+
+            // Find closest vertex to the hit point in screen space
+            let bestDist = Infinity;
+            let bestVert = null;
+
+            // Project hit point to screen
+            const hitScreen = hitPoint.clone().project(camera);
+
+            for (const v of candidates) {
+                const vScreen = v.clone().project(camera);
+                const dx = (vScreen.x - hitScreen.x) * renderer.domElement.width / 2;
+                const dy = (vScreen.y - hitScreen.y) * renderer.domElement.height / 2;
+                const screenDist = Math.sqrt(dx * dx + dy * dy);
+
+                if (screenDist < SNAP_RADIUS && screenDist < bestDist) {
+                    bestDist = screenDist;
+                    bestVert = v;
+                }
+            }
+
+            return bestVert || hitPoint;
+        }
+
+        function onMeasureHover(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const snap = findSnapPoint(mouse, raycaster);
+            if (snap) {
+                showSnapMarker(snap);
+            } else {
+                removeSnapMarker();
+            }
+        }
+
+        function addMeasureMarker(point, color) {
+            if (!measureGroup) {
+                measureGroup = new THREE.Group();
+                scene.add(measureGroup);
+            }
+            const geo = new THREE.SphereGeometry(8, 12, 12);
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+            const sphere = new THREE.Mesh(geo, mat);
+            sphere.position.copy(point);
+            measureGroup.add(sphere);
+        }
+
+        function drawMeasureLine(a, b) {
+            if (!measureGroup) return;
+            const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const mat = new THREE.LineBasicMaterial({ color: 0xff4466, linewidth: 2 });
+            const line = new THREE.Line(geo, mat);
+            measureGroup.add(line);
+
+            // Dashed axis-aligned extension lines for clarity
+            const dashMat = new THREE.LineDashedMaterial({
+                color: 0xff446666, dashSize: 10, gapSize: 6
+            });
+
+            // Horizontal component line (along XZ at a.y)
+            if (Math.abs(a.x - b.x) > 1 || Math.abs(a.z - b.z) > 1) {
+                const hPts = [a, new THREE.Vector3(b.x, a.y, b.z)];
+                const hGeo = new THREE.BufferGeometry().setFromPoints(hPts);
+                const hLine = new THREE.Line(hGeo, dashMat);
+                hLine.computeLineDistances();
+                measureGroup.add(hLine);
+
+                // Vertical drop from b to the horizontal projection
+                const vPts = [new THREE.Vector3(b.x, a.y, b.z), b];
+                const vGeo = new THREE.BufferGeometry().setFromPoints(vPts);
+                const vLine = new THREE.Line(vGeo, dashMat);
+                vLine.computeLineDistances();
+                measureGroup.add(vLine);
+            }
+        }
+
+        function onMeasureClick(event) {
+            if (!measureActive || !staircaseGroup) return;
+
+            const container = document.getElementById('viewport');
+            const rect = container.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const hitPoint = findSnapPoint(mouse, raycaster);
+            if (!hitPoint) return;
+            removeSnapMarker();
+
+            if (measurePoints.length < 2) {
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, measurePoints.length === 1 ? 0x44ff66 : 0xff4466);
+
+                if (measurePoints.length === 1) {
+                    document.getElementById('measure-hint').textContent = 'Click a second point';
+                    document.getElementById('measure-result').textContent = 'A set';
+                } else {
+                    // Two points — compute distance
+                    const a = measurePoints[0];
+                    const b = measurePoints[1];
+                    drawMeasureLine(a, b);
+
+                    const dist = a.distanceTo(b);
+                    const dx = Math.abs(a.x - b.x);
+                    const dy = Math.abs(a.y - b.y); // Three.js Y = height
+                    const dz = Math.abs(a.z - b.z);
+                    // Horizontal distance in Three.js XZ plane
+                    const horiz = Math.sqrt(dx * dx + dz * dz);
+
+                    document.getElementById('measure-result').textContent = dist.toFixed(0) + ' mm';
+                    document.getElementById('measure-components').innerHTML =
+                        '\u0394X: ' + dx.toFixed(0) + '  \u0394Y: ' + dz.toFixed(0) + '  \u0394Z: ' + dy.toFixed(0);
+                    document.getElementById('measure-hint').textContent = 'Click to start new measurement';
+                }
+            } else {
+                // Reset and start new measurement
+                clearMeasurement();
+                measurePoints.push(hitPoint);
+                addMeasureMarker(hitPoint, 0x44ff66);
+                document.getElementById('measure-hint').textContent = 'Click a second point';
+                document.getElementById('measure-result').textContent = 'A set';
+                document.getElementById('measure-components').textContent = '';
+            }
+        }
+
+        // Attach measure click handler to the viewport
+        document.getElementById('viewport').addEventListener('click', onMeasureClick);
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            if (e.key === 'm' || e.key === 'M') toggleMeasure();
+            if (e.key === 'Escape' && measureActive) toggleMeasure();
+        });
+
+        // ─── DOWNLOAD FILENAME HELPER ───
+        const _dlCounts = {};
+        function getDownloadFilename(ext) {
+            const now = new Date();
+            const dd = String(now.getDate()).padStart(2, '0');
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const yy = String(now.getFullYear()).slice(-2);
+            const dateStr = dd + '-' + mm + '-' + yy;
+            const key = ext + '_' + dateStr;
+            _dlCounts[key] = (_dlCounts[key] || 0) + 1;
+            return 'StairSmith_' + dateStr + '_' + _dlCounts[key] + '.' + ext;
+        }
+
+        // ─── IFC DOWNLOAD ───
+        let ifcReady = false;
+        async function ensureIfcOpenShell() {
+            if (ifcReady) return;
+            const btn = document.querySelector('.btn-primary');
+            btn.textContent = 'Installing IfcOpenShell...';
+            await pyodide.loadPackage(["numpy", "shapely"]);
+            await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(["lark", "isodate", "python-dateutil", "typing_extensions"])
+await micropip.install(
+    "https://ifcopenshell.github.io/wasm-wheels/ifcopenshell-0.8.2+d50e806-cp312-cp312-emscripten_3_1_58_wasm32.whl")
+`);
+            const resp = await fetch('ifc_generator.py?v=' + Date.now());
+            const src = await resp.text();
+            pyodide.FS.writeFile('/home/pyodide/ifc_generator.py', src);
+            await pyodide.runPythonAsync(`
+import importlib, sys
+if 'ifc_generator' in sys.modules:
+    importlib.reload(sys.modules['ifc_generator'])
+else:
+    import ifc_generator
+`);
+            ifcReady = true;
+        }
+
+        async function downloadIFC() {
+            if (!window.pyodideReady) { alert('Pyodide is still loading.'); return; }
+            const params = getParams();
+            const btn = document.querySelector('.btn-primary');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+            try {
+                await ensureIfcOpenShell();
+                btn.textContent = 'Generating IFC...';
+                const paramsJSON = JSON.stringify(params);
+                const ifcProxy = await pyodide.runPythonAsync(`
+import json as _json
+from ifc_generator import meshes_to_ifc as _to_ifc
+_p = _json.loads('''${paramsJSON}''')
+_meshes = generate_preview_geometry(_p)
+_path = _to_ifc(_meshes)
+with open(_path, 'rb') as _f:
+    _data = _f.read()
+import os; os.unlink(_path)
+_data
+`);
+                const ifcBytes = ifcProxy.toJs();
+                if (ifcProxy.destroy) ifcProxy.destroy();
+                const blob = new Blob([ifcBytes], { type: 'application/x-step' });
+                showDownloadReminder(blob, 'ifc');
+            } catch (err) {
+                alert('Error generating IFC: ' + err.message);
+            } finally {
+                btn.textContent = 'Download IFC File';
+                btn.disabled = false;
+            }
+        }
+
+        async function downloadDXF() {
+            if (!window.pyodideReady) { alert('Pyodide is still loading. Please wait.'); return; }
+            const params = getParams();
+            const btn = document.getElementById('dxf-btn');
+            btn.textContent = 'Generating...';
+            btn.disabled = true;
+            try {
+                const paramsJSON = JSON.stringify(params);
+                const dxfString = await pyodide.runPythonAsync(`
+import json as _json
+from dxf_generator import meshes_to_dxf_string as _to_dxf
+_p = _json.loads('''${paramsJSON}''')
+_meshes = generate_preview_geometry(_p)
+_to_dxf(_meshes, _p)
+`);
+                const blob = new Blob([dxfString], { type: 'application/dxf' });
+                showDownloadReminder(blob, 'dxf');
+            } catch (err) {
+                console.error('DXF generation error:', err);
+                alert('Error generating DXF: ' + err.message);
+            } finally {
+                btn.textContent = 'Download DXF Plan';
+                btn.disabled = false;
+            }
+        }
+
+        // ─── PYODIDE INIT ───
+        window.pyodideReady = false;
+        async function initPyodide() {
+            const status = document.getElementById('startup-loading-text');
+            try {
+                status.textContent = 'Loading Pyodide runtime...';
+                window.pyodide = await loadPyodide();
+                status.textContent = 'Loading micropip...';
+                await pyodide.loadPackage('micropip');
+                status.textContent = 'Loading stair engine...';
+                const stairModules = [
+                    'stair_constants.py',
+                    'stair_balustrade.py',
+                    'stair_winder_geometry.py',
+                    'stair_flights.py',
+                    'stair_preview.py',
+                    'dxf_generator.py',
+                ];
+                const v = Date.now();
+                for (const mod of stairModules) {
+                    const r = await fetch(mod + '?v=' + v);
+                    const s = await r.text();
+                    pyodide.FS.writeFile('/home/pyodide/' + mod, s);
+                }
+                status.textContent = 'Loading shapely...';
+                await pyodide.loadPackage('shapely');
+                await pyodide.runPythonAsync(`
+import sys
+sys.path.insert(0, '/home/pyodide')
+from stair_preview import generate_preview_geometry
+`);
+                window.pyodideReady = true;
+                onPyodideReady();
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                console.error('Pyodide init failed:', e);
+            }
+        }
+
+        // ─── INIT ───
+        initThree();
+        onTypeChange();
+        updateToggleState();
+        updateDerived();
+        initPyodide();
+    </script>
+
+</body>
+</html>
