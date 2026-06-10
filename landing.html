@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- ── SEO ─────────────────────────────────────────────── -->
+    <title>StairSmith — Free Online Staircase Design Tool | 3D Stair Calculator with IFC &amp; DXF Export</title>
+    <meta name="description" content="Design timber staircases in 3D in your browser. Straight, single winder and double winder stairs with instant Building Regulations Part K checks, plus IFC and DXF export. Free parametric stair calculator by Jake White Architecture.">
+    <link rel="canonical" href="https://jakewhitearchitecture.com/stairsmith/">
+    <meta name="robots" content="index,follow">
+    <meta name="author" content="Jake White Architecture">
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Jake White Architecture">
+    <meta property="og:title" content="StairSmith — Free Online Staircase Design Tool">
+    <meta property="og:description" content="Parametric 3D staircase design with Building Regulations Part K checks and IFC / DXF export. Free and browser-based.">
+    <meta property="og:url" content="https://jakewhitearchitecture.com/stairsmith/">
+    <meta property="og:image" content="static/stairsmith-screenshot.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="StairSmith — Free Online Staircase Design Tool">
+    <meta name="twitter:description" content="Parametric 3D staircase design with Building Regulations Part K checks and IFC / DXF export.">
+    <meta name="twitter:image" content="static/stairsmith-screenshot.png">
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "StairSmith",
+      "url": "https://jakewhitearchitecture.com/stairsmith/",
+      "applicationCategory": "DesignApplication",
+      "operatingSystem": "Any (browser-based)",
+      "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"},
+      "description": "Free parametric staircase design tool. Model straight, single winder and double winder timber staircases in 3D, check them against Building Regulations Approved Document K guidance, and export IFC and DXF files.",
+      "creator": {"@type": "Organization", "name": "Jake White Architecture", "url": "https://jakewhitearchitecture.com/"},
+      "featureList": "Live 3D staircase preview, Straight / single winder / double winder layouts, Building Regulations Part K checks, IFC4 export, DXF plan / elevation / section export"
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {"@type": "Question", "name": "Is StairSmith free to use?",
+         "acceptedAnswer": {"@type": "Answer", "text": "Yes. StairSmith is a free, browser-based staircase design tool. There is nothing to install and no account is required."}},
+        {"@type": "Question", "name": "Which staircase types can StairSmith design?",
+         "acceptedAnswer": {"@type": "Answer", "text": "Straight flights, single winder (90° turn) and double winder (180° / U-shaped) timber staircases, including kite winders, newel posts, stringers and balustrades."}},
+        {"@type": "Question", "name": "Does StairSmith check UK Building Regulations?",
+         "acceptedAnswer": {"@type": "Answer", "text": "StairSmith checks rise, going, pitch, 2R+G, stair width and winder geometry against guidance in Approved Document K (England and Wales, private dwellings). The checks are indicative only and must be verified by a competent person."}},
+        {"@type": "Question", "name": "What file formats does StairSmith export?",
+         "acceptedAnswer": {"@type": "Answer", "text": "IFC4 models for BIM workflows, and DXF drawings containing a dimensioned plan, four elevations and section views."}},
+        {"@type": "Question", "name": "Can I build directly from StairSmith outputs?",
+         "acceptedAnswer": {"@type": "Answer", "text": "No. StairSmith is a preliminary design aid only. All outputs must be checked and verified by a suitably competent person before being used for any purpose."}}
+      ]
+    }
+    </script>
+
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --panel: #16213e;
+            --line: #0f3460;
+            --accent: #e94560;
+            --text: #e0e0e0;
+            --muted: #9aa1b5;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* ── Hero with blurred app screenshot ── */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            overflow: hidden;
+            padding: 48px 24px;
+        }
+        .hero > * { position: relative; z-index: 2; }
+        .hero-bg {
+            position: absolute;
+            inset: -24px;
+            background: url('static/stairsmith-screenshot.png') center / cover no-repeat;
+            filter: blur(10px) brightness(0.55) saturate(1.05);
+            transform: scale(1.06);
+            z-index: 0;
+        }
+        .hero-tint {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg,
+                        rgba(26,26,46,0.55) 0%,
+                        rgba(26,26,46,0.35) 45%,
+                        rgba(26,26,46,0.92) 100%);
+            z-index: 1;
+        }
+        .hero img.logo {
+            width: 96px; height: auto;
+            margin-bottom: 18px;
+            filter: drop-shadow(0 4px 18px rgba(0,0,0,0.5));
+        }
+        .hero h1 {
+            font-size: clamp(40px, 7vw, 64px);
+            letter-spacing: 0.5px;
+            color: #fff;
+        }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .strap {
+            font-size: clamp(17px, 2.6vw, 22px);
+            color: #f0f2f8;
+            max-width: 720px;
+            margin: 10px auto 6px;
+            font-weight: 600;
+        }
+        .hero .sub {
+            color: var(--muted);
+            max-width: 640px;
+            margin: 0 auto 28px;
+            font-size: 15px;
+        }
+        .badges {
+            display: flex; flex-wrap: wrap; gap: 10px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .badge {
+            font-size: 12.5px;
+            padding: 6px 14px;
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 999px;
+            background: rgba(22,33,62,0.55);
+            color: #dfe3ee;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ── Launch card with competency tick box ── */
+        .launch-card {
+            background: rgba(22,33,62,0.82);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 26px 28px;
+            max-width: 560px;
+            width: 100%;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+            text-align: left;
+        }
+        .launch-card .check-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 14px;
+            cursor: pointer;
+        }
+        .launch-card input[type="checkbox"] {
+            width: 20px; height: 20px;
+            margin-top: 2px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .launch-card .check-row span { font-size: 14.5px; color: #e8eaf2; }
+        .terms-link {
+            display: inline-block;
+            font-size: 13.5px;
+            color: var(--accent);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            margin-bottom: 18px;
+            cursor: pointer;
+            background: none; border: none; padding: 0;
+            font-family: inherit;
+        }
+        .terms-link:hover { color: #ff6e87; }
+        .launch-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+            background: var(--accent);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+            text-align: center;
+            text-decoration: none;
+        }
+        .launch-btn:hover:not(:disabled) { background: #ff5c77; }
+        .launch-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+        .launch-note {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+        .scroll-hint {
+            margin-top: 34px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .scroll-hint a { color: var(--muted); text-decoration: none; }
+
+        /* ── Content sections ── */
+        section { padding: 72px 24px; }
+        .wrap { max-width: 1040px; margin: 0 auto; }
+        section h2 {
+            font-size: clamp(26px, 4vw, 34px);
+            color: #fff;
+            margin-bottom: 14px;
+        }
+        section h2 .accent { color: var(--accent); }
+        section p.lead { color: var(--muted); max-width: 780px; font-size: 16.5px; }
+        .alt { background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 18px;
+            margin-top: 34px;
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 22px;
+        }
+        .alt .card { background: #1a2747; }
+        .card h3 { font-size: 16.5px; color: #fff; margin-bottom: 8px; }
+        .card h3 .tick { color: var(--accent); margin-right: 6px; }
+        .card p { font-size: 14px; color: var(--muted); }
+
+        .steps { counter-reset: step; margin-top: 34px; display: grid; gap: 16px; }
+        .step {
+            display: flex; gap: 18px; align-items: flex-start;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 20px 22px;
+        }
+        .step .num {
+            counter-increment: step;
+            flex-shrink: 0;
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .step h3 { font-size: 16px; color: #fff; margin-bottom: 4px; }
+        .step p { font-size: 14px; color: var(--muted); }
+
+        /* FAQ */
+        .faq details {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .faq summary {
+            cursor: pointer;
+            padding: 16px 20px;
+            font-weight: 600;
+            color: #fff;
+            list-style: none;
+            position: relative;
+        }
+        .faq summary::after {
+            content: "+";
+            position: absolute; right: 20px;
+            color: var(--accent);
+            font-size: 20px; font-weight: 400;
+        }
+        .faq details[open] summary::after { content: "–"; }
+        .faq details p { padding: 0 20px 16px; font-size: 14.5px; color: var(--muted); }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--line);
+            padding: 36px 24px 44px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        footer .disclaimer {
+            max-width: 720px;
+            margin: 0 auto 18px;
+            color: #c9cede;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        footer nav { margin-top: 10px; display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+
+        /* ── Terms of use modal ── */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(10, 10, 22, 0.78);
+            backdrop-filter: blur(3px);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            max-width: 680px;
+            width: 100%;
+            max-height: 86vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+        }
+        .modal header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--line);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal header h2 { font-size: 19px; color: #fff; }
+        .modal .close-x {
+            background: none; border: none; color: var(--muted);
+            font-size: 22px; cursor: pointer; line-height: 1;
+        }
+        .modal .terms-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            font-size: 14px;
+            color: #cdd2e0;
+        }
+        .modal .terms-body h3 { color: #fff; font-size: 15px; margin: 16px 0 6px; }
+        .modal .terms-body h3:first-child { margin-top: 0; }
+        .modal .terms-body p { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- ════════ HERO ════════ -->
+    <div class="hero">
+        <div class="hero-bg" role="img" aria-label="Blurred screenshot of the StairSmith staircase design tool showing a 3D double winder staircase"></div>
+        <div class="hero-tint"></div>
+
+        <img class="logo" src="StairSmith-Logo.png" alt="StairSmith logo" width="96" height="96">
+        <h1>Stair<span class="accent">Smith</span></h1>
+        <p class="strap">Free parametric staircase design — straight, single winder and double winder stairs in full 3D.</p>
+        <p class="sub">Live Building Regulations Part K checks while you design, with one-click IFC and dimensioned DXF export. Runs entirely in your browser — nothing to install.</p>
+
+        <div class="badges">
+            <span class="badge">Free to use</span>
+            <span class="badge">Browser-based — no install</span>
+            <span class="badge">Approved Document K checks</span>
+            <span class="badge">IFC4 export</span>
+            <span class="badge">DXF plan, elevations &amp; sections</span>
+        </div>
+
+        <div class="launch-card">
+            <label class="check-row">
+                <input type="checkbox" id="competency-check">
+                <span>I confirm that I have sufficient competency to check and verify all outputs produced by this tool before they are relied upon or used for any purpose.</span>
+            </label>
+            <button type="button" class="terms-link" id="open-terms">Read full terms of use</button>
+            <a class="launch-btn" id="launch-btn" href="index.html" aria-disabled="true">Launch StairSmith</a>
+            <p class="launch-note">You will be asked to accept the full terms of use when the tool opens.</p>
+        </div>
+
+        <p class="scroll-hint"><a href="#about">▼ &nbsp;Learn more about StairSmith</a></p>
+    </div>
+
+    <!-- ════════ ABOUT ════════ -->
+    <section id="about">
+        <div class="wrap">
+            <h2>A staircase calculator that thinks in <span class="accent">3D</span></h2>
+            <p class="lead">StairSmith is a free online staircase design tool from Jake White Architecture. Set your floor-to-floor height, stair width and going, choose a straight, single winder or double winder layout, and watch a complete timber staircase — treads, risers, kite winders, stringers, newel posts and balustrade — rebuild instantly in 3D. It is built for architects, designers, joiners and self-builders who need reliable early-stage stair geometry fast.</p>
+
+            <div class="cards">
+                <div class="card">
+                    <h3><span class="tick">✔</span>Live 3D preview</h3>
+                    <p>Every parameter change rebuilds the full staircase model in real time, with measure and dimension tools in the viewport.</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tick">✔</span>True winder geometry</h3>
+                    <p>Single and double winder turns are set out using the traditional four-step newel construction, with correct kite winders and post housings.</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tick">✔</span>Building Regs checks</h3>
+                    <p>Rise, going, pitch, 2R+G, width and winder goings are checked live against Approved Document K guidance for private dwellings in England &amp; Wales.</p>
+                </div>
+                <div class="card">
+                    <h3><span class="tick">✔</span>BIM &amp; CAD export</h3>
+                    <p>Download an IFC4 model for BIM coordination, or a DXF with dimensioned plan, four elevations and stepped section views.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ════════ HOW IT WORKS ════════ -->
+    <section class="alt" id="how-it-works">
+        <div class="wrap">
+            <h2>How it <span class="accent">works</span></h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="num">1</div>
+                    <div>
+                        <h3>Set your parameters</h3>
+                        <p>Enter floor-to-floor height, stair width, going and newel size, then choose straight, single winder (90°) or double winder (180°) layout.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">2</div>
+                    <div>
+                        <h3>Check compliance as you design</h3>
+                        <p>The Building Regulations panel updates live, flagging anything outside Approved Document K guidance — maximum rise, minimum going, 42° pitch, the 2R+G rule and winder goings.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="num">3</div>
+                    <div>
+                        <h3>Export and verify</h3>
+                        <p>Download IFC or DXF files and have every output checked by a competent person before it is used — StairSmith is a preliminary design aid, not a substitute for professional judgement.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ════════ FAQ ════════ -->
+    <section id="faq">
+        <div class="wrap faq">
+            <h2>Frequently asked <span class="accent">questions</span></h2>
+            <details>
+                <summary>Is StairSmith free to use?</summary>
+                <p>Yes. StairSmith is a free, browser-based staircase design tool. There is nothing to install and no account is required.</p>
+            </details>
+            <details>
+                <summary>Which staircase types can StairSmith design?</summary>
+                <p>Straight flights, single winder (90° turn) and double winder (180° / U-shaped) timber staircases — including kite winders, newel posts, stringers, handrails, baserails and spindles.</p>
+            </details>
+            <details>
+                <summary>Does StairSmith check UK Building Regulations?</summary>
+                <p>StairSmith checks rise, going, pitch, 2R+G, stair width and winder geometry against guidance in Approved Document K (England and Wales, private dwellings). The checks are indicative only and must be verified by a competent person — other building types and jurisdictions have different requirements.</p>
+            </details>
+            <details>
+                <summary>What file formats does StairSmith export?</summary>
+                <p>IFC4 models for BIM workflows, and DXF drawings containing a dimensioned plan view, four orthographic elevations and section views cut through each flight.</p>
+            </details>
+            <details>
+                <summary>Can I build directly from StairSmith outputs?</summary>
+                <p>No. StairSmith is a preliminary design aid only. All outputs must be checked and verified by a suitably competent person before being relied upon or used for construction, manufacture, costing or regulatory submission.</p>
+            </details>
+        </div>
+    </section>
+
+    <!-- ════════ FOOTER ════════ -->
+    <footer>
+        <p class="disclaimer"><strong>StairSmith is a preliminary design aid only.</strong> Outputs are indicative and must be checked and verified by a suitably competent person before use. Nothing produced by this tool constitutes professional advice.</p>
+        <p>© <span id="year">2026</span> Jake White Architecture. All rights reserved.</p>
+        <nav>
+            <a href="https://jakewhitearchitecture.com/">Jake White Architecture</a>
+            <a href="https://jakewhitearchitecture.com/inverts/">Inverts — drainage tool</a>
+            <button type="button" class="terms-link" id="open-terms-footer" style="margin:0;">Terms of use</button>
+        </nav>
+    </footer>
+
+    <!-- ════════ TERMS OF USE MODAL (read-only on landing) ════════ -->
+    <div class="modal-overlay" id="terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-title">
+        <div class="modal">
+            <header>
+                <h2 id="terms-title">StairSmith — Terms of Use</h2>
+                <button type="button" class="close-x" id="close-terms" aria-label="Close">×</button>
+            </header>
+            <div class="terms-body">
+                <h3>1. Purpose of the tool</h3>
+                <p>StairSmith is a free, preliminary design aid for the early-stage design of domestic timber staircases. It is provided for information and feasibility purposes only.</p>
+
+                <h3>2. No professional advice</h3>
+                <p>Nothing produced by StairSmith constitutes architectural, structural, building-control or other professional advice. The tool is not a substitute for the engagement of a suitably qualified professional or for consultation with your local building control body.</p>
+
+                <h3>3. Verification of outputs</h3>
+                <p>All outputs — including the 3D model, dimensions, Building Regulations checks, IFC files and DXF drawings — are indicative and may contain errors. You must check and verify every output, and you confirm that you have sufficient competency to do so (or will engage someone who does) before any output is relied upon or used for construction, manufacture, costing or regulatory submission.</p>
+
+                <h3>4. Building Regulations checks</h3>
+                <p>The compliance checks reference guidance in Approved Document K of the Building Regulations as it applies to private dwellings in England and Wales. They are simplified, indicative checks only: they do not cover every requirement, other building categories, or other jurisdictions, and they do not guarantee that a design will be accepted by building control.</p>
+
+                <h3>5. Site dimensions and conditions</h3>
+                <p>You are responsible for the accuracy of all dimensions and parameters you enter, and for confirming that the design suits actual site conditions, structural openings, headroom and adjoining construction.</p>
+
+                <h3>6. No warranty and limitation of liability</h3>
+                <p>StairSmith is provided "as is" without warranty of any kind, express or implied. To the fullest extent permitted by law, Jake White Architecture accepts no liability for any loss, damage, cost or expense arising from the use of, or reliance upon, this tool or its outputs. Nothing in these terms excludes liability that cannot be excluded by law.</p>
+
+                <h3>7. Acceptable use and intellectual property</h3>
+                <p>The StairSmith name, branding and underlying software remain the property of Jake White Architecture. You may use exported files in your own projects; you may not misrepresent StairSmith outputs as professionally certified design information.</p>
+
+                <h3>8. Acceptance</h3>
+                <p>By ticking the acceptance box and using the tool you confirm that you have read, understood and agreed to these terms of use and to the disclaimer above.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var check = document.getElementById('competency-check');
+            var btn = document.getElementById('launch-btn');
+            var modal = document.getElementById('terms-modal');
+
+            function syncBtn() {
+                if (check.checked) {
+                    btn.removeAttribute('aria-disabled');
+                    btn.style.opacity = '';
+                    btn.style.pointerEvents = '';
+                    try { sessionStorage.setItem('stairsmith_competency', '1'); } catch (e) {}
+                } else {
+                    btn.setAttribute('aria-disabled', 'true');
+                    btn.style.opacity = '0.38';
+                    btn.style.pointerEvents = 'none';
+                    try { sessionStorage.removeItem('stairsmith_competency'); } catch (e) {}
+                }
+            }
+            check.addEventListener('change', syncBtn);
+            syncBtn();
+
+            btn.addEventListener('click', function (e) {
+                if (btn.getAttribute('aria-disabled') === 'true') { e.preventDefault(); }
+            });
+
+            function openTerms(e) { e.preventDefault(); modal.classList.add('open'); }
+            document.getElementById('open-terms').addEventListener('click', openTerms);
+            document.getElementById('open-terms-footer').addEventListener('click', openTerms);
+            document.getElementById('close-terms').addEventListener('click', function () {
+                modal.classList.remove('open');
+            });
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) modal.classList.remove('open');
+            });
+
+            document.getElementById('year').textContent = new Date().getFullYear();
+        })();
+    </script>
+</body>
+</html>

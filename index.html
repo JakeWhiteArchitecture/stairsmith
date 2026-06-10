@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StairSmith - Parametric Staircase Design Tool</title>
+    <title>StairSmith — Staircase Design Tool</title>
+    <meta name="description" content="Design straight, single winder and double winder staircases in 3D with live Building Regulations checks and IFC / DXF export.">
+    <link rel="canonical" href="https://jakewhitearchitecture.com/stairsmith/">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -2862,6 +2864,134 @@ from stair_preview import generate_preview_geometry
         updateToggleState();
         updateDerived();
         initPyodide();
+    </script>
+
+    <!-- ════════ TERMS OF USE GATE ════════ -->
+    <style>
+        .st-terms-overlay {
+            position: fixed; inset: 0;
+            background: rgba(10, 10, 22, 0.82);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 5000;
+            padding: 20px;
+        }
+        .st-terms-overlay.open { display: flex; }
+        .st-terms-modal {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 14px;
+            max-width: 680px; width: 100%;
+            max-height: 88vh;
+            display: flex; flex-direction: column;
+            box-shadow: 0 24px 70px rgba(0,0,0,0.6);
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .st-terms-modal .st-head {
+            padding: 18px 24px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .st-terms-modal .st-head h2 { font-size: 19px; color: #fff; margin: 0; }
+        .st-terms-modal .st-head p { font-size: 12.5px; color: #9aa1b5; margin: 4px 0 0; }
+        .st-terms-body {
+            padding: 18px 24px;
+            overflow-y: auto;
+            font-size: 13.5px;
+            color: #cdd2e0;
+            line-height: 1.55;
+        }
+        .st-terms-body h3 { color: #fff; font-size: 14.5px; margin: 14px 0 5px; }
+        .st-terms-body h3:first-child { margin-top: 0; }
+        .st-terms-body p { margin: 0 0 9px; }
+        .st-terms-foot {
+            padding: 14px 24px 18px;
+            border-top: 1px solid #0f3460;
+        }
+        .st-terms-foot label {
+            display: flex; gap: 10px; align-items: flex-start;
+            font-size: 13.5px; color: #e8eaf2;
+            cursor: pointer; margin-bottom: 12px;
+        }
+        .st-terms-foot input[type="checkbox"] {
+            width: 18px; height: 18px; margin-top: 1px;
+            accent-color: #e94560; cursor: pointer; flex-shrink: 0;
+        }
+        .st-terms-actions { display: flex; gap: 10px; }
+        .st-terms-actions button {
+            flex: 1; padding: 12px; font-size: 15px; font-weight: 700;
+            border-radius: 8px; cursor: pointer;
+            font-family: inherit;
+        }
+        .st-accept-btn {
+            background: #e94560; color: #fff; border: none;
+        }
+        .st-accept-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+        .st-decline-btn {
+            background: transparent; color: #9aa1b5;
+            border: 1px solid #0f3460;
+        }
+    </style>
+    <div class="st-terms-overlay" id="st-terms-overlay" role="dialog" aria-modal="true" aria-labelledby="st-terms-title">
+        <div class="st-terms-modal">
+            <div class="st-head">
+                <h2 id="st-terms-title">StairSmith — Terms of Use</h2>
+                <p><strong>StairSmith is a preliminary design aid only.</strong> All outputs must be checked and verified by a suitably competent person before use.</p>
+            </div>
+            <div class="st-terms-body">
+                <h3>1. Purpose of the tool</h3>
+                <p>StairSmith is a free, preliminary design aid for the early-stage design of domestic timber staircases. It is provided for information and feasibility purposes only.</p>
+                <h3>2. No professional advice</h3>
+                <p>Nothing produced by StairSmith constitutes architectural, structural, building-control or other professional advice. The tool is not a substitute for the engagement of a suitably qualified professional or for consultation with your local building control body.</p>
+                <h3>3. Verification of outputs</h3>
+                <p>All outputs — including the 3D model, dimensions, Building Regulations checks, IFC files and DXF drawings — are indicative and may contain errors. You must check and verify every output, and you confirm that you have sufficient competency to do so (or will engage someone who does) before any output is relied upon or used for construction, manufacture, costing or regulatory submission.</p>
+                <h3>4. Building Regulations checks</h3>
+                <p>The compliance checks reference guidance in Approved Document K of the Building Regulations as it applies to private dwellings in England and Wales. They are simplified, indicative checks only: they do not cover every requirement, other building categories, or other jurisdictions, and they do not guarantee that a design will be accepted by building control.</p>
+                <h3>5. Site dimensions and conditions</h3>
+                <p>You are responsible for the accuracy of all dimensions and parameters you enter, and for confirming that the design suits actual site conditions, structural openings, headroom and adjoining construction.</p>
+                <h3>6. No warranty and limitation of liability</h3>
+                <p>StairSmith is provided "as is" without warranty of any kind, express or implied. To the fullest extent permitted by law, Jake White Architecture accepts no liability for any loss, damage, cost or expense arising from the use of, or reliance upon, this tool or its outputs. Nothing in these terms excludes liability that cannot be excluded by law.</p>
+                <h3>7. Acceptable use and intellectual property</h3>
+                <p>The StairSmith name, branding and underlying software remain the property of Jake White Architecture. You may use exported files in your own projects; you may not misrepresent StairSmith outputs as professionally certified design information.</p>
+                <h3>8. Acceptance</h3>
+                <p>By ticking the acceptance box and continuing you confirm that you have read, understood and agreed to these terms of use and to the disclaimer above.</p>
+            </div>
+            <div class="st-terms-foot">
+                <label>
+                    <input type="checkbox" id="st-terms-check">
+                    <span>I have read and accept the Terms of Use, and I acknowledge that StairSmith is a preliminary design aid whose outputs I must verify before use.</span>
+                </label>
+                <div class="st-terms-actions">
+                    <button type="button" class="st-decline-btn" id="st-terms-decline">Decline</button>
+                    <button type="button" class="st-accept-btn" id="st-terms-accept" disabled>Accept and continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var KEY = 'stairsmith_terms_accepted_v1';
+            var LANDING = 'landing.html';
+            var overlay = document.getElementById('st-terms-overlay');
+            var check = document.getElementById('st-terms-check');
+            var accept = document.getElementById('st-terms-accept');
+            var accepted = false;
+            try { accepted = localStorage.getItem(KEY) === '1'; } catch (e) {}
+            if (!accepted) {
+                overlay.classList.add('open');
+            }
+            check.addEventListener('change', function () {
+                accept.disabled = !check.checked;
+            });
+            accept.addEventListener('click', function () {
+                try { localStorage.setItem(KEY, '1'); } catch (e) {}
+                overlay.classList.remove('open');
+            });
+            document.getElementById('st-terms-decline').addEventListener('click', function () {
+                window.location.href = LANDING;
+            });
+        })();
     </script>
 </body>
 </html>

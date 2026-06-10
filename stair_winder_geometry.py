@@ -172,7 +172,10 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
                     ey = ey + t * dly
                 else:
                     ex = pc_x
-                ey = min(ey, pc_y)
+                # No cap at the post corner (pc_y): the riser above runs
+                # past the corner, and the tread must reach its REAR face.
+                # Capping here dragged the whole extended edge back to the
+                # riser centre line.
             elif abs(inner_a1[1] - pc_y) < 1e-6:
                 # inner_a1 is on Face B — slide along division line to y = pc_y
                 if abs(ey - pc_y) > 1e-6 and abs(dly) > 1e-9:
@@ -308,7 +311,8 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
 
 def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
                          num_winders, winder_start_riser, rise, tread_t,
-                         riser_t, nosing=0, rotation=0, winder_x=25.0):
+                         riser_t, nosing=0, rotation=0, winder_x=25.0,
+                         name_prefix="Winder Riser"):
     """Generate riser meshes between consecutive winder treads.
 
     Returns a list of winder_polygon mesh dicts (thin strips along division
@@ -463,7 +467,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
             "z": z_bottom,
             "thickness": riser_h,
             "color": "#e8dcc8",
-            "name": f"Winder Riser {j+1}",
+            "name": f"{name_prefix} {j+1}",
             "ifc_type": "winder_riser",
         })
 

@@ -1,8 +1,9 @@
 """
 IFC Staircase Generator
 
-Generates valid IFC 2x3 files for straight, single-winder (L-shaped),
-and double-winder (U-shaped) staircases using IfcOpenShell.
+Generates valid IFC4 (buildingSMART ISO 16739-1) files for straight,
+single-winder (L-shaped), and double-winder (U-shaped) staircases
+using IfcOpenShell.
 """
 
 import ifcopenshell
@@ -20,6 +21,33 @@ from stair_winder_geometry import (
 )
 
 
+# buildingSMART schema version for all exports.  IFC4 renames a few
+# attributes used here versus IFC2X3 (IfcStair.ShapeType and
+# IfcStairFlight.NumberOfRiser); all entity creation goes through the
+# schema-aware ifcopenshell.api, so only this constant selects the schema.
+IFC_SCHEMA_VERSION = "IFC4"
+
+
+def _set_header_authorization(ifc, text):
+    """Set FILE_NAME.authorization across ifcopenshell versions.
+
+    The Pyodide/WASM wheel (0.8.2) exposes ``wrapped_data.header`` as an
+    attribute and has no ``file.header`` wrapper; newer releases (0.8.5+)
+    turn ``wrapped_data.header`` into a method and add ``file.header``.
+    """
+    try:
+        hdr = getattr(ifc, "header", None)
+        if hdr is not None and hasattr(hdr, "file_name"):
+            hdr.file_name.authorization = text
+            return
+    except Exception:
+        pass
+    hdr = ifc.wrapped_data.header
+    if callable(hdr):
+        hdr = hdr()
+    hdr.file_name.authorization = text
+
+
 def create_ifc_staircase(params):
     """
     Main entry point. Takes a parameter dict and returns the path to a generated .ifc file.
@@ -29,7 +57,7 @@ def create_ifc_staircase(params):
     Returns:
         str: path to the generated .ifc file
     """
-    ifc = ifcopenshell.api.run("project.create_file", version="IFC2X3")
+    ifc = ifcopenshell.api.run("project.create_file", version=IFC_SCHEMA_VERSION)
 
     # Set up owner history (required by IfcOpenShell)
     person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
@@ -95,9 +123,7 @@ def create_ifc_staircase(params):
     _add_disclaimer_annotation(ifc, body, storey, p)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    _set_header_authorization(ifc, "User must verify all outputs before use.")
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
@@ -2362,14 +2388,99 @@ _IFC_TYPE_MAP = {
     "threshold":    "IfcSlab",
     "newel":        "IfcColumn",
     "stringer":     "IfcMember",
-    "handrail":     "IfcRailing",
-    "baserail":     "IfcRailing",
+    "handrail":     "IfcMember",
+    "baserail":     "IfcMember",
     "spindle":      "IfcMember",
 }
 
+# buildingSMART industry practice (BLT003): IfcStair may only be decomposed
+# by IfcStairFlight, IfcSlab and IfcRailing.  Elements are therefore grouped
+# into an IfcStairFlight (stepped construction) and an IfcRailing assembly
+# (balustrade); landings/thresholds are IfcSlab and stay directly under the
+# stair.
+_FLIGHT_PART_TYPES = frozenset({"tread", "winder_tread", "riser",
+                                "winder_riser", "stringer"})
+_RAILING_PART_TYPES = frozenset({"handrail", "baserail", "spindle", "newel"})
+_STAIR_DIRECT_TYPES = frozenset({"landing", "threshold"})
+
+
+# Uniclass 2015 classification (NBS).  Codes verified against the
+# published Uniclass 2015 tables.  Elements without a dedicated product
+# code carry the system-level reference.
+_UNICLASS_SYSTEM = ("Ss_35_10_85_90", "Timber stair or ramp systems")
+_UNICLASS_PRODUCTS = {
+    "tread":        ("Pr_25_30_90_89", "Timber stair treads"),
+    "winder_tread": ("Pr_25_30_90_89", "Timber stair treads"),
+    "riser":        ("Pr_25_30_90_88", "Timber risers"),
+    "winder_riser": ("Pr_25_30_90_88", "Timber risers"),
+    "stringer":     ("Pr_20_85_47_90", "Timber stair stringers"),
+    "newel":        ("Pr_20_76_06_87", "Timber newel posts"),
+    "spindle":      ("Pr_20_76_06_88", "Timber spindles"),
+    "handrail":     ("Pr_25_30_36_96", "Wood handrails"),
+}
+
+
+def _attach_uniclass(ifc, products_by_code):
+    """Associate Uniclass 2015 references with products (IFC4).
+
+    *products_by_code* maps ``(code, title)`` -> list of products.
+    Uses raw entities (WASM-safe, no template files needed).
+    """
+    try:
+        classification = ifc.create_entity(
+            "IfcClassification", Source="NBS", Edition="2015",
+            Name="Uniclass 2015")
+    except Exception:
+        return  # pre-IFC4 schema variations — classification is optional
+    histories = ifc.by_type("IfcOwnerHistory")
+    owner = histories[0] if histories else None
+    for (code, title), products in products_by_code.items():
+        if not products:
+            continue
+        try:
+            ref = ifc.create_entity(
+                "IfcClassificationReference",
+                Identification=code, Name=title,
+                ReferencedSource=classification)
+            ifc.create_entity(
+                "IfcRelAssociatesClassification",
+                GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner,
+                RelatedObjects=products, RelatingClassification=ref)
+        except Exception:
+            continue
+
+
+def _set_enum_attr(entity, value, *attr_names):
+    """Set the first available enum attribute (schema-dependent name)."""
+    for attr in attr_names:
+        try:
+            setattr(entity, attr, value)
+            return
+        except Exception:
+            continue
+
+
+def _add_georeferencing(ifc, model_context):
+    """Attach a placeholder IfcProjectedCRS + IfcMapConversion (IFC4 only).
+
+    buildingSMART industry practice GRF003 expects a CRS whenever an
+    IfcBuilding is present.  The model is not surveyed, so the conversion
+    is identity at the stair datum and says so in the description.
+    """
+    try:
+        crs = ifc.createIfcProjectedCRS(
+            "EPSG:27700",
+            "Placeholder georeference - model origin at stair datum, "
+            "not surveyed",
+            "OSGB36", None, None, None, None)
+        ifc.createIfcMapConversion(model_context, crs,
+                                   0.0, 0.0, 0.0, 1.0, 0.0, 1.0)
+    except Exception:
+        pass  # entity does not exist before IFC4
+
 
 def meshes_to_ifc(meshes):
-    """Convert a list of preview mesh dicts into a valid IFC 2x3 file.
+    """Convert a list of preview mesh dicts into a valid IFC4 file.
 
     This is the single conversion point — whatever the preview generates,
     the IFC file will contain exactly the same geometry.
@@ -2379,7 +2490,7 @@ def meshes_to_ifc(meshes):
     Returns:
         str: path to the generated .ifc file
     """
-    ifc = ifcopenshell.api.run("project.create_file", version="IFC2X3")
+    ifc = ifcopenshell.api.run("project.create_file", version=IFC_SCHEMA_VERSION)
 
     # Owner history
     person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
@@ -2409,6 +2520,7 @@ def meshes_to_ifc(meshes):
                                 context_identifier="Body",
                                 target_view="MODEL_VIEW",
                                 parent=ctx)
+    _add_georeferencing(ifc, ctx)
 
     # Spatial hierarchy
     site = ifcopenshell.api.run("root.create_entity", ifc,
@@ -2456,12 +2568,79 @@ def meshes_to_ifc(meshes):
             elem = _convert_polygon_mesh(ifc, body, mesh, ifc_class, name)
 
         if elem:
-            elements.append(elem)
+            elements.append((ifc_type, elem))
 
-    # Aggregate under stair
-    if elements:
+    # Decompose per buildingSMART practice: IfcStair > IfcStairFlight
+    # (treads, risers, stringers) + IfcRailing (balustrade) + IfcSlab.
+    flight_parts = [e for t, e in elements
+                    if t in _FLIGHT_PART_TYPES or
+                    (t not in _RAILING_PART_TYPES and
+                     t not in _STAIR_DIRECT_TYPES)]
+    railing_parts = [e for t, e in elements if t in _RAILING_PART_TYPES]
+    direct_parts = [e for t, e in elements if t in _STAIR_DIRECT_TYPES]
+    has_winders = any(t == "winder_tread" for t, _e in elements)
+    has_turn2 = any("Turn2" in (e.Name or "") for _t, e in elements)
+
+    stair_children = list(direct_parts)
+    if flight_parts:
+        flight = ifcopenshell.api.run("root.create_entity", ifc,
+                                      ifc_class="IfcStairFlight",
+                                      name="Stair Flight")
+        n_risers = sum(1 for t, _e in elements
+                       if t in ("riser", "winder_riser"))
+        n_treads = sum(1 for t, _e in elements
+                       if t in ("tread", "winder_tread"))
+        for attr in ("NumberOfRisers", "NumberOfRiser"):  # IFC4 / IFC2X3
+            try:
+                setattr(flight, attr, n_risers)
+                break
+            except Exception:
+                continue
+        try:
+            flight.NumberOfTreads = n_treads
+        except Exception:
+            pass
+        _set_enum_attr(flight, "WINDER" if has_winders else "STRAIGHT",
+                       "PredefinedType")
         ifcopenshell.api.run("aggregate.assign_object", ifc,
-                             relating_object=stair, products=elements)
+                             relating_object=flight, products=flight_parts)
+        stair_children.append(flight)
+    if railing_parts:
+        railing = ifcopenshell.api.run("root.create_entity", ifc,
+                                       ifc_class="IfcRailing",
+                                       name="Balustrade")
+        _set_enum_attr(railing, "BALUSTRADE", "PredefinedType")
+        ifcopenshell.api.run("aggregate.assign_object", ifc,
+                             relating_object=railing,
+                             products=railing_parts)
+        stair_children.append(railing)
+    if stair_children:
+        ifcopenshell.api.run("aggregate.assign_object", ifc,
+                             relating_object=stair,
+                             products=stair_children)
+
+    # Stair shape classification (IFC4: PredefinedType, IFC2X3: ShapeType)
+    if has_turn2:
+        stair_shape = "HALF_WINDING_STAIR"
+    elif has_winders:
+        stair_shape = "QUARTER_WINDING_STAIR"
+    else:
+        stair_shape = "STRAIGHT_RUN_STAIR"
+    _set_enum_attr(stair, stair_shape, "PredefinedType", "ShapeType")
+
+    # Uniclass 2015 classification: product codes per element type,
+    # system code for the stair, assemblies and unmapped parts.
+    by_code = {}
+    system_products = [stair] + [c for c in stair_children
+                                 if not c.is_a("IfcSlab")]
+    for t, e in elements:
+        key = _UNICLASS_PRODUCTS.get(t)
+        if key is None:
+            system_products.append(e)
+        else:
+            by_code.setdefault(key, []).append(e)
+    by_code[_UNICLASS_SYSTEM] = system_products
+    _attach_uniclass(ifc, by_code)
 
     # Attach StairSmith disclaimer property set to IfcProject (raw entities
     # to avoid pset template lookup which fails in Pyodide/WASM)
@@ -2470,9 +2649,7 @@ def meshes_to_ifc(meshes):
     _attach_disclaimer_pset(ifc, project, _DISCLAIMER)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    _set_header_authorization(ifc, "User must verify all outputs before use.")
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
