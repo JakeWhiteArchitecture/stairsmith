@@ -172,7 +172,10 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
                     ey = ey + t * dly
                 else:
                     ex = pc_x
-                ey = min(ey, pc_y)
+                # No cap at the post corner (pc_y): the riser above runs
+                # past the corner, and the tread must reach its REAR face.
+                # Capping here dragged the whole extended edge back to the
+                # riser centre line.
             elif abs(inner_a1[1] - pc_y) < 1e-6:
                 # inner_a1 is on Face B — slide along division line to y = pc_y
                 if abs(ey - pc_y) > 1e-6 and abs(dly) > 1e-9:
