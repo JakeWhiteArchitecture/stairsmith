@@ -2388,10 +2388,49 @@ _IFC_TYPE_MAP = {
     "threshold":    "IfcSlab",
     "newel":        "IfcColumn",
     "stringer":     "IfcMember",
-    "handrail":     "IfcRailing",
-    "baserail":     "IfcRailing",
+    "handrail":     "IfcMember",
+    "baserail":     "IfcMember",
     "spindle":      "IfcMember",
 }
+
+# buildingSMART industry practice (BLT003): IfcStair may only be decomposed
+# by IfcStairFlight, IfcSlab and IfcRailing.  Elements are therefore grouped
+# into an IfcStairFlight (stepped construction) and an IfcRailing assembly
+# (balustrade); landings/thresholds are IfcSlab and stay directly under the
+# stair.
+_FLIGHT_PART_TYPES = frozenset({"tread", "winder_tread", "riser",
+                                "winder_riser", "stringer"})
+_RAILING_PART_TYPES = frozenset({"handrail", "baserail", "spindle", "newel"})
+_STAIR_DIRECT_TYPES = frozenset({"landing", "threshold"})
+
+
+def _set_enum_attr(entity, value, *attr_names):
+    """Set the first available enum attribute (schema-dependent name)."""
+    for attr in attr_names:
+        try:
+            setattr(entity, attr, value)
+            return
+        except Exception:
+            continue
+
+
+def _add_georeferencing(ifc, model_context):
+    """Attach a placeholder IfcProjectedCRS + IfcMapConversion (IFC4 only).
+
+    buildingSMART industry practice GRF003 expects a CRS whenever an
+    IfcBuilding is present.  The model is not surveyed, so the conversion
+    is identity at the stair datum and says so in the description.
+    """
+    try:
+        crs = ifc.createIfcProjectedCRS(
+            "EPSG:27700",
+            "Placeholder georeference - model origin at stair datum, "
+            "not surveyed",
+            "OSGB36", None, None, None, None)
+        ifc.createIfcMapConversion(model_context, crs,
+                                   0.0, 0.0, 0.0, 1.0, 0.0, 1.0)
+    except Exception:
+        pass  # entity does not exist before IFC4
 
 
 def meshes_to_ifc(meshes):
@@ -2435,6 +2474,7 @@ def meshes_to_ifc(meshes):
                                 context_identifier="Body",
                                 target_view="MODEL_VIEW",
                                 parent=ctx)
+    _add_georeferencing(ifc, ctx)
 
     # Spatial hierarchy
     site = ifcopenshell.api.run("root.create_entity", ifc,
@@ -2482,12 +2522,65 @@ def meshes_to_ifc(meshes):
             elem = _convert_polygon_mesh(ifc, body, mesh, ifc_class, name)
 
         if elem:
-            elements.append(elem)
+            elements.append((ifc_type, elem))
 
-    # Aggregate under stair
-    if elements:
+    # Decompose per buildingSMART practice: IfcStair > IfcStairFlight
+    # (treads, risers, stringers) + IfcRailing (balustrade) + IfcSlab.
+    flight_parts = [e for t, e in elements
+                    if t in _FLIGHT_PART_TYPES or
+                    (t not in _RAILING_PART_TYPES and
+                     t not in _STAIR_DIRECT_TYPES)]
+    railing_parts = [e for t, e in elements if t in _RAILING_PART_TYPES]
+    direct_parts = [e for t, e in elements if t in _STAIR_DIRECT_TYPES]
+    has_winders = any(t == "winder_tread" for t, _e in elements)
+    has_turn2 = any("Turn2" in (e.Name or "") for _t, e in elements)
+
+    stair_children = list(direct_parts)
+    if flight_parts:
+        flight = ifcopenshell.api.run("root.create_entity", ifc,
+                                      ifc_class="IfcStairFlight",
+                                      name="Stair Flight")
+        n_risers = sum(1 for t, _e in elements
+                       if t in ("riser", "winder_riser"))
+        n_treads = sum(1 for t, _e in elements
+                       if t in ("tread", "winder_tread"))
+        for attr in ("NumberOfRisers", "NumberOfRiser"):  # IFC4 / IFC2X3
+            try:
+                setattr(flight, attr, n_risers)
+                break
+            except Exception:
+                continue
+        try:
+            flight.NumberOfTreads = n_treads
+        except Exception:
+            pass
+        _set_enum_attr(flight, "WINDER" if has_winders else "STRAIGHT",
+                       "PredefinedType")
         ifcopenshell.api.run("aggregate.assign_object", ifc,
-                             relating_object=stair, products=elements)
+                             relating_object=flight, products=flight_parts)
+        stair_children.append(flight)
+    if railing_parts:
+        railing = ifcopenshell.api.run("root.create_entity", ifc,
+                                       ifc_class="IfcRailing",
+                                       name="Balustrade")
+        _set_enum_attr(railing, "BALUSTRADE", "PredefinedType")
+        ifcopenshell.api.run("aggregate.assign_object", ifc,
+                             relating_object=railing,
+                             products=railing_parts)
+        stair_children.append(railing)
+    if stair_children:
+        ifcopenshell.api.run("aggregate.assign_object", ifc,
+                             relating_object=stair,
+                             products=stair_children)
+
+    # Stair shape classification (IFC4: PredefinedType, IFC2X3: ShapeType)
+    if has_turn2:
+        stair_shape = "HALF_WINDING_STAIR"
+    elif has_winders:
+        stair_shape = "QUARTER_WINDING_STAIR"
+    else:
+        stair_shape = "STRAIGHT_RUN_STAIR"
+    _set_enum_attr(stair, stair_shape, "PredefinedType", "ShapeType")
 
     # Attach StairSmith disclaimer property set to IfcProject (raw entities
     # to avoid pset template lookup which fails in Pyodide/WASM)
