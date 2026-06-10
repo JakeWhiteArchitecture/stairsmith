@@ -550,6 +550,66 @@ def _as_prisms(mesh):
         return []
 
 
+# Treads/risers are housed ~16 mm into the stringer boards.  In ortho
+# views the housed ends must not draw inside the stringer zone, so they
+# are booleaned back to the stringer faces.
+_HOUSED_IFC = frozenset({"tread", "winder_tread", "riser", "winder_riser"})
+
+
+def _trim_housed_prisms(prisms):
+    """Subtract stringer plan footprints from tread/riser prisms.
+
+    Treads and risers physically run into the stringer housings; without
+    this trim their housed ends either poke proud of the stringer face or
+    lose their terminating edge inside the board.  Returns a new prism
+    list (split pieces are all kept).
+    """
+    stringers = [s for s in prisms
+                 if s["ifc_type"] == "stringer" and s["axis"] in ("x", "y")]
+    if not stringers:
+        return prisms
+    out = []
+    for p in prisms:
+        if p["ifc_type"] not in _HOUSED_IFC or p["axis"] != "z":
+            out.append(p)
+            continue
+        poly = p["poly"]
+        for s in stringers:
+            sb = s["poly"].bounds  # (u_min, z_min, u_max, z_max)
+            if p["hi"] <= sb[1] or p["lo"] >= sb[3]:
+                continue  # no overlap in height
+            if s["axis"] == "x":
+                # Stringer slab x∈[lo,hi], profile u is y.
+                rect = shapely_box(s["lo"], sb[0], s["hi"], sb[2])
+            else:
+                # Stringer slab y∈[lo,hi], profile u is x.
+                rect = shapely_box(sb[0], s["lo"], sb[2], s["hi"])
+            try:
+                if poly.intersects(rect):
+                    poly = poly.difference(rect)
+            except Exception:
+                continue
+            if poly.is_empty:
+                break
+        if poly is p["poly"]:
+            out.append(p)
+            continue
+        for g in _iter_polygons(poly):
+            if g.area < 1.0:
+                continue
+            np_ = dict(p)
+            np_["poly"] = g
+            np_["is_rect"] = False
+            out.append(np_)
+    return out
+
+
+def _view_prisms(meshes):
+    """All prisms for elevation/section views, trimmed to stringer faces."""
+    prisms = [p for mesh in meshes for p in _as_prisms(mesh)]
+    return _trim_housed_prisms(prisms)
+
+
 def _profile_depth_fn(poly, isec, sec_from_vy, sec_sign, idep, d_sign):
     """Depth function for a prism whose depth varies across its silhouette.
 
@@ -639,14 +699,13 @@ def _prism_silhouette(prism, view):
 def _compute_view_bounds(meshes, view):
     """Return *(min_vx, min_vy, max_vx, max_vy)* bounding box in view coords."""
     xs, ys = [], []
-    for mesh in meshes:
-        for prism in _as_prisms(mesh):
-            sil, _d = _prism_silhouette(prism, view)
-            if sil is None:
-                continue
-            b = sil.bounds
-            xs.extend([b[0], b[2]])
-            ys.extend([b[1], b[3]])
+    for prism in _view_prisms(meshes):
+        sil, _d = _prism_silhouette(prism, view)
+        if sil is None:
+            continue
+        b = sil.bounds
+        xs.extend([b[0], b[2]])
+        ys.extend([b[1], b[3]])
     if not xs:
         return (0, 0, 0, 0)
     return (min(xs), min(ys), max(xs), max(ys))
@@ -823,15 +882,14 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
     Tread/riser edges hidden *only* by stringers → HIDDEN layer (dashed grey).
     """
     items = []
-    for mesh in meshes:
-        for prism in _as_prisms(mesh):
-            sil, dfn = _prism_silhouette(prism, view)
-            if sil is None or sil.is_empty or not sil.is_valid:
-                continue
-            ifc = prism["ifc_type"]
-            items.append({"sil": sil, "depth": dfn,
-                          "is_str": ifc in _STRINGER_IFC,
-                          "is_tr": ifc in _TREAD_RISER_IFC})
+    for prism in _view_prisms(meshes):
+        sil, dfn = _prism_silhouette(prism, view)
+        if sil is None or sil.is_empty or not sil.is_valid:
+            continue
+        ifc = prism["ifc_type"]
+        items.append({"sil": sil, "depth": dfn,
+                      "is_str": ifc in _STRINGER_IFC,
+                      "is_tr": ifc in _TREAD_RISER_IFC})
 
     for it in items:
         occl_all = [(o["sil"], o["depth"]) for o in items if o is not it]
@@ -1021,7 +1079,7 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     *look_positive*: True → look toward +axis from the cut plane.
     """
     view = _section_view_for(cut_axis, look_positive)
-    prisms = [p for mesh in meshes for p in _as_prisms(mesh)]
+    prisms = _view_prisms(meshes)
 
     # 1. Cut profiles (white, SECTION_CUT) — the slice through everything
     #    crossing the plane, always fully drawn.  They also seed occlusion
