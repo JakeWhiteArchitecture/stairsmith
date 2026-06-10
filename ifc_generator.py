@@ -1,8 +1,9 @@
 """
 IFC Staircase Generator
 
-Generates valid IFC 2x3 files for straight, single-winder (L-shaped),
-and double-winder (U-shaped) staircases using IfcOpenShell.
+Generates valid IFC4 (buildingSMART ISO 16739-1) files for straight,
+single-winder (L-shaped), and double-winder (U-shaped) staircases
+using IfcOpenShell.
 """
 
 import ifcopenshell
@@ -20,6 +21,33 @@ from stair_winder_geometry import (
 )
 
 
+# buildingSMART schema version for all exports.  IFC4 renames a few
+# attributes used here versus IFC2X3 (IfcStair.ShapeType and
+# IfcStairFlight.NumberOfRiser); all entity creation goes through the
+# schema-aware ifcopenshell.api, so only this constant selects the schema.
+IFC_SCHEMA_VERSION = "IFC4"
+
+
+def _set_header_authorization(ifc, text):
+    """Set FILE_NAME.authorization across ifcopenshell versions.
+
+    The Pyodide/WASM wheel (0.8.2) exposes ``wrapped_data.header`` as an
+    attribute and has no ``file.header`` wrapper; newer releases (0.8.5+)
+    turn ``wrapped_data.header`` into a method and add ``file.header``.
+    """
+    try:
+        hdr = getattr(ifc, "header", None)
+        if hdr is not None and hasattr(hdr, "file_name"):
+            hdr.file_name.authorization = text
+            return
+    except Exception:
+        pass
+    hdr = ifc.wrapped_data.header
+    if callable(hdr):
+        hdr = hdr()
+    hdr.file_name.authorization = text
+
+
 def create_ifc_staircase(params):
     """
     Main entry point. Takes a parameter dict and returns the path to a generated .ifc file.
@@ -29,7 +57,7 @@ def create_ifc_staircase(params):
     Returns:
         str: path to the generated .ifc file
     """
-    ifc = ifcopenshell.api.run("project.create_file", version="IFC2X3")
+    ifc = ifcopenshell.api.run("project.create_file", version=IFC_SCHEMA_VERSION)
 
     # Set up owner history (required by IfcOpenShell)
     person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
@@ -95,9 +123,7 @@ def create_ifc_staircase(params):
     _add_disclaimer_annotation(ifc, body, storey, p)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    _set_header_authorization(ifc, "User must verify all outputs before use.")
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
@@ -2369,7 +2395,7 @@ _IFC_TYPE_MAP = {
 
 
 def meshes_to_ifc(meshes):
-    """Convert a list of preview mesh dicts into a valid IFC 2x3 file.
+    """Convert a list of preview mesh dicts into a valid IFC4 file.
 
     This is the single conversion point — whatever the preview generates,
     the IFC file will contain exactly the same geometry.
@@ -2379,7 +2405,7 @@ def meshes_to_ifc(meshes):
     Returns:
         str: path to the generated .ifc file
     """
-    ifc = ifcopenshell.api.run("project.create_file", version="IFC2X3")
+    ifc = ifcopenshell.api.run("project.create_file", version=IFC_SCHEMA_VERSION)
 
     # Owner history
     person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
@@ -2470,9 +2496,7 @@ def meshes_to_ifc(meshes):
     _attach_disclaimer_pset(ifc, project, _DISCLAIMER)
 
     # Set the Authorization field in the IFC file header
-    ifc.wrapped_data.header.file_name.authorization = (
-        "User must verify all outputs before use."
-    )
+    _set_header_authorization(ifc, "User must verify all outputs before use.")
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)

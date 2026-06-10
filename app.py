@@ -1,7 +1,7 @@
 """
 IFC Staircase Generator — Flask Application
 
-A locally-hosted web application that generates valid IFC 2x3 files
+A locally-hosted web application that generates valid IFC4 files
 for parametric staircases (straight, single-winder, double-winder).
 """
 
