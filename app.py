@@ -16,6 +16,13 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
+    """SEO landing page with disclaimer/competency gate."""
+    return render_template("landing.html")
+
+
+@app.route("/app")
+def tool():
+    """The StairSmith design tool itself."""
     response = render_template("index.html")
     from flask import make_response
     resp = make_response(response)
