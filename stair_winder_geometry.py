@@ -311,7 +311,8 @@ def _winder_profiles_from_construction(post_cx, post_cy, newel_size, stair_width
 
 def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
                          num_winders, winder_start_riser, rise, tread_t,
-                         riser_t, nosing=0, rotation=0, winder_x=25.0):
+                         riser_t, nosing=0, rotation=0, winder_x=25.0,
+                         name_prefix="Winder Riser"):
     """Generate riser meshes between consecutive winder treads.
 
     Returns a list of winder_polygon mesh dicts (thin strips along division
@@ -466,7 +467,7 @@ def _winder_riser_meshes(corner_x, corner_y, ns, width, turn_dir,
             "z": z_bottom,
             "thickness": riser_h,
             "color": "#e8dcc8",
-            "name": f"Winder Riser {j+1}",
+            "name": f"{name_prefix} {j+1}",
             "ifc_type": "winder_riser",
         })
 

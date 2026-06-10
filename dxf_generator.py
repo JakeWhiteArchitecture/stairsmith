@@ -1136,7 +1136,7 @@ def _flight1_front_edge(meshes, flight_dir, flight_bbox):
         if m.get("ifc_type") != "riser":
             continue
         name = m.get("name", "")
-        if "F1-1" not in name:
+        if name != "Flight 1 Riser 1":
             continue
         c = m.get("ifc_center")
         s = m.get("ifc_size")

@@ -58,7 +58,7 @@ def _preview_straight(p):
             meshes.append(_box_mesh(
                 width / 2, riser_y + riser_t / 2, riser_z + riser_h / 2,
                 width, riser_t, riser_h, "#e8dcc8",
-                name=f"Riser F1-{i+1}", ifc_type="riser",
+                name=f"Flight 1 Riser {i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip ---
@@ -241,7 +241,7 @@ def _preview_single_winder(p):
             meshes.append(_box_mesh(
                 width / 2, i * going + riser_t / 2 + flight1_shift_y, i * rise + riser_h / 2,
                 width, riser_t, riser_h, "#e8dcc8",
-                name=f"Riser F1-{i+1}", ifc_type="riser",
+                name=f"Flight 1 Riser {i+1}", ifc_type="riser",
             ))
 
     # Winder treads — construction-based profiles
@@ -267,7 +267,7 @@ def _preview_single_winder(p):
             "z": winder_z,
             "thickness": tread_t,
             "color": "#d4a574",
-            "name": f"Winder {i+1}",
+            "name": f"Turn1 Winder {i+1}",
             "ifc_type": "winder_tread",
         })
 
@@ -275,7 +275,7 @@ def _preview_single_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner_x, corner_y, ns, width, turn_dir,
         actual_winders, winder_start_riser, rise, tread_t, riser_t,
-        nosing=nosing, winder_x=wx))
+        nosing=nosing, winder_x=wx, name_prefix="Turn1 Winder Riser"))
 
     # Landing tread when winders are off
     if actual_winders == 0:
@@ -332,7 +332,7 @@ def _preview_single_winder(p):
             meshes.append(_box_mesh(
                 riser_x, flight2_y_center, riser_z,
                 riser_t, width, riser_h, "#e8dcc8",
-                name=f"Riser F2-{i+1}", ifc_type="riser",
+                name=f"Flight 2 Riser {i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip ---
@@ -1288,7 +1288,7 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(
                 width / 2, i * going + riser_t / 2 + flight1_shift_y + landing_riser_offset, i * rise + riser_h / 2,
                 width, riser_t, riser_h, "#e8dcc8",
-                name=f"Riser F1-{i+1}", ifc_type="riser",
+                name=f"Flight 1 Riser {i+1}", ifc_type="riser",
             ))
 
     riser_idx = flight1_treads + 1
@@ -1324,7 +1324,7 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner1_x, corner1_y, ns, width, turn1_dir,
         actual_winders1, turn1_winder_start, rise, tread_t, riser_t,
-        nosing=nosing, winder_x=wx))
+        nosing=nosing, winder_x=wx, name_prefix="Turn1 Winder Riser"))
 
     # Newel post at turn 1 — placed at end with handrail-based height
 
@@ -1388,7 +1388,7 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(
                 riser_x, flight2_y_center, riser_z,
                 riser_t, width, riser_h, "#e8dcc8",
-                name=f"Riser F2-{i+1}", ifc_type="riser",
+                name=f"Flight 2 Riser {i+1}", ifc_type="riser",
             ))
 
     riser_idx += flight2_treads
@@ -1429,7 +1429,8 @@ def _preview_double_winder(p):
     meshes.extend(_winder_riser_meshes(
         corner2_x, corner2_y, ns, width, turn2_dir,
         actual_winders2, turn2_winder_start, rise, tread_t, riser_t,
-        nosing=nosing, rotation=turn2_rotation, winder_x=wx2))
+        nosing=nosing, rotation=turn2_rotation, winder_x=wx2,
+        name_prefix="Turn2 Winder Riser"))
 
     # Newel post at turn 2 — placed at end with handrail-based height
 
@@ -1494,7 +1495,7 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(
                 flight3_start_x + width / 2, riser_y, riser_z,
                 width, riser_t, riser_h, "#e8dcc8",
-                name=f"Riser F3-{i+1}", ifc_type="riser",
+                name=f"Flight 3 Riser {i+1}", ifc_type="riser",
             ))
 
     # --- Landing threshold strip (flight 3 top) ---

@@ -2404,6 +2404,52 @@ _RAILING_PART_TYPES = frozenset({"handrail", "baserail", "spindle", "newel"})
 _STAIR_DIRECT_TYPES = frozenset({"landing", "threshold"})
 
 
+# Uniclass 2015 classification (NBS).  Codes verified against the
+# published Uniclass 2015 tables.  Elements without a dedicated product
+# code carry the system-level reference.
+_UNICLASS_SYSTEM = ("Ss_35_10_85_90", "Timber stair systems")
+_UNICLASS_PRODUCTS = {
+    "tread":        ("Pr_25_30_90_89", "Timber stair treads"),
+    "winder_tread": ("Pr_25_30_90_89", "Timber stair treads"),
+    "riser":        ("Pr_25_30_90_88", "Timber risers"),
+    "winder_riser": ("Pr_25_30_90_88", "Timber risers"),
+    "stringer":     ("Pr_20_85_47_90", "Timber stair stringers"),
+    "newel":        ("Pr_20_76_06_87", "Timber newel posts"),
+    "spindle":      ("Pr_20_76_06_88", "Timber spindles"),
+    "handrail":     ("Pr_25_30_36_96", "Wood handrails"),
+}
+
+
+def _attach_uniclass(ifc, products_by_code):
+    """Associate Uniclass 2015 references with products (IFC4).
+
+    *products_by_code* maps ``(code, title)`` -> list of products.
+    Uses raw entities (WASM-safe, no template files needed).
+    """
+    try:
+        classification = ifc.create_entity(
+            "IfcClassification", Source="NBS", Edition="2015",
+            Name="Uniclass 2015")
+    except Exception:
+        return  # pre-IFC4 schema variations — classification is optional
+    histories = ifc.by_type("IfcOwnerHistory")
+    owner = histories[0] if histories else None
+    for (code, title), products in products_by_code.items():
+        if not products:
+            continue
+        try:
+            ref = ifc.create_entity(
+                "IfcClassificationReference",
+                Identification=code, Name=title,
+                ReferencedSource=classification)
+            ifc.create_entity(
+                "IfcRelAssociatesClassification",
+                GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner,
+                RelatedObjects=products, RelatingClassification=ref)
+        except Exception:
+            continue
+
+
 def _set_enum_attr(entity, value, *attr_names):
     """Set the first available enum attribute (schema-dependent name)."""
     for attr in attr_names:
@@ -2581,6 +2627,20 @@ def meshes_to_ifc(meshes):
     else:
         stair_shape = "STRAIGHT_RUN_STAIR"
     _set_enum_attr(stair, stair_shape, "PredefinedType", "ShapeType")
+
+    # Uniclass 2015 classification: product codes per element type,
+    # system code for the stair, assemblies and unmapped parts.
+    by_code = {}
+    system_products = [stair] + [c for c in stair_children
+                                 if not c.is_a("IfcSlab")]
+    for t, e in elements:
+        key = _UNICLASS_PRODUCTS.get(t)
+        if key is None:
+            system_products.append(e)
+        else:
+            by_code.setdefault(key, []).append(e)
+    by_code[_UNICLASS_SYSTEM] = system_products
+    _attach_uniclass(ifc, by_code)
 
     # Attach StairSmith disclaimer property set to IfcProject (raw entities
     # to avoid pset template lookup which fails in Pyodide/WASM)

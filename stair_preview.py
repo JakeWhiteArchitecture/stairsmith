@@ -28,15 +28,39 @@ def generate_preview_geometry(params):
     stair_type = p["staircase_type"]
 
     if stair_type == "straight":
-        return _preview_straight(p)
+        meshes = _preview_straight(p)
     elif stair_type == "single_winder":
-        return _preview_single_winder(p)
+        meshes = _preview_single_winder(p)
     elif stair_type == "double_winder":
-        return _preview_double_winder(p)
+        meshes = _preview_double_winder(p)
     elif stair_type == "y_shaped":
-        return _preview_y_shaped(p)
+        meshes = _preview_y_shaped(p)
+    else:
+        return []
 
-    return []
+    return _ensure_unique_names(meshes)
+
+
+def _ensure_unique_names(meshes):
+    """Give every mesh a non-empty, unique, human-readable name.
+
+    Blank names become the title-cased ifc_type; duplicates get a
+    numeric suffix per duplicate group (e.g. "Stringer 1".."Stringer 6").
+    Element names appear in IFC structure trees and schedules, so they
+    must be distinct.
+    """
+    counts = {}
+    for m in meshes:
+        name = m.get("name") or m.get("ifc_type", "Element").replace("_", " ").title()
+        m["name"] = name
+        counts[name] = counts.get(name, 0) + 1
+    seen = {}
+    for m in meshes:
+        name = m["name"]
+        if counts[name] > 1:
+            seen[name] = seen.get(name, 0) + 1
+            m["name"] = f"{name} {seen[name]}"
+    return meshes
 
 
 def check_building_regs(params):
