@@ -272,6 +272,27 @@
             z-index: 1;
         }
 
+        .spin-btn {
+            position: absolute;
+            top: 12px; left: 12px;
+            z-index: 6;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: rgba(22, 33, 62, 0.85);
+            color: #9aa1b5;
+            border: 1px solid #0f3460;
+            font-size: 19px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .spin-btn:hover { color: #fff; }
+        .spin-btn.active {
+            background: #e94560;
+            border-color: #e94560;
+            color: #fff;
+        }
+
         .viewport-info {
             position: absolute;
             top: 10px;
@@ -1422,6 +1443,7 @@
     </div>
 
     <div class="viewport" id="viewport">
+        <button class="spin-btn" id="spin-btn" onclick="toggleSpin()" title="Auto-rotate view" aria-pressed="false">&#10227;</button>
         <div class="viewport-info"><span class="desktop-hint">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</span><span class="touch-hint">Rotate: drag | Zoom: pinch | Pan: two-finger drag</span></div>
         <div class="measure-overlay" id="measure-overlay">
             <div class="measure-title">Measure</div>
@@ -1504,7 +1526,6 @@
 
         function revealApp() {
             document.getElementById('startup-screen').classList.add('hidden');
-            window._bootFade = true;  // fade in the first stair model built
             // Slide the side tray out and stagger its controls in
             // (desktop only - the mobile drawer has its own transition).
             if (window.innerWidth > 768) {
@@ -1660,6 +1681,7 @@
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            _runAnims(performance.now());
             // Scale dimension sprites to maintain constant screen size
             if (dimensionGroup) {
                 dimensionGroup.traverse(child => {
@@ -2098,84 +2120,217 @@ _json.dumps({"geometry": _geo, "dimensions": _dim_data})
             }
         }
 
-function renderGeometry(meshes) {
-            // Remove old geometry
-            if (staircaseGroup) {
-                scene.remove(staircaseGroup);
-                staircaseGroup.traverse(child => {
-                    if (child.geometry) child.geometry.dispose();
-                    if (child.material) child.material.dispose();
+function meshFingerprint(m) {
+            // Stable content key: name + rounded geometry. Drives the
+            // change animations (same idea as the stable IFC GUIDs).
+            return JSON.stringify(m, function (k, v) {
+                return (typeof v === 'number') ? Math.round(v * 10) / 10 : v;
+            });
+        }
+
+        function buildMeshObject(m) {
+            const grp = new THREE.Group();
+            if (m.type === 'box') {
+                const geo = new THREE.BoxGeometry(m.size[0], m.size[1], m.size[2]);
+                const mat = new THREE.MeshPhongMaterial({
+                    color: new THREE.Color(m.color),
+                    flatShading: true,
                 });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.set(m.position[0], m.position[1], m.position[2]);
+                grp.add(mesh);
+                const edges = new THREE.EdgesGeometry(geo);
+                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
+                line.position.copy(mesh.position);
+                grp.add(line);
+            } else if (m.type === 'winder_polygon') {
+                const polyMesh = createWinderPolygonMesh(m);
+                if (polyMesh) grp.add(polyMesh);
+            } else if (m.type === 'stringer') {
+                const strMesh = createStringerMesh(m);
+                if (strMesh) grp.add(strMesh);
+            } else if (m.type === 'winder' || m.type === 'winder_turn2') {
+                const winderMesh = createWinderMesh(m);
+                if (winderMesh) grp.add(winderMesh);
             }
+            return grp.children.length ? grp : null;
+        }
 
-            staircaseGroup = new THREE.Group();
+        // ─── CHANGE ANIMATIONS ───
+        // Unchanged elements are left untouched (no flicker); removed or
+        // reshaped elements tint red and fade out; new geometry fades in
+        // with a brief glow; elements that merely MOVED (same shape,
+        // new position - e.g. the upper flight dropping one rise) slide
+        // to their new position.
+        const _liveMeshes = new Map();   // name -> THREE.Group
+        const _anims = [];
+        const _reducedMotion = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-            meshes.forEach(m => {
-                if (m.type === 'box') {
-                    const geo = new THREE.BoxGeometry(m.size[0], m.size[1], m.size[2]);
-                    const mat = new THREE.MeshPhongMaterial({
-                        color: new THREE.Color(m.color),
-                        flatShading: true,
-                    });
-                    const mesh = new THREE.Mesh(geo, mat);
-                    mesh.position.set(m.position[0], m.position[1], m.position[2]);
-                    staircaseGroup.add(mesh);
+        function _collectMats(grp) {
+            const mats = [];
+            grp.traverse(function (o) {
+                if (!o.material) return;
+                (Array.isArray(o.material) ? o.material : [o.material])
+                    .forEach(function (mt) { mats.push(mt); });
+            });
+            return mats;
+        }
 
-                    // Wireframe edge
-                    const edges = new THREE.EdgesGeometry(geo);
-                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x333355 }));
-                    line.position.copy(mesh.position);
-                    staircaseGroup.add(line);
-
-                } else if (m.type === 'winder_polygon') {
-                    const polyMesh = createWinderPolygonMesh(m);
-                    if (polyMesh) staircaseGroup.add(polyMesh);
-
-                } else if (m.type === 'stringer') {
-                    const strMesh = createStringerMesh(m);
-                    if (strMesh) staircaseGroup.add(strMesh);
-
-                } else if (m.type === 'winder' || m.type === 'winder_turn2') {
-                    const winderMesh = createWinderMesh(m);
-                    if (winderMesh) staircaseGroup.add(winderMesh);
+        function _disposeGroup(grp) {
+            grp.traverse(function (o) {
+                if (o.geometry) o.geometry.dispose();
+                if (o.material) {
+                    (Array.isArray(o.material) ? o.material : [o.material])
+                        .forEach(function (mt) { mt.dispose(); });
                 }
             });
+        }
 
-            scene.add(staircaseGroup);
-            if (window._bootFade) {
-                window._bootFade = false;
-                fadeInStaircase(staircaseGroup);
+        function _addAnim(duration, delay, step, finish) {
+            _anims.push({ t0: performance.now() + delay, duration: duration,
+                          step: step, finish: finish, started: false });
+        }
+
+        function _runAnims(now) {
+            for (let i = _anims.length - 1; i >= 0; i--) {
+                const a = _anims[i];
+                if (now < a.t0) continue;
+                const k = Math.min(1, (now - a.t0) / a.duration);
+                a.step(k * (2 - k));  // ease-out
+                if (k >= 1) { a.finish(); _anims.splice(i, 1); }
             }
         }
 
-        // One-time fade-in of the stair model on first reveal.
-        function fadeInStaircase(group) {
-            var mats = [];
-            group.traverse(function (obj) {
-                if (!obj.material) return;
-                var list = Array.isArray(obj.material) ? obj.material : [obj.material];
-                list.forEach(function (m) {
-                    mats.push({ m: m, opacity: m.opacity, transparent: m.transparent });
-                    m.transparent = true;
-                    m.opacity = 0;
+        function _finishAnims() {
+            while (_anims.length) {
+                const a = _anims.pop();
+                a.step(1);
+                a.finish();
+            }
+        }
+
+        function _animateOut(grp) {
+            const entries = _collectMats(grp).map(function (mt) {
+                mt.transparent = true;
+                return { m: mt, o: mt.opacity,
+                         c: mt.color ? mt.color.clone() : null };
+            });
+            const red = new THREE.Color(0xe94560);
+            _addAnim(260, 0, function (e) {
+                entries.forEach(function (x) {
+                    x.m.opacity = x.o * (1 - e);
+                    if (x.c && x.m.color) x.m.color.lerpColors(x.c, red, Math.min(1, e * 2));
+                });
+            }, function () {
+                staircaseGroup.remove(grp);
+                _disposeGroup(grp);
+            });
+        }
+
+        function _animateIn(grp) {
+            const entries = _collectMats(grp).map(function (mt) {
+                mt.transparent = true;
+                const hasEm = !!mt.emissive;
+                return { m: mt, o: mt.opacity, hasEm: hasEm };
+            });
+            entries.forEach(function (x) { x.m.opacity = 0; });
+            const glow = new THREE.Color(0xe94560);
+            _addAnim(320, 120, function (e) {
+                entries.forEach(function (x) {
+                    x.m.opacity = x.o * e;
+                    if (x.hasEm) x.m.emissive.copy(glow).multiplyScalar(0.35 * (1 - e));
+                });
+            }, function () {
+                entries.forEach(function (x) {
+                    x.m.opacity = x.o;
+                    x.m.transparent = false;
+                    if (x.hasEm) x.m.emissive.setRGB(0, 0, 0);
+                    x.m.needsUpdate = true;
                 });
             });
-            if (!mats.length) return;
-            var t0 = performance.now(), DUR = 700;
-            (function step(now) {
-                var k = Math.min(1, (now - t0) / DUR);
-                var e = k * (2 - k);  // ease-out
-                mats.forEach(function (x) { x.m.opacity = x.opacity * e; });
-                if (k < 1) {
-                    requestAnimationFrame(step);
-                } else {
-                    mats.forEach(function (x) {
-                        x.m.opacity = x.opacity;
-                        x.m.transparent = x.transparent;
-                        x.m.needsUpdate = true;
-                    });
+        }
+
+        function _animateMove(grp, delta) {
+            grp.position.copy(delta);
+            _addAnim(360, 0, function (e) {
+                grp.position.set(delta.x * (1 - e), delta.y * (1 - e), delta.z * (1 - e));
+            }, function () {
+                grp.position.set(0, 0, 0);
+            });
+        }
+
+        function _congruent(a, b) {
+            // Same shape (bounding box + vertex count) => treat as moved.
+            const ba = new THREE.Box3().setFromObject(a);
+            const bb = new THREE.Box3().setFromObject(b);
+            const sa = ba.getSize(new THREE.Vector3());
+            const sb = bb.getSize(new THREE.Vector3());
+            if (Math.abs(sa.x - sb.x) > 0.5 || Math.abs(sa.y - sb.y) > 0.5 ||
+                Math.abs(sa.z - sb.z) > 0.5) return null;
+            let va = 0, vb = 0;
+            a.traverse(function (o) { if (o.geometry && o.geometry.attributes.position) va += o.geometry.attributes.position.count; });
+            b.traverse(function (o) { if (o.geometry && o.geometry.attributes.position) vb += o.geometry.attributes.position.count; });
+            if (va !== vb) return null;
+            const ca = ba.getCenter(new THREE.Vector3());
+            const cb = bb.getCenter(new THREE.Vector3());
+            const d = ca.sub(cb);
+            return d.length() > 0.5 ? d : null;
+        }
+
+        function renderGeometry(meshes) {
+            _finishAnims();
+            if (!staircaseGroup) {
+                staircaseGroup = new THREE.Group();
+                scene.add(staircaseGroup);
+            }
+            const seen = new Set();
+            meshes.forEach(function (m, idx) {
+                const name = m.name || ('mesh-' + idx);
+                seen.add(name);
+                const fp = meshFingerprint(m);
+                const old = _liveMeshes.get(name);
+                if (old && old.userData.fp === fp) return;  // untouched
+                const grp = buildMeshObject(m);
+                if (!grp) {
+                    if (old) { staircaseGroup.remove(old); _disposeGroup(old); _liveMeshes.delete(name); }
+                    return;
                 }
-            })(t0);
+                grp.userData = { fp: fp };
+                staircaseGroup.add(grp);
+                _liveMeshes.set(name, grp);
+                if (old) {
+                    const delta = _reducedMotion ? null : _congruent(old, grp);
+                    staircaseGroup.remove(old);
+                    if (delta) {
+                        _disposeGroup(old);
+                        _animateMove(grp, delta);
+                        return;
+                    }
+                    if (_reducedMotion) { _disposeGroup(old); }
+                    else { staircaseGroup.add(old); _animateOut(old); }
+                }
+                if (!_reducedMotion) _animateIn(grp);
+            });
+            _liveMeshes.forEach(function (grp, name) {
+                if (seen.has(name)) return;
+                _liveMeshes.delete(name);
+                if (_reducedMotion) {
+                    staircaseGroup.remove(grp);
+                    _disposeGroup(grp);
+                } else {
+                    _animateOut(grp);
+                }
+            });
+        }
+
+        // ─── AUTO-ROTATE ───
+        function toggleSpin() {
+            controls.autoRotate = !controls.autoRotate;
+            controls.autoRotateSpeed = 1.2;
+            const b = document.getElementById('spin-btn');
+            b.classList.toggle('active', controls.autoRotate);
+            b.setAttribute('aria-pressed', controls.autoRotate ? 'true' : 'false');
         }
 
         let dimensionGroup = null;
