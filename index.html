@@ -370,7 +370,13 @@
 
             [launch, preview].forEach(function (el) {
                 el.addEventListener('click', function (e) {
-                    if (el.getAttribute('aria-disabled') === 'true') { e.preventDefault(); }
+                    if (el.getAttribute('aria-disabled') === 'true') {
+                        e.preventDefault();
+                        return;
+                    }
+                    // Both boxes ticked - record acceptance for the tool's
+                    // session gate (app.html bounces back here without it).
+                    try { sessionStorage.setItem('stairsmith_terms_ok', '1'); } catch (err) {}
                 });
             });
 
