@@ -1198,6 +1198,22 @@
         </div>
     </div>
 
+    <div id="download-reminder" role="dialog" aria-modal="true" aria-label="Download Reminder">
+        <div class="reminder-dialog">
+            <div class="reminder-heading">Reminder</div>
+            <p class="reminder-text">The user must check all outputs / downloads for compliance with UK or other relevant local regulation or standard.</p>
+            <button class="reminder-btn" onclick="confirmDownload()">Understood, proceed to download</button>
+        </div>
+    </div>
+
+    <!-- Loading overlay removed: loading status is now shown in the startup screen -->
+
+    <!-- Mobile drawer toggle -->
+    <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle controls" onclick="toggleDrawer()">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+
     <div class="panel" id="panel">
       <button class="panel-collapse-tab" id="panel-collapse-tab" onclick="togglePanelCollapse()" aria-label="Collapse panel">
           <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
