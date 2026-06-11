@@ -65,7 +65,7 @@ def _ensure_unique_names(meshes):
 
 def check_building_regs(params):
     """
-    Check parameters against Approved Document K (England & Wales) for private dwellings.
+    Check parameters against common UK residential guidance values.
     Returns a list of check results.
     """
     p = _parse(params)
