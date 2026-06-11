@@ -155,6 +155,34 @@
             transition: background 0.2s;
         }
 
+        /* Animated diagonal hatching while IFC/DXF generation runs */
+        .btn-hatched {
+            background-image: repeating-linear-gradient(45deg,
+                rgba(255,255,255,0.18) 0 12px,
+                rgba(255,255,255,0.02) 12px 24px) !important;
+            animation: hatch-slide 1.1s linear infinite;
+        }
+        @keyframes hatch-slide {
+            from { background-position: 0 0; }
+            to   { background-position: 34px 0; }
+        }
+
+        /* Floating Buy Me a Coffee link, bottom-right */
+        .bmc-float {
+            position: fixed;
+            right: 16px; bottom: 16px;
+            z-index: 900;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 9px 16px;
+            background: #ffdd00; color: #1a1a2e;
+            font-weight: 700; font-size: 13.5px;
+            border-radius: 999px;
+            text-decoration: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+            transition: transform 0.15s;
+        }
+        .bmc-float:hover { transform: translateY(-2px); }
+
         .btn-primary {
             background: #e94560;
             color: white;
@@ -2766,6 +2794,7 @@ else:
             const btn = document.querySelector('.btn-primary');
             btn.textContent = 'Generating...';
             btn.disabled = true;
+            btn.classList.add('btn-hatched');
             try {
                 await ensureIfcOpenShell();
                 btn.textContent = 'Generating IFC...';
@@ -2790,6 +2819,7 @@ _data
             } finally {
                 btn.textContent = 'Download IFC File';
                 btn.disabled = false;
+                btn.classList.remove('btn-hatched');
             }
         }
 
@@ -2799,6 +2829,7 @@ _data
             const btn = document.getElementById('dxf-btn');
             btn.textContent = 'Generating...';
             btn.disabled = true;
+            btn.classList.add('btn-hatched');
             try {
                 const paramsJSON = JSON.stringify(params);
                 const dxfString = await pyodide.runPythonAsync(`
@@ -2816,6 +2847,7 @@ _to_dxf(_meshes, _p)
             } finally {
                 btn.textContent = 'Download DXF Plan';
                 btn.disabled = false;
+                btn.classList.remove('btn-hatched');
             }
         }
 
@@ -2866,5 +2898,6 @@ from stair_preview import generate_preview_geometry
         initPyodide();
     </script>
 
+    <a class="bmc-float" href="https://buymeacoffee.com/jakewhitearchitecture" target="_blank" rel="noopener">&#9749; Buy me a coffee</a>
 </body>
 </html>
