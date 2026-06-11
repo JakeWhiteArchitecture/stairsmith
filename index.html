@@ -6,7 +6,7 @@
 
     <!-- ── SEO ─────────────────────────────────────────────── -->
     <title>StairSmith — Free Online Staircase Design Tool | 3D Stair Calculator with IFC &amp; DXF Export</title>
-    <meta name="description" content="Design timber staircases in 3D in your browser — straight, single winder and double winder. IFC4 and dimensioned DXF export, with Approved Document K reference values shown for information only. Free stair design tool by Jake White Architecture.">
+    <meta name="description" content="Design timber staircases in 3D in your browser — straight, single winder and double winder. IFC4 and dimensioned DXF export, with key dimensional reference values shown for information only. Free stair design tool by Jake White Architecture.">
     <link rel="canonical" href="https://jakewhitearchitecture.com/stairsmith/">
     <meta name="robots" content="index,follow">
     <meta name="author" content="Jake White Architecture">
@@ -33,7 +33,7 @@
       "applicationCategory": "DesignApplication",
       "operatingSystem": "Any (browser-based)",
       "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"},
-      "description": "Free parametric staircase design tool. Model straight, single winder and double winder timber staircases in 3D and export IFC4 models and dimensioned DXF drawings. Approved Document K reference values are displayed for information only — the tool does not check or assure compliance.",
+      "description": "Free parametric staircase design tool. Model straight, single winder and double winder timber staircases in 3D and export IFC4 models and dimensioned DXF drawings. Dimensional reference values are displayed for information only — the tool does not check or assure compliance.",
       "creator": {"@type": "Organization", "name": "Jake White Architecture", "url": "https://jakewhitearchitecture.com/"},
       "featureList": "Live 3D staircase preview, Straight / single winder / double winder layouts, Kite winder setting-out, IFC4 export, DXF plan / elevation / section export"
     }
@@ -59,20 +59,18 @@
         }
         a { color: var(--accent); }
 
-        /* ── Header bar ── */
-        header.site {
-            display: flex; align-items: center; justify-content: flex-end;
-            padding: 10px 28px;
-            border-bottom: 1px solid var(--line);
+        .site-link {
+            margin-left: auto;
+            align-self: center;
+            font-size: 13px; color: var(--muted); text-decoration: none;
         }
+        .site-link:hover { color: var(--accent); }
         .logo-large {
-            width: min(250px, 70%);
+            width: min(150px, 55%);
             height: auto;
             align-self: center;
             filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5));
         }
-        header.site .site-link { font-size: 13px; color: var(--muted); text-decoration: none; }
-        header.site .site-link:hover { color: var(--accent); }
 
         /* ── Badge row ── */
         .badge-row {
@@ -94,21 +92,21 @@
             min-height: 0;
         }
         .col-left {
-            padding: 30px 30px 24px;
+            padding: 18px 28px 16px;
             border-right: 1px solid var(--line);
-            display: flex; flex-direction: column; gap: 18px;
+            display: flex; flex-direction: column; gap: 12px;
             overflow-y: auto;
         }
         h1 {
-            font-size: clamp(22px, 2.2vw, 30px);
+            font-size: clamp(20px, 1.8vw, 25px);
             line-height: 1.25;
             color: var(--accent);
             font-weight: 800;
         }
-        .intro { font-size: 14.5px; color: #d6dae6; line-height: 1.6; }
-        ul.features { list-style: none; display: grid; gap: 9px; }
+        .intro { font-size: 13.5px; color: #d6dae6; line-height: 1.55; }
+        ul.features { list-style: none; display: grid; gap: 7px; }
         ul.features li {
-            font-size: 13.5px; color: #c8cedd;
+            font-size: 13px; color: #c8cedd;
             padding-left: 18px; position: relative;
         }
         ul.features li::before {
@@ -121,7 +119,7 @@
             border: 1px solid var(--line);
             border-left: 3px solid var(--accent);
             border-radius: 8px;
-            padding: 14px 16px;
+            padding: 11px 14px;
         }
         .callout .label {
             font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
@@ -135,7 +133,7 @@
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: 10px;
-            padding: 16px 18px;
+            padding: 13px 16px;
         }
         .begin .label {
             font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
@@ -143,14 +141,14 @@
         }
         .begin label.tick {
             display: flex; gap: 10px; align-items: flex-start;
-            font-size: 12.5px; color: #d4d9e6;
-            margin-bottom: 10px; cursor: pointer; line-height: 1.45;
+            font-size: 12px; color: #d4d9e6;
+            margin-bottom: 8px; cursor: pointer; line-height: 1.4;
         }
         .begin input[type="checkbox"] {
             width: 17px; height: 17px; margin-top: 1px;
             accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
         }
-        .begin .actions { display: flex; gap: 10px; margin: 12px 0 10px; }
+        .begin .actions { display: flex; gap: 10px; margin: 10px 0 8px; }
         .btn {
             padding: 10px 22px; font-size: 14px; font-weight: 700;
             border-radius: 8px; cursor: pointer; text-decoration: none;
@@ -243,10 +241,6 @@
 </head>
 <body>
 
-    <header class="site">
-        <a class="site-link" href="https://jakewhitearchitecture.com/">jakewhitearchitecture.com</a>
-    </header>
-
     <nav class="badge-row" aria-label="Tool capabilities">
         <span class="badge">Staircase design calculator</span>
         <span class="badge">Winder stair designer</span>
@@ -254,6 +248,7 @@
         <span class="badge">IFC4 export</span>
         <span class="badge">DXF export</span>
         <span class="badge">Free tool</span>
+        <a class="site-link" href="https://jakewhitearchitecture.com/">jakewhitearchitecture.com</a>
     </nav>
 
     <main>
@@ -302,7 +297,7 @@
                     <a id="preview-launch" href="app.html" aria-disabled="true">Accept terms to launch</a>
                 </div>
             </div>
-            <p class="small-print"><strong>StairSmith does not check or assure compliance.</strong> It is a design tool &mdash; it will let you model a staircase that is right or wrong, and the design remains your responsibility. References to Approved Document K (England &amp; Wales) are for information only. All outputs must be independently checked and verified by a competent person before any use.</p>
+            <p class="small-print"><strong>StairSmith does not check or assure compliance.</strong> It is a design tool &mdash; it will let you model a staircase that is right or wrong, and the design remains your responsibility. Reference values shown in the tool are for information only. All outputs must be independently checked and verified by a competent person before any use.</p>
         </section>
     </main>
 

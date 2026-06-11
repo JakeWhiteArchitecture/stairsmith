@@ -6,6 +6,8 @@ single-winder (L-shaped), and double-winder (U-shaped) staircases
 using IfcOpenShell.
 """
 
+import uuid
+
 import ifcopenshell
 import ifcopenshell.api
 import ifcopenshell.api.owner.settings
@@ -26,6 +28,37 @@ from stair_winder_geometry import (
 # IfcStairFlight.NumberOfRiser); all entity creation goes through the
 # schema-aware ifcopenshell.api, so only this constant selects the schema.
 IFC_SCHEMA_VERSION = "IFC4"
+
+# Namespace for deterministic GlobalIds: re-exporting the same design
+# yields the same GUIDs (downstream BIM workflows depend on stability);
+# an element's GUID changes only when its own geometry changes.
+_GUID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://jakewhitearchitecture.com/stairsmith/")
+
+
+def _stable_guid(key):
+    """Deterministic IfcGloballyUniqueId from a content key."""
+    return ifcopenshell.guid.compress(uuid.uuid5(_GUID_NAMESPACE, key).hex)
+
+
+def _mesh_fingerprint(mesh):
+    """Geometry fingerprint of one mesh dict (rounded to 0.1 mm)."""
+    parts = [mesh.get("type", ""), mesh.get("ifc_type", "")]
+    for k in ("ifc_center", "ifc_size", "profile"):
+        v = mesh.get(k)
+        if v is None:
+            continue
+        flat = []
+        for item in v:
+            if isinstance(item, (list, tuple)):
+                flat.extend(item)
+            else:
+                flat.append(item)
+        parts.append(",".join("%.1f" % float(x) for x in flat))
+    for k in ("x", "y", "z", "thickness", "axis"):
+        v = mesh.get(k)
+        if v is not None:
+            parts.append("%s=%s" % (k, v))
+    return "|".join(parts)
 
 
 def _set_header_authorization(ifc, text):
@@ -2479,6 +2512,152 @@ def _add_georeferencing(ifc, model_context):
         pass  # entity does not exist before IFC4
 
 
+def _mesh_plan_bounds(mesh):
+    """Return (min_x, min_y, max_x, max_y) of a mesh in plan, or None."""
+    t = mesh.get("type")
+    if t == "box" and mesh.get("ifc_center") and mesh.get("ifc_size"):
+        c, s = mesh["ifc_center"], mesh["ifc_size"]
+        return (c[0] - s[0] / 2, c[1] - s[1] / 2,
+                c[0] + s[0] / 2, c[1] + s[1] / 2)
+    if t == "winder_polygon" and mesh.get("profile"):
+        xs = [p[0] for p in mesh["profile"]]
+        ys = [p[1] for p in mesh["profile"]]
+        return (min(xs), min(ys), max(xs), max(ys))
+    if t == "stringer" and mesh.get("profile"):
+        us = [p[0] for p in mesh["profile"]]
+        th = mesh.get("thickness", 0)
+        if mesh.get("axis") == "y":
+            y0 = mesh.get("y", 0)
+            return (min(us), y0, max(us), y0 + th)
+        x0 = mesh.get("x", 0)
+        return (x0, min(us), x0 + th, max(us))
+    return None
+
+
+def _normalize_origin(meshes):
+    """Shift all meshes so the plan bounding box corner sits at (0, 0).
+
+    Component models should land near the origin rather than wherever
+    the parametric setting-out happened to place them.
+    """
+    bounds = [b for b in (_mesh_plan_bounds(m) for m in meshes) if b]
+    if not bounds:
+        return meshes
+    dx = -min(b[0] for b in bounds)
+    dy = -min(b[1] for b in bounds)
+    if abs(dx) < 0.01 and abs(dy) < 0.01:
+        return meshes
+    out = []
+    for m in meshes:
+        m = dict(m)
+        t = m.get("type")
+        if t == "box" and m.get("ifc_center"):
+            c = m["ifc_center"]
+            m["ifc_center"] = [c[0] + dx, c[1] + dy, c[2]]
+        elif t == "winder_polygon" and m.get("profile"):
+            m["profile"] = [[p[0] + dx, p[1] + dy] for p in m["profile"]]
+        elif t == "stringer" and m.get("profile"):
+            if m.get("axis") == "y":
+                m["profile"] = [[p[0] + dx, p[1]] for p in m["profile"]]
+                m["y"] = m.get("y", 0) + dy
+            else:
+                m["profile"] = [[p[0] + dy, p[1]] for p in m["profile"]]
+                m["x"] = m.get("x", 0) + dx
+        out.append(m)
+    return out
+
+
+_HOUSING_CUTTER_IFC = frozenset({"tread", "riser", "newel"})
+_HOUSING_CUTTER_WINDER = frozenset({"winder_tread", "winder_riser"})
+
+
+def _stringer_housing_boxes(smesh, meshes):
+    """Yield *(cutter name, center, size)* boxes where elements are housed
+    into a stringer board.
+
+    Treads/risers/newels run up to ~16 mm into the boards; the overlap
+    of each with the board's slab is a box.  Faces flush with the
+    board's entry face are extended 2 mm clear of it so the boolean
+    subtraction is unambiguous.
+    """
+    axis = smesh.get("axis")
+    th = smesh.get("thickness", 0)
+    slab0 = smesh.get("y", 0) if axis == "y" else smesh.get("x", 0)
+    slab1 = slab0 + th
+    sidx = 1 if axis == "y" else 0  # world axis across the board
+
+    def clamp(lo, hi):
+        if hi <= slab0 + 0.01 or lo >= slab1 - 0.01:
+            return None
+        c0 = slab0 - 2.0 if lo < slab0 else lo
+        c1 = slab1 + 2.0 if hi > slab1 else hi
+        return (c0, c1)
+
+    for c in meshes:
+        ifc_type = c.get("ifc_type", "")
+        if c.get("type") == "box" and ifc_type in _HOUSING_CUTTER_IFC \
+                and c.get("ifc_center") and c.get("ifc_size"):
+            ctr, sz = c["ifc_center"], c["ifc_size"]
+            rng = clamp(ctr[sidx] - sz[sidx] / 2, ctr[sidx] + sz[sidx] / 2)
+            if not rng:
+                continue
+            lo = [ctr[0] - sz[0] / 2, ctr[1] - sz[1] / 2, ctr[2] - sz[2] / 2]
+            hi = [ctr[0] + sz[0] / 2, ctr[1] + sz[1] / 2, ctr[2] + sz[2] / 2]
+            lo[sidx], hi[sidx] = rng
+            yield (c.get("name", ifc_type),
+                   [(a + b) / 2 for a, b in zip(lo, hi)],
+                   [b - a for a, b in zip(lo, hi)])
+        elif c.get("type") == "winder_polygon" \
+                and ifc_type in _HOUSING_CUTTER_WINDER and c.get("profile"):
+            try:
+                from shapely.geometry import Polygon as _SP, box as _sb
+                wpoly = _SP([(p[0], p[1]) for p in c["profile"]])
+                if not wpoly.is_valid:
+                    wpoly = wpoly.buffer(0)
+                strip = _sb(slab0, -1e7, slab1, 1e7) if sidx == 0 \
+                    else _sb(-1e7, slab0, 1e7, slab1)
+                piece = wpoly.intersection(strip)
+                if piece.is_empty or piece.area < 1.0:
+                    continue
+                b = piece.bounds
+                z0 = c.get("z", 0)
+                z1 = z0 + c.get("thickness", 0)
+                lo = [b[0], b[1], z0]
+                hi = [b[2], b[3], z1]
+                rng = clamp(lo[sidx], hi[sidx])
+                if not rng:
+                    continue
+                lo[sidx], hi[sidx] = rng
+                yield (c.get("name", ifc_type),
+                       [(a + bb) / 2 for a, bb in zip(lo, hi)],
+                       [bb - a for a, bb in zip(lo, hi)])
+            except Exception:
+                continue
+
+
+def _derive_flight_metrics(meshes):
+    """Derive (rise, going) in mm from flight 1's tread meshes, or (None, None)."""
+    treads = [m for m in meshes
+              if m.get("ifc_type") == "tread"
+              and "Flight 1" in m.get("name", "")
+              and m.get("ifc_center") and m.get("ifc_size")]
+    if len(treads) < 2:
+        return None, None
+    tops = sorted(m["ifc_center"][2] + m["ifc_size"][2] / 2.0 for m in treads)
+    rises = [b - a for a, b in zip(tops, tops[1:]) if b - a > 1.0]
+    centers = [m["ifc_center"] for m in treads]
+    xs = [c[0] for c in centers]
+    ys = [c[1] for c in centers]
+    axis = 1 if (max(ys) - min(ys)) > (max(xs) - min(xs)) else 0
+    along = sorted(c[axis] for c in centers)
+    goings = [b - a for a, b in zip(along, along[1:]) if b - a > 1.0]
+    if not rises or not goings:
+        return None, None
+    rises.sort(); goings.sort()
+    return (round(rises[len(rises) // 2], 2),
+            round(goings[len(goings) // 2], 2))
+
+
 def meshes_to_ifc(meshes):
     """Convert a list of preview mesh dicts into a valid IFC4 file.
 
@@ -2490,26 +2669,35 @@ def meshes_to_ifc(meshes):
     Returns:
         str: path to the generated .ifc file
     """
+    # Land the model with its plan bounding-box corner at (0, 0).
+    meshes = _normalize_origin(meshes)
+
     ifc = ifcopenshell.api.run("project.create_file", version=IFC_SCHEMA_VERSION)
 
     # Owner history
     person = ifcopenshell.api.run("owner.add_person", ifc, family_name="User")
     org = ifcopenshell.api.run("owner.add_organisation", ifc,
-                               identification="IFC-STAIR",
-                               name="IFC Staircase Generator")
+                               identification="JWA",
+                               name="Jake White Architecture")
     ifcopenshell.api.run("owner.add_person_and_organisation", ifc,
                          person=person, organisation=org)
     app = ifcopenshell.api.run("owner.add_application", ifc,
                                application_developer=org,
                                version="1.0",
-                               application_full_name="IFC Staircase Generator",
-                               application_identifier="ifc-stair-gen")
+                               application_full_name="StairSmith",
+                               application_identifier="stairsmith")
     ifcopenshell.api.owner.settings.get_user = lambda f: f.by_type("IfcPersonAndOrganization")[0]
     ifcopenshell.api.owner.settings.get_application = lambda f: f.by_type("IfcApplication")[0]
 
     # Units (millimetres)
     project = ifcopenshell.api.run("root.create_entity", ifc,
-                                   ifc_class="IfcProject", name="Staircase Project")
+                                   ifc_class="IfcProject",
+                                   name="StairSmith Staircase")
+    try:
+        project.LongName = "StairSmith preliminary staircase design"
+        project.Phase = "Preliminary design"
+    except Exception:
+        pass
     ifcopenshell.api.run("unit.assign_unit", ifc,
                          length={"is_metric": True, "raw": "MILLIMETERS"})
 
@@ -2544,6 +2732,8 @@ def meshes_to_ifc(meshes):
 
     # Convert each mesh to an IFC element
     elements = []
+    elem_fingerprints = {}  # elem id -> content key for stable GUIDs
+    stringer_hosts = []     # (element, mesh) pairs for housing voids
     counter = {}  # for auto-naming: {ifc_type: count}
 
     for mesh in meshes:
@@ -2569,6 +2759,30 @@ def meshes_to_ifc(meshes):
 
         if elem:
             elements.append((ifc_type, elem))
+            elem_fingerprints[elem.id()] = "%s|%s|%s" % (
+                ifc_class, name, _mesh_fingerprint(mesh))
+            if ifc_type == "stringer" and mesh_type == "stringer":
+                stringer_hosts.append((elem, mesh))
+
+    # Clean geometry: housed treads/risers/newels are boolean-cut out of
+    # the stringer boards with IfcOpeningElement voids, so the delivered
+    # model has no overlapping solids.
+    histories0 = ifc.by_type("IfcOwnerHistory")
+    owner0 = histories0[0] if histories0 else None
+    for host_elem, smesh in stringer_hosts:
+        for cname, ctr, sz in _stringer_housing_boxes(smesh, meshes):
+            try:
+                opening = _convert_box_mesh(
+                    ifc, body, {"ifc_center": ctr, "ifc_size": sz},
+                    "IfcOpeningElement",
+                    "Housing - %s" % cname)
+                ifc.create_entity(
+                    "IfcRelVoidsElement",
+                    GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner0,
+                    RelatingBuildingElement=host_elem,
+                    RelatedOpeningElement=opening)
+            except Exception:
+                continue
 
     # Decompose per buildingSMART practice: IfcStair > IfcStairFlight
     # (treads, risers, stringers) + IfcRailing (balustrade) + IfcSlab.
@@ -2642,6 +2856,63 @@ def meshes_to_ifc(meshes):
     by_code[_UNICLASS_SYSTEM] = system_products
     _attach_uniclass(ifc, by_code)
 
+    # Standard property sets, populated from the geometry itself.
+    histories = ifc.by_type("IfcOwnerHistory")
+    owner = histories[0] if histories else None
+    if flight_parts:
+        rise, going = _derive_flight_metrics(meshes)
+        if rise and going:
+            _add_pset_stair_flight(ifc, flight, n_risers, n_treads,
+                                   rise, going)
+    try:
+        stair_props = [
+            ifc.createIfcPropertySingleValue("Reference", None,
+                ifc.create_entity("IfcIdentifier", "StairSmith stair"), None),
+            ifc.createIfcPropertySingleValue("IsExternal", None,
+                ifc.create_entity("IfcBoolean", False), None),
+        ]
+        stair_pset = ifc.createIfcPropertySet(
+            ifcopenshell.guid.new(), owner, "Pset_StairCommon", None,
+            stair_props)
+        ifc.createIfcRelDefinesByProperties(
+            ifcopenshell.guid.new(), owner, None, None, [stair], stair_pset)
+    except Exception:
+        pass
+
+    # Material: a single softwood timber assignment for all parts.
+    try:
+        material = ifc.create_entity("IfcMaterial",
+                                     Name="Timber (softwood)",
+                                     Category="wood")
+        ifc.create_entity(
+            "IfcRelAssociatesMaterial",
+            GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner,
+            RelatedObjects=[e for _t, e in elements] + [stair],
+            RelatingMaterial=material)
+    except Exception:
+        pass
+
+    # Stable GlobalIds: per-element from name + geometry (unchanged
+    # elements keep their GUID across re-exports); spatial containers
+    # from the whole-design fingerprint.
+    design_fp = _stable_guid("design|" + "|".join(
+        sorted(elem_fingerprints.values())))
+    for _t, e in elements:
+        key = elem_fingerprints.get(e.id())
+        if key:
+            e.GlobalId = _stable_guid("element|" + key)
+    spatial = [("project", project), ("site", site),
+               ("building", building), ("storey", storey),
+               ("stair", stair)]
+    if flight_parts:
+        spatial.append(("flight", flight))
+    if railing_parts:
+        spatial.append(("railing", railing))
+    assigned = {e.id() for _t, e in elements}
+    for label, ent in spatial:
+        ent.GlobalId = _stable_guid("spatial|%s|%s" % (design_fp, label))
+        assigned.add(ent.id())
+
     # Attach StairSmith disclaimer property set to IfcProject (raw entities
     # to avoid pset template lookup which fails in Pyodide/WASM)
     _DISCLAIMER = ("StairSmith \u2014 Preliminary design aid only. "
@@ -2650,6 +2921,18 @@ def meshes_to_ifc(meshes):
 
     # Set the Authorization field in the IFC file header
     _set_header_authorization(ifc, "User must verify all outputs before use.")
+
+    # Everything else rooted (relationships, property sets, annotations)
+    # gets a deterministic GUID from the design fingerprint and its
+    # position in the (deterministic) creation order.
+    counters = {}
+    for ent in ifc.by_type("IfcRoot"):
+        if ent.id() in assigned:
+            continue
+        cls = ent.is_a()
+        counters[cls] = counters.get(cls, 0) + 1
+        ent.GlobalId = _stable_guid(
+            "aux|%s|%s|%d" % (design_fp, cls, counters[cls]))
 
     # Write to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".ifc", delete=False)
@@ -2747,7 +3030,7 @@ def _convert_polygon_mesh(ifc, context, mesh, ifc_class, name):
 
 def check_building_regs(params):
     """
-    Check parameters against Approved Document K (England & Wales) for private dwellings.
+    Check parameters against common UK residential guidance values.
     Returns a list of check results.
     """
     p = parse_params(params)
