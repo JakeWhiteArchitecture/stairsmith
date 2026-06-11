@@ -475,6 +475,21 @@ _VIEW_INFO = {
 _DEPTH_TOL = 0.5
 
 
+def _memo_depth(fn):
+    """Cache depth lookups: each evaluation costs a shapely intersection,
+    and Pyodide/WASM runs them ~10x slower than native — uncached, large
+    models never finish generating in the browser."""
+    cache = {}
+    def cached(vx, vy):
+        key = (round(vx, 1), round(vy, 1))
+        v = cache.get(key)
+        if v is None:
+            v = fn(vx, vy)
+            cache[key] = v
+        return v
+    return cached
+
+
 def _world_point(axis, u, w, a):
     """Map profile coords *(u, w)* + extrusion coord *a* to world (x, y, z)."""
     if axis == "z":
@@ -482,6 +497,22 @@ def _world_point(axis, u, w, a):
     if axis == "y":
         return (u, a, w)
     return (a, u, w)
+
+
+def _snap(geom):
+    """Snap geometry to a 0.01 mm grid.
+
+    Near-parallel diagonal edges with long float coordinates push GEOS
+    into a near-zero-denominator intersection path (divide-by-zero);
+    the Pyodide/WASM GEOS build can abort fatally there, killing DXF
+    generation in the browser.  Snapping makes parallels exactly
+    parallel, which GEOS handles cleanly.
+    """
+    try:
+        import shapely
+        return shapely.set_precision(geom, 0.01)
+    except Exception:
+        return geom
 
 
 def _iter_polygons(geom):
@@ -543,6 +574,7 @@ def _as_prisms(mesh):
 
         if not poly.is_valid:
             poly = poly.buffer(0)
+        poly = _snap(poly)
         return [{"axis": axis, "poly": g, "lo": lo, "hi": lo + thickness,
                  "ifc_type": ifc, "is_rect": False}
                 for g in _iter_polygons(poly)]
@@ -594,7 +626,7 @@ def _trim_housed_prisms(prisms):
         if poly is p["poly"]:
             out.append(p)
             continue
-        for g in _iter_polygons(poly):
+        for g in _iter_polygons(_snap(poly)):
             if g.area < 1.0:
                 continue
             np_ = dict(p)
@@ -641,11 +673,13 @@ def _profile_depth_fn(poly, isec, sec_from_vy, sec_sign, idep, d_sign):
 
 
 def _prism_silhouette(prism, view):
-    """Return *(silhouette Polygon in view coords, depth_fn)* or (None, None).
+    """Return *(silhouette, depth_fn, fmin, fmax)* or (None,)*4.
 
     The silhouette is exact for an axis-aligned prism in an axis-aligned
     orthographic view; *depth_fn(vx, vy)* gives the prism's nearest depth
-    at a 2D view point (smaller = closer to the viewer).
+    at a 2D view point (smaller = closer to the viewer).  *fmin*/*fmax*
+    bound the values depth_fn can return, letting callers skip occluder
+    pairs that can never interact without any geometry work.
     """
     vx_axis, vx_sign, d_axis, d_sign = _VIEW_INFO[view]
     axis = prism["axis"]
@@ -662,14 +696,16 @@ def _prism_silhouette(prism, view):
             umin, umax = (b[0], b[2]) if iu == 0 else (b[1], b[3])
             vx0, vx1 = sorted((vx_sign * umin, vx_sign * umax))
             if vx1 - vx0 < _MIN_LENGTH or hi - lo < _MIN_LENGTH:
-                return None, None
+                return None, None, None, None
             sil = shapely_box(vx0, lo, vx1, hi)
+            dlo, dhi = (b[0], b[2]) if idd == 0 else (b[1], b[3])
+            fmin = min(d_sign * dlo, d_sign * dhi)
+            fmax = max(d_sign * dlo, d_sign * dhi)
             if prism.get("is_rect"):
-                dlo, dhi = (b[0], b[2]) if idd == 0 else (b[1], b[3])
-                near = min(d_sign * dlo, d_sign * dhi)
-                return sil, (lambda vx, vy, _n=near: _n)
-            return sil, _profile_depth_fn(poly, iu, False, vx_sign,
-                                          idd, d_sign)
+                return sil, (lambda vx, vy, _n=fmin: _n), fmin, fmin
+            fn = _memo_depth(_profile_depth_fn(poly, iu, False, vx_sign,
+                                               idd, d_sign))
+            return sil, fn, fmin, fmax
 
         if axis == d_axis:
             # Extruded along the view direction → silhouette is the profile
@@ -678,29 +714,32 @@ def _prism_silhouette(prism, view):
             sil = Polygon(pts)
             if not sil.is_valid:
                 sil = sil.buffer(0)
-            polys = list(_iter_polygons(sil))
+            polys = list(_iter_polygons(_snap(sil)))
             if not polys:
-                return None, None
+                return None, None, None, None
             sil = max(polys, key=lambda g: g.area)
             near = min(d_sign * lo, d_sign * hi)
-            return sil, (lambda vx, vy, _n=near: _n)
+            return sil, (lambda vx, vy, _n=near: _n), near, near
 
         # axis == vx_axis: extruded across the view → bounding rectangle;
         # depth varies with vy (= the profile's second coord).
         vx0, vx1 = sorted((vx_sign * lo, vx_sign * hi))
         if vx1 - vx0 < _MIN_LENGTH or b[3] - b[1] < _MIN_LENGTH:
-            return None, None
+            return None, None, None, None
         sil = shapely_box(vx0, b[1], vx1, b[3])
-        return sil, _profile_depth_fn(poly, 1, True, 1.0, 0, d_sign)
+        fmin = min(d_sign * b[0], d_sign * b[2])
+        fmax = max(d_sign * b[0], d_sign * b[2])
+        fn = _memo_depth(_profile_depth_fn(poly, 1, True, 1.0, 0, d_sign))
+        return sil, fn, fmin, fmax
     except Exception:
-        return None, None
+        return None, None, None, None
 
 
 def _compute_view_bounds(meshes, view):
     """Return *(min_vx, min_vy, max_vx, max_vy)* bounding box in view coords."""
     xs, ys = [], []
     for prism in _view_prisms(meshes):
-        sil, _d = _prism_silhouette(prism, view)
+        sil, _d, _f0, _f1 = _prism_silhouette(prism, view)
         if sil is None:
             continue
         b = sil.bounds
@@ -761,12 +800,14 @@ def _subtract_intervals(base, cuts):
     return [iv for iv in out if iv[1] - iv[0] > 1e-9]
 
 
-def _visible_intervals(a, b, own_depth_fn, occluders):
+def _visible_intervals(a, b, own_depth_fn, own_fmax, occluders):
     """Visible parameter intervals of segment *a*→*b* against *occluders*.
 
-    *occluders* is a list of ``(silhouette Polygon, depth_fn)``.  A part of
-    the segment is hidden only where an occluder's depth at that point is
-    smaller (closer) than the owner's by more than ``_DEPTH_TOL``.
+    *occluders* is a list of ``(silhouette Polygon, depth_fn, fmin)``.  A
+    part of the segment is hidden only where an occluder's depth at that
+    point is smaller (closer) than the owner's by more than ``_DEPTH_TOL``.
+    Occluders whose nearest possible depth (*fmin*) is not in front of the
+    owner's farthest possible depth (*own_fmax*) are skipped outright.
     """
     seg_len = math.hypot(b[0] - a[0], b[1] - a[1])
     if seg_len < _MIN_LENGTH:
@@ -774,9 +815,11 @@ def _visible_intervals(a, b, own_depth_fn, occluders):
     seg = LineString([a, b])
     sb = seg.bounds
     vis = [(0.0, 1.0)]
-    for poly, dfn in occluders:
+    for poly, dfn, fmin in occluders:
         if not vis:
             break
+        if fmin >= own_fmax - _DEPTH_TOL:
+            continue  # can never be in front of any point of the owner
         pb = poly.bounds
         if pb[0] > sb[2] or pb[2] < sb[0] or pb[1] > sb[3] or pb[3] < sb[1]:
             continue
@@ -883,26 +926,29 @@ def _draw_elevation(dxf, meshes, view, ox, oy):
     """
     items = []
     for prism in _view_prisms(meshes):
-        sil, dfn = _prism_silhouette(prism, view)
+        sil, dfn, fmin, fmax = _prism_silhouette(prism, view)
         if sil is None or sil.is_empty or not sil.is_valid:
             continue
         ifc = prism["ifc_type"]
-        items.append({"sil": sil, "depth": dfn,
+        items.append({"sil": sil, "depth": dfn, "fmin": fmin, "fmax": fmax,
                       "is_str": ifc in _STRINGER_IFC,
                       "is_tr": ifc in _TREAD_RISER_IFC})
 
     for it in items:
-        occl_all = [(o["sil"], o["depth"]) for o in items if o is not it]
-        occl_nostr = [(o["sil"], o["depth"]) for o in items
+        occl_all = [(o["sil"], o["depth"], o["fmin"])
+                    for o in items if o is not it]
+        occl_nostr = [(o["sil"], o["depth"], o["fmin"]) for o in items
                       if o is not it and not o["is_str"]]
         exterior = list(it["sil"].exterior.coords)
         for i in range(len(exterior) - 1):
             a, b = exterior[i], exterior[i + 1]
-            vis_all = _visible_intervals(a, b, it["depth"], occl_all)
+            vis_all = _visible_intervals(a, b, it["depth"], it["fmax"],
+                                         occl_all)
             _emit_intervals(dxf, a, b, vis_all, "ELEVATION", ox, oy)
             if it["is_tr"]:
                 # Parts hidden only by stringers → dashed grey.
-                vis_nostr = _visible_intervals(a, b, it["depth"], occl_nostr)
+                vis_nostr = _visible_intervals(a, b, it["depth"],
+                                               it["fmax"], occl_nostr)
                 hidden = _subtract_intervals(vis_nostr, vis_all)
                 _emit_intervals(dxf, a, b, hidden, "HIDDEN", ox, oy)
 
@@ -945,7 +991,7 @@ def _clip_prism(prism, cut_axis, cut_pos, keep_positive):
         else:
             rect = shapely_box(-_BIG, cut_pos, _BIG, _BIG) if keep_positive \
                 else shapely_box(-_BIG, -_BIG, _BIG, cut_pos)
-        clipped = prism["poly"].intersection(rect)
+        clipped = _snap(prism["poly"].intersection(rect))
         out = []
         for g in _iter_polygons(clipped):
             if g.area < TOL:
@@ -1055,8 +1101,8 @@ def _prism_cut_profiles(prism, cut_axis, cut_pos, view):
                        _world_point(axis, p1[0], p1[1], lo),
                        _world_point(axis, p1[0], p1[1], hi),
                        _world_point(axis, p0[0], p0[1], hi)]
-            cp = Polygon([_project_point(*p, view)[:2] for p in corners])
-            if cp.is_valid and not cp.is_empty:
+            cp = _snap(Polygon([_project_point(*p, view)[:2] for p in corners]))
+            if cp.geom_type == "Polygon" and cp.is_valid and not cp.is_empty:
                 out.append(cp)
         return out
     except Exception:
@@ -1100,22 +1146,24 @@ def _draw_section(dxf, meshes, cut_axis, cut_pos, look_positive, ox, oy):
     items = []
     for prism in prisms:
         for clipped in _clip_prism(prism, cut_axis, cut_pos, look_positive):
-            sil, dfn = _prism_silhouette(clipped, view)
+            sil, dfn, fmin, fmax = _prism_silhouette(clipped, view)
             if sil is None or sil.is_empty or not sil.is_valid:
                 continue
-            items.append((sil, dfn))
+            items.append((sil, dfn, fmin, fmax))
 
     # Cut profiles sit on the plane itself — in front of all beyond
     # geometry, so they occlude unconditionally.
     at_cut = -_BIG
-    occl_cut = [(c, (lambda vx, vy, _d=at_cut: _d)) for c in cut_polys]
+    occl_cut = [(c, (lambda vx, vy, _d=at_cut: _d), at_cut)
+                for c in cut_polys]
 
-    for sil, dfn in items:
-        occl = occl_cut + [(s, d) for s, d in items if s is not sil]
+    for sil, dfn, _fmin, fmax in items:
+        occl = occl_cut + [(s, d, f0) for s, d, f0, _f1 in items
+                           if s is not sil]
         exterior = list(sil.exterior.coords)
         for i in range(len(exterior) - 1):
             a, b = exterior[i], exterior[i + 1]
-            vis = _visible_intervals(a, b, dfn, occl)
+            vis = _visible_intervals(a, b, dfn, fmax, occl)
             _emit_intervals(dxf, a, b, vis, "SECTION_BEYOND", ox, oy)
 
 
