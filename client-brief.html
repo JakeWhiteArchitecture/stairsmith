@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Brief · Jake White Architecture BRPD · Haywards Heath Sussex</title>
+<meta name="description" content="Start your project with Jake White Architecture. Complete your client brief online — we'll use it to understand your household, your home, and what you need from your project.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://www.jakewhitearchitecture.com/client-brief">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#fafaf8; --white:#ffffff; --surface:#f4f3f0;
+    --border:#e2e0db; --border-dark:#c8c4bc;
+    --text:#2a2925; --text-mid:#5a574f; --text-light:#8a877e;
+    --green:#3a6b52; --green-light:#eef5f1;
+    --amber:#b8922a; --amber-bg:#fdf8f0; --amber-border:#e8dfc8;
+    --sans:"Jost",system-ui,sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-weight: 300;
+    line-height: 1.75; font-size: 18.4px;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* PROGRESS BAR */
+  #progress-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--white); border-bottom: 1px solid var(--border);
+    height: 64px; display: flex; align-items: center;
+    padding: 0 40px; gap: 20px;
+  }
+  #progress-brand {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-light);
+    text-decoration: none; white-space: nowrap;
+  }
+  #progress-brand:hover { color: var(--green); }
+  #progress-track {
+    flex: 1; height: 2px; background: var(--border);
+    border-radius: 1px; overflow: hidden;
+  }
+  #progress-fill {
+    height: 100%; background: var(--green);
+    border-radius: 1px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    width: 0%;
+  }
+  #progress-step {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-light);
+    white-space: nowrap; min-width: 110px; text-align: right;
+  }
+
+  /* WIZARD */
+  #wizard {
+    max-width: 1060px; margin: 0 auto;
+    padding: 120px 0 115px; position: relative;
+    overflow: hidden;
+  }
+  #slide-track { position: relative; }
+  .section { display: none; box-sizing: border-box; padding: 0 40px 60px; }
+  .section.active { display: block; }
+  .section.slide-in { animation: slideIn 0.35s cubic-bezier(0.4,0,0.2,1) forwards; }
+  .section.slide-in-back { animation: slideInBack 0.35s cubic-bezier(0.4,0,0.2,1) forwards; }
+  @keyframes slideIn { from { opacity:0; transform:translateX(32px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes slideInBack { from { opacity:0; transform:translateX(-32px); } to { opacity:1; transform:translateX(0); } }
+  @media (max-width: 600px) { .section { padding: 0 20px 60px; } }
+
+  /* TYPOGRAPHY */
+  .eyebrow {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--text-light);
+    margin-bottom: 14px; display: block;
+  }
+  .section-title {
+    font-size: clamp(28px,4vw,44px); font-weight: 200;
+    color: var(--text); line-height: 1.1; letter-spacing: 0.01em;
+    margin-bottom: 10px;
+  }
+  .section-subtitle {
+    font-size: 18px; font-weight: 300; color: var(--text-light);
+    margin-bottom: 0; line-height: 1.5;
+  }
+  .rule { width: 32px; height: 1px; background: var(--border-dark); margin: 24px 0 28px; }
+  .body { font-size: 18px; font-weight: 300; color: var(--text-mid); line-height: 1.8; margin-bottom: 18px; }
+  .callout {
+    background: var(--surface); border-left: 2px solid var(--border-dark);
+    padding: 18px 22px; margin: 20px 0; border-radius: 0 3px 3px 0;
+  }
+  .callout p { font-size: 16px; color: var(--text-mid); line-height: 1.75; margin: 0; }
+  .callout p + p { margin-top: 10px; }
+  .callout-amber {
+    background: var(--amber-bg); border: 1px solid var(--amber-border);
+    border-left: 3px solid var(--amber);
+    padding: 18px 22px; margin: 20px 0; border-radius: 0 3px 3px 0;
+  }
+  .amber-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--amber);
+    display: block; margin-bottom: 8px;
+  }
+  .callout-amber p { font-size: 16px; color: var(--text-mid); line-height: 1.75; margin: 0; }
+
+  /* FORM ELEMENTS */
+  .field-label {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-light);
+    display: block; margin-bottom: 8px;
+  }
+  input[type="text"], input[type="email"], input[type="tel"], input[type="number"],
+  textarea, select {
+    width: 100%; padding: 14px 16px;
+    border: 1px solid var(--border); border-radius: 3px;
+    background: var(--white); color: var(--text);
+    font-family: var(--sans); font-size: 17px; font-weight: 300;
+    outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--green); }
+  textarea { resize: vertical; min-height: 100px; }
+  select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a877e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+  .field-row { margin-top: 20px; }
+  .field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  @media(max-width:600px) { .field-row-2 { grid-template-columns: 1fr; } }
+  .val-msg { font-size: 13px; color: #c0392b; margin-top: 6px; display: none; }
+  .val-msg.show { display: block; }
+  .hint { font-size: 13px; color: var(--text-light); margin-top: 6px; }
+
+  /* RADIO / CHECKBOX CARDS */
+  .option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 16px; }
+  .option-card {
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 14px 16px; cursor: pointer;
+    font-size: 16px; font-weight: 300; color: var(--text-mid);
+    transition: all 0.15s; user-select: none; background: var(--white);
+  }
+  .option-card:hover { border-color: var(--border-dark); }
+  .option-card.selected { border-color: var(--green); background: var(--green-light); color: var(--green); }
+  .option-card input { display: none; }
+
+  /* STEPPER */
+  .stepper { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+  .stepper-btn {
+    width: 40px; height: 40px; border: 1px solid var(--border);
+    border-radius: 3px; background: var(--white); cursor: pointer;
+    font-size: 20px; color: var(--text-mid); display: flex;
+    align-items: center; justify-content: center;
+    transition: all 0.15s; font-weight: 300;
+  }
+  .stepper-btn:hover { border-color: var(--green); color: var(--green); }
+  .stepper-val { font-size: 24px; font-weight: 300; color: var(--text); min-width: 32px; text-align: center; }
+
+  /* TRIANGLE */
+  #tri-canvas { display: block; margin: 0 auto; cursor: crosshair; touch-action: none; }
+  .tri-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .tri-card { background: var(--surface); border-radius: 3px; padding: 16px; text-align: center; }
+  .tri-card .tc-label { font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-light); margin-bottom: 8px; }
+  .tri-card .tc-val { font-size: 28px; font-weight: 200; color: var(--text); }
+
+  /* BUDGET BRACKETS */
+  .budget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  @media(max-width:500px) { .budget-grid { grid-template-columns: 1fr; } }
+
+  /* NAVIGATION */
+  .nav-row {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-top: 40px;
+    padding-top: 24px; border-top: 1px solid var(--border);
+  }
+  .btn {
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 14px 32px; border-radius: 3px; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--green); color: #fff; border-color: var(--green); }
+  .btn-primary:hover { background: #2d5440; border-color: #2d5440; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--text-light); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--border-dark); color: var(--text); }
+
+  /* SIGNATURE */
+  #sig-canvas-wrap {
+    border: 1px solid var(--border); border-radius: 3px;
+    background: var(--white); margin-top: 16px; cursor: crosshair;
+    overflow: hidden;
+  }
+  #sig-canvas { display: block; width: 100%; height: 160px; touch-action: none; }
+  .sig-controls { display: flex; gap: 12px; margin-top: 10px; }
+  .sig-hint { font-size: 13px; color: var(--text-light); }
+
+  /* COMPLETE */
+  .complete-mark {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--green-light); color: var(--green);
+    font-size: 24px; display: flex; align-items: center;
+    justify-content: center; margin: 0 auto 20px;
+  }
+
+  /* LEGAL NOTE */
+  .legal-note {
+    border-top: 1px solid var(--border); padding-top: 20px; margin-top: 24px;
+  }
+  .legal-note p { font-size: 13px; color: var(--text-light); line-height: 1.75; }
+</style>
+</head>
+<body>
+
+<div id="progress-bar">
+  <a href="https://www.jakewhitearchitecture.com" id="progress-brand">Jake White Architecture · BRPD · Haywards Heath</a>
+  <div id="progress-track"><div id="progress-fill"></div></div>
+  <span id="progress-step">Introduction</span>
+</div>
+
+<div id="wizard">
+<div id="slide-track">
+
+<!-- 0 · INTRO -->
+<div class="section active" id="s0">
+  <span class="eyebrow">Client Brief</span>
+  <h1 class="section-title">Tell us about your project</h1>
+  <p class="section-subtitle">A plain-English brief — so we understand your home, your household, and what you need</p>
+  <div class="rule"></div>
+  <p class="body">Before we can design anything, we need to understand how you live. This brief takes around 10 minutes and covers your household, your home, what you want from the project, and what matters most to you.</p>
+  <p class="body">There are no right or wrong answers. The more honest you are, the better the brief — and the better the project.</p>
+  <div class="callout">
+    <p>Your responses will be sent directly to Jake White Architecture as a formatted record. Nothing is stored on our servers.</p>
+  </div>
+  <div class="nav-row">
+    <span></span>
+    <button class="btn btn-primary" id="next0" data-next="0">Start brief</button>
+  </div>
+</div>
+
+<!-- 1 · WHO YOU ARE -->
+<div class="section" id="s1">
+  <span class="eyebrow">Section 1 of 8</span>
+  <h2 class="section-title">Who you are</h2>
+  <p class="section-subtitle">Your contact details and a little about your situation</p>
+  <div class="rule"></div>
+
+  <!-- Contact 1 -->
+  <p class="body" style="margin-bottom:4px;"><strong>Contact 1</strong></p>
+  <div class="field-row-2">
+    <div>
+      <label class="field-label">First name</label>
+      <input type="text" id="f-firstname" placeholder="First name">
+      <p class="val-msg" id="val-firstname">Please enter a first name.</p>
+    </div>
+    <div>
+      <label class="field-label">Last name</label>
+      <input type="text" id="f-lastname" placeholder="Last name">
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Email address</label>
+    <input type="email" id="f-email" placeholder="your@email.com">
+    <p class="val-msg" id="val-email">Please enter a valid email address.</p>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Phone number</label>
+    <input type="tel" id="f-phone" placeholder="07700 000000">
+  </div>
+
+  <!-- Additional contacts container -->
+  <div id="extra-contacts"></div>
+  <button class="btn btn-ghost" id="btn-add-contact" style="margin-top:16px;padding:10px 24px;font-size:13px;">+ Add another contact</button>
+
+  <!-- Addresses -->
+  <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border);">
+    <div class="field-row">
+      <label class="field-label">Home address</label>
+      <input type="text" id="f-home-address" placeholder="Full home address including postcode">
+      <p class="val-msg" id="val-address">Please enter your home address.</p>
+    </div>
+    <div id="site-address-wrap" style="display:none;margin-top:20px;">
+      <div class="field-row">
+        <label class="field-label">Site address</label>
+        <input type="text" id="f-site-address" placeholder="Full site address including postcode">
+      </div>
+      <button class="btn btn-ghost" id="btn-remove-site" style="margin-top:12px;padding:8px 18px;font-size:12px;">− Remove site address</button>
+    </div>
+    <button class="btn btn-ghost" id="btn-add-site" style="margin-top:16px;padding:10px 24px;font-size:13px;">+ Add site address if different</button>
+  </div>
+
+  <div class="field-row">
+    <label class="field-label">How long have you lived there?</label>
+    <select id="f-tenure-length">
+      <option value="">Select...</option>
+      <option>About to move in</option>
+      <option>Less than 1 year</option>
+      <option>1–3 years</option>
+      <option>3–10 years</option>
+      <option>More than 10 years</option>
+    </select>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Are you planning to stay long term, or is this partly about adding value to sell?</label>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="intent" value="Long-term home"> Long-term home</label>
+      <label class="option-card"><input type="radio" name="intent" value="Adding value to sell"> Adding value to sell</label>
+      <label class="option-card"><input type="radio" name="intent" value="Both"> Both</label>
+      <label class="option-card"><input type="radio" name="intent" value="Not sure yet"> Not sure yet</label>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="1">Back</button>
+    <button class="btn btn-primary" id="next1" data-next="1">Continue</button>
+  </div>
+</div>
+
+<!-- 2 · YOUR HOUSEHOLD -->
+<div class="section" id="s2">
+  <span class="eyebrow">Section 2 of 8</span>
+  <h2 class="section-title">Your household</h2>
+  <p class="section-subtitle">Who lives there, and what are their needs</p>
+  <div class="rule"></div>
+
+  <div class="field-row">
+    <label class="field-label">How many adults live in the property?</label>
+    <div class="stepper">
+      <button class="stepper-btn" id="adults-down">−</button>
+      <span class="stepper-val" id="adults-val">2</span>
+      <button class="stepper-btn" id="adults-up">+</button>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">How many children?</label>
+    <div class="stepper">
+      <button class="stepper-btn" id="children-down">−</button>
+      <span class="stepper-val" id="children-val">0</span>
+      <button class="stepper-btn" id="children-up">+</button>
+    </div>
+    <p class="hint" id="children-hint" style="display:none;">Ages of children (helps us understand bedroom and space needs)</p>
+    <input type="text" id="f-children-ages" placeholder="e.g. 4, 8, 14" style="display:none; margin-top:10px;">
+  </div>
+  <div class="field-row">
+    <label class="field-label">Does anyone in the household have specific needs we should design around?</label>
+    <p class="hint" style="margin-bottom:8px;">Mobility, accessibility, sensory, medical equipment, etc.</p>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="access" value="No"> No specific needs</label>
+      <label class="option-card"><input type="radio" name="access" value="Yes"> Yes — please describe</label>
+    </div>
+    <textarea id="f-access-detail" placeholder="Please describe the needs we should factor in..." style="display:none;margin-top:12px;"></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Do you have pets?</label>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="pets" value="No"> No</label>
+      <label class="option-card"><input type="radio" name="pets" value="Yes"> Yes</label>
+    </div>
+    <textarea id="f-pets-detail" placeholder="What pets? Any specific needs — outdoor access, utility space, noise, allergies..." style="display:none;margin-top:10px;min-height:80px;"></textarea>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="2">Back</button>
+    <button class="btn btn-primary" id="next2" data-next="2">Continue</button>
+  </div>
+</div>
+
+<!-- 3 · HOW YOUR HOUSEHOLD IS CHANGING -->
+<div class="section" id="s3">
+  <span class="eyebrow">Section 3 of 8</span>
+  <h2 class="section-title">How your household is changing</h2>
+  <p class="section-subtitle">The next 5–10 years — what's coming that your home needs to be ready for</p>
+  <div class="rule"></div>
+  <p class="body">This is often the most important section. A home that works for your household now may not work for your household in five years. Tell us what's coming.</p>
+
+  <div class="field-row">
+    <label class="field-label">Which of these apply to your household in the next 5–10 years? (select all that apply)</label>
+    <div class="option-grid" id="changes-opts">
+      <label class="option-card"><input type="checkbox" value="Children growing up — needing more independence, separate spaces"> Children growing up</label>
+      <label class="option-card"><input type="checkbox" value="New baby or expanding family"> New baby / expanding family</label>
+      <label class="option-card"><input type="checkbox" value="Parents or in-laws potentially moving in"> Parents / in-laws moving in</label>
+      <label class="option-card"><input type="checkbox" value="Working from home becoming permanent"> Permanent WFH</label>
+      <label class="option-card"><input type="checkbox" value="Health or mobility changes to plan for"> Health / mobility changes</label>
+      <label class="option-card"><input type="checkbox" value="Wanting to generate rental income from the property"> Rental income potential</label>
+      <label class="option-card"><input type="checkbox" value="Planning for the future — adapting the home as we get older"> Planning for the future</label>
+      <label class="option-card" id="changes-none-card"><input type="checkbox" id="changes-none" value="None of the above"> None of the above</label>
+    </div>
+  </div>
+  <div class="field-row" id="changes-detail-wrap">
+    <label class="field-label">Tell us where your household is headed</label>
+    <p class="hint" style="margin-bottom:8px;">This is the most important part. The buttons above are just prompts — use this space to tell us anything that matters about how your life and household are changing.</p>
+    <textarea id="f-changes-detail" placeholder="e.g. Our parents are in their 70s and we want to be ready to have one of them live with us eventually. Our youngest is 14 and will probably leave home in 4–5 years, freeing up two bedrooms. We both work from home most of the time now and that isn't changing..." style="min-height:140px;"></textarea>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="3">Back</button>
+    <button class="btn btn-primary" id="next3" data-next="3">Continue</button>
+  </div>
+</div>
+
+<!-- 4 · HOW YOU LIVE NOW -->
+<div class="section" id="s4">
+  <span class="eyebrow">Section 4 of 8</span>
+  <h2 class="section-title">How you live now</h2>
+  <p class="section-subtitle">What works, what doesn't, and how you actually use your home day to day</p>
+  <div class="rule"></div>
+  <div class="callout">
+    <p>This section is more useful than any room schedule. We're not asking what you want — we're asking how you live. The design follows from that.</p>
+  </div>
+
+  <div class="field-row">
+    <label class="field-label">Where does the family naturally congregate? Where do you actually spend time?</label>
+    <textarea id="f-congregate" placeholder="e.g. Everyone ends up in the kitchen even though it's small. The living room barely gets used..."></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">What does the morning routine feel like?</label>
+    <textarea id="f-morning" placeholder="e.g. One bathroom for four people is chaos. The kitchen is too small for us all to be in at once..."></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Do you cook seriously? Do you entertain?</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="checkbox" value="Cook seriously / love cooking"> Serious cooking</label>
+      <label class="option-card"><input type="checkbox" value="Entertain regularly"> Entertain regularly</label>
+      <label class="option-card"><input type="checkbox" value="Work from home regularly"> Work from home</label>
+      <label class="option-card"><input type="checkbox" value="Children do homework at the kitchen table"> Homework at the table</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">The practical stuff — where does it all go?</label>
+    <p class="hint" style="margin-bottom:8px;">Washing, shoes, coats, bikes, tools, sports kit — the stuff that ends up everywhere</p>
+    <textarea id="f-practical" placeholder="e.g. Bikes are in the hallway. Washing ends up on the dining table. There's nowhere to leave muddy boots..."></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">What is the single biggest frustration with your home right now?</label>
+    <textarea id="f-frustration" placeholder="Be honest — this is often the most useful thing you can tell us..."></textarea>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="4">Back</button>
+    <button class="btn btn-primary" id="next4" data-next="4">Continue</button>
+  </div>
+</div>
+
+<!-- 5 · WHAT YOU WANT -->
+<div class="section" id="s5">
+  <span class="eyebrow">Section 5 of 8</span>
+  <h2 class="section-title">What you want</h2>
+  <p class="section-subtitle">The project — what are you hoping to add, change, or create</p>
+  <div class="rule"></div>
+
+  <div class="field-row">
+    <label class="field-label">Type of project (select all that apply)</label>
+    <div class="option-grid" id="project-type-opts">
+      <label class="option-card"><input type="checkbox" value="Rear extension"> Rear extension</label>
+      <label class="option-card"><input type="checkbox" value="Side extension"> Side extension</label>
+      <label class="option-card"><input type="checkbox" value="Loft conversion"> Loft conversion</label>
+      <label class="option-card"><input type="checkbox" value="Basement conversion"> Basement conversion</label>
+      <label class="option-card"><input type="checkbox" value="Garage conversion"> Garage conversion</label>
+      <label class="option-card"><input type="checkbox" value="New build"> New build</label>
+      <label class="option-card"><input type="checkbox" value="Internal remodelling / refurbishment"> Internal remodelling</label>
+      <label class="option-card"><input type="checkbox" value="Garden building / outbuilding"> Garden building</label>
+      <label class="option-card"><input type="checkbox" value="Annexe"> Annexe</label>
+      <label class="option-card"><input type="checkbox" value="Not sure yet — open to ideas"> Not sure yet</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Specific spaces you're hoping to add or improve</label>
+    <p class="hint" style="margin-bottom:8px;">Tell us what you actually want — open plan kitchen/dining, master suite, home office, utility room, playroom, etc.</p>
+    <textarea id="f-spaces" placeholder="e.g. We desperately need a proper utility room. We'd love an open kitchen-dining space that opens onto the garden. A dedicated home office that isn't the spare bedroom..."></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Any inspiration, references, or images?</label>
+    <textarea id="f-inspiration" placeholder="Describe styles you're drawn to, or paste links to anything that resonates. Don't worry if you're not sure — this is just a starting point..."></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Sustainability aspirations</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="radio" name="sustain" value="Not a priority"> Not a priority</label>
+      <label class="option-card"><input type="radio" name="sustain" value="Important but secondary to cost"> Important but secondary to cost</label>
+      <label class="option-card"><input type="radio" name="sustain" value="A key priority"> A key priority</label>
+      <label class="option-card"><input type="radio" name="sustain" value="Passivhaus or equivalent standard"> Passivhaus standard</label>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="5">Back</button>
+    <button class="btn btn-primary" id="next5" data-next="5">Continue</button>
+  </div>
+</div>
+
+<!-- 6 · THE PROPERTY -->
+<div class="section" id="s6">
+  <span class="eyebrow">Section 6 of 8</span>
+  <h2 class="section-title">The property</h2>
+  <p class="section-subtitle">Planning context and what we're working with</p>
+  <div class="rule"></div>
+
+  <div class="field-row">
+    <label class="field-label">Property type</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="radio" name="prop-type" value="Detached"> Detached</label>
+      <label class="option-card"><input type="radio" name="prop-type" value="Semi-detached"> Semi-detached</label>
+      <label class="option-card"><input type="radio" name="prop-type" value="Mid-terrace"> Mid-terrace</label>
+      <label class="option-card"><input type="radio" name="prop-type" value="End-terrace"> End-terrace</label>
+      <label class="option-card"><input type="radio" name="prop-type" value="Flat / apartment"> Flat / apartment</label>
+      <label class="option-card"><input type="radio" name="prop-type" value="Bungalow"> Bungalow</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Is the property listed?</label>
+    <div class="option-grid" style="grid-template-columns:repeat(4,1fr);">
+      <label class="option-card"><input type="radio" name="listed" value="No"> No</label>
+      <label class="option-card"><input type="radio" name="listed" value="Grade II"> Grade II</label>
+      <label class="option-card"><input type="radio" name="listed" value="Grade II*"> Grade II*</label>
+      <label class="option-card"><input type="radio" name="listed" value="Grade I"> Grade I</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Is it in a conservation area?</label>
+    <div class="option-grid" style="grid-template-columns:repeat(3,1fr);">
+      <label class="option-card"><input type="radio" name="conservation" value="No"> No</label>
+      <label class="option-card"><input type="radio" name="conservation" value="Yes"> Yes</label>
+      <label class="option-card"><input type="radio" name="conservation" value="Not sure"> Not sure</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Any known planning history?</label>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="planning-hist" value="No"> No previous applications</label>
+      <label class="option-card"><input type="radio" name="planning-hist" value="Yes"> Yes — please describe</label>
+    </div>
+    <textarea id="f-planning-hist" placeholder="Previous applications, refusals, permissions, pre-app advice received..." style="display:none;margin-top:12px;"></textarea>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Do you have any existing drawings?</label>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="drawings" value="No"> No</label>
+      <label class="option-card"><input type="radio" name="drawings" value="Yes"> Yes</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Any known constraints? (select all that apply)</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="checkbox" value="Tree Preservation Order (TPO)"> TPO on trees</label>
+      <label class="option-card"><input type="checkbox" value="Party wall issues"> Party wall</label>
+      <label class="option-card"><input type="checkbox" value="Rights of light"> Rights of light</label>
+      <label class="option-card"><input type="checkbox" value="Flood zone"> Flood zone</label>
+      <label class="option-card"><input type="checkbox" value="AONB or SSSI"> AONB / SSSI</label>
+      <label class="option-card"><input type="checkbox" value="No known constraints"> None known</label>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="6">Back</button>
+    <button class="btn btn-primary" id="next6" data-next="6">Continue</button>
+  </div>
+</div>
+
+<!-- 7 · BUDGET & PROGRAMME -->
+<div class="section" id="s7">
+  <span class="eyebrow">Section 7 of 8</span>
+  <h2 class="section-title">Budget &amp; programme</h2>
+  <p class="section-subtitle">What you're working with, and what matters most to you</p>
+  <div class="rule"></div>
+
+  <div class="field-row">
+    <label class="field-label">Construction budget (excluding professional fees and VAT)</label>
+    <div class="budget-grid" id="budget-opts">
+      <label class="option-card"><input type="radio" name="budget" value="Under £100k"> Under £100k</label>
+      <label class="option-card"><input type="radio" name="budget" value="£100k–£200k"> £100k–£200k</label>
+      <label class="option-card"><input type="radio" name="budget" value="£200k–£350k"> £200k–£350k</label>
+      <label class="option-card"><input type="radio" name="budget" value="£350k–£500k"> £350k–£500k</label>
+      <label class="option-card"><input type="radio" name="budget" value="£500k–£1m"> £500k–£1m</label>
+      <label class="option-card"><input type="radio" name="budget" value="Over £1m"> Over £1m</label>
+      <label class="option-card"><input type="radio" name="budget" value="Not yet established"> Not yet established</label>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:28px;">
+    <p>Construction costs are influenced by specification, programme, and market conditions. Understanding which matters most to you helps us make the right trade-offs on your behalf.</p>
+  </div>
+
+  <div class="field-row">
+    <label class="field-label">Your priorities — drag the point to show what matters most</label>
+    <p class="hint" style="margin-bottom:16px;">Budget = keeping within a fixed spend · Specification = quality of finish and materials · Programme = speed of delivery</p>
+    <canvas id="tri-canvas" width="460" height="380" style="display:block;margin:0 auto;cursor:crosshair;touch-action:none;max-width:100%;"></canvas>
+    <div class="tri-cards">
+      <div class="tri-card"><div class="tc-label">Budget</div><div class="tc-val" id="tri-a">33%</div></div>
+      <div class="tri-card"><div class="tc-label">Specification</div><div class="tc-val" id="tri-b">33%</div></div>
+      <div class="tri-card"><div class="tc-label">Programme</div><div class="tc-val" id="tri-c">33%</div></div>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <label class="field-label">Target start on site</label>
+    <select id="f-start">
+      <option value="">Select...</option>
+      <option>As soon as possible</option>
+      <option>Within 6 months</option>
+      <option>6–12 months</option>
+      <option>1–2 years</option>
+      <option>More than 2 years away</option>
+      <option>No fixed timescale</option>
+    </select>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Any fixed deadlines?</label>
+    <textarea id="f-deadlines" placeholder="e.g. Planning permission expires in March. We need to be in before the school year starts. Baby due in September..."></textarea>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="7">Back</button>
+    <button class="btn btn-primary" id="next7" data-next="7">Continue</button>
+  </div>
+</div>
+
+<!-- 8 · THE TEAM & SIGN -->
+<div class="section" id="s8">
+  <span class="eyebrow">Section 8 of 8</span>
+  <h2 class="section-title">The team &amp; final details</h2>
+  <p class="section-subtitle">Your project team and how you found us</p>
+  <div class="rule"></div>
+
+  <div class="field-row">
+    <label class="field-label">Have you identified a contractor?</label>
+    <div class="option-grid" style="grid-template-columns:1fr 1fr;">
+      <label class="option-card"><input type="radio" name="contractor" value="No"> No</label>
+      <label class="option-card"><input type="radio" name="contractor" value="Yes — in mind"> Yes — someone in mind</label>
+      <label class="option-card"><input type="radio" name="contractor" value="Yes — appointed"> Yes — already appointed</label>
+      <label class="option-card"><input type="radio" name="contractor" value="Would like a recommendation"> Would like a recommendation</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Any specialist consultants already engaged?</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="checkbox" value="Structural engineer"> Structural engineer</label>
+      <label class="option-card"><input type="checkbox" value="Party wall surveyor"> Party wall surveyor</label>
+      <label class="option-card"><input type="checkbox" value="Interior designer"> Interior designer</label>
+      <label class="option-card"><input type="checkbox" value="M&E / services consultant"> M&amp;E consultant</label>
+      <label class="option-card"><input type="checkbox" value="None engaged yet"> None yet</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Who is the main point of contact?</label>
+    <input type="text" id="f-contact" placeholder="Name of the person we should direct correspondence to">
+  </div>
+  <div class="field-row">
+    <label class="field-label">Preferred way to communicate</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="radio" name="comms" value="Email"> Email</label>
+      <label class="option-card"><input type="radio" name="comms" value="Phone"> Phone</label>
+      <label class="option-card"><input type="radio" name="comms" value="WhatsApp"> WhatsApp</label>
+      <label class="option-card"><input type="radio" name="comms" value="No preference"> No preference</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">How did you find us?</label>
+    <div class="option-grid">
+      <label class="option-card"><input type="radio" name="source" value="Personal referral"> Personal referral</label>
+      <label class="option-card"><input type="radio" name="source" value="Previous client"> Previous client</label>
+      <label class="option-card"><input type="radio" name="source" value="Google search"> Google search</label>
+      <label class="option-card"><input type="radio" name="source" value="Social media"> Social media</label>
+      <label class="option-card"><input type="radio" name="source" value="Houzz / similar"> Houzz / similar</label>
+      <label class="option-card"><input type="radio" name="source" value="Other"> Other</label>
+    </div>
+  </div>
+  <div class="field-row">
+    <label class="field-label">Anything else you want to tell us before we meet?</label>
+    <textarea id="f-anything-else" placeholder="Anything we haven't asked about that would help us understand you and your project..."></textarea>
+  </div>
+
+  <div class="rule" style="margin-top:36px;"></div>
+  <span class="eyebrow">Your signature</span>
+  <p class="body">Sign below to confirm this brief is accurate and that you consent to Jake White Architecture using this information in connection with your project.</p>
+  <div id="sig-canvas-wrap">
+    <canvas id="sig-canvas"></canvas>
+  </div>
+  <div class="sig-controls">
+    <button class="btn btn-ghost" id="btn-clear-sig" style="padding:8px 20px;font-size:12px;">Clear</button>
+    <span class="sig-hint" id="sig-hint">Draw your signature above</span>
+  </div>
+  <p class="val-msg" id="val-sig">Please add your signature before submitting.</p>
+
+  <div class="legal-note">
+    <p>By submitting this brief, you confirm that the information provided is accurate to the best of your knowledge, and you consent to Jake White Architecture using it in connection with your project enquiry. This brief does not constitute an appointment or contract.</p>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-ghost" data-prev="8">Back</button>
+    <button class="btn btn-primary" id="btn-submit">Send brief</button>
+  </div>
+</div>
+
+<!-- 9 · COMPLETE -->
+<div class="section" id="s9">
+  <div style="padding:60px 0 80px;">
+    <div style="text-align:center; margin-bottom:36px;">
+      <div class="complete-mark">✓</div>
+      <span class="eyebrow" style="display:block;margin-bottom:16px;">Brief received</span>
+      <h2 class="section-title">Thank you</h2>
+      <p class="section-subtitle" style="margin-top:12px;">Your <strong>.eml</strong> file has been downloaded — open it in your email client and hit Send.</p>
+    </div>
+    <div class="callout">
+      <p><strong>If the .eml file did not display correctly</strong> — click <em>View formatted brief</em> below, then press <strong>Ctrl+P</strong> / <strong>Cmd+P</strong>, save as PDF, attach to a new email and send to <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="e68c878d83a68c878d83918e8f92838794858e8f92838592939483c885898b">[email&#160;protected]</a></p>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:28px;flex-wrap:wrap;">
+      <button class="btn btn-primary" id="btn-view-record" style="flex:1;">View formatted brief</button>
+      <button class="btn btn-ghost" id="btn-redownload-eml" style="flex:1;">Re-download .eml</button>
+    </div>
+    <div class="rule" style="margin:48px auto;"></div>
+    <p style="font-size:15px;font-weight:300;color:var(--text-light);line-height:1.9;text-align:center;">Jake White Architecture · BRPD · Haywards Heath · Sussex<br><a href="https://www.jakewhitearchitecture.com" style="color:var(--text-light);text-decoration:none;">www.jakewhitearchitecture.com</a></p>
+  </div>
+</div>
+
+</div><!-- /slide-track -->
+</div><!-- /wizard -->
+
+<script data-cfasync="false">
+document.addEventListener('DOMContentLoaded', function() {
+
+const TOTAL = 10;
+let current = 0;
+let sigHas = false;
+let signaturePad = null;
+let triPriorities = {a:33, b:33, c:34};
+
+// --- PROGRESS ---
+function updateProgress() {
+  document.getElementById('progress-fill').style.width = (current / (TOTAL-1) * 100) + '%';
+  const labels = ['Introduction','Who you are','Your household','Household changes','How you live','What you want','The property','Budget & programme','Team & sign','Complete'];
+  document.getElementById('progress-step').textContent = labels[current] || '';
+}
+
+// --- SECTION NAVIGATION ---
+function showSection(n, direction) {
+  const currentEl = document.getElementById('s' + current);
+  const nextEl = document.getElementById('s' + n);
+  const goingForward = direction !== 'back';
+  currentEl.style.transition = 'opacity 0.2s ease';
+  currentEl.style.opacity = '0';
+  setTimeout(() => {
+    currentEl.classList.remove('active');
+    currentEl.style.opacity = '';
+    currentEl.style.transition = '';
+    window.scrollTo({top:0, behavior:'instant'});
+    nextEl.classList.add('active');
+    nextEl.classList.remove('slide-in','slide-in-back');
+    void nextEl.offsetWidth;
+    nextEl.classList.add(goingForward ? 'slide-in' : 'slide-in-back');
+    current = n;
+    updateProgress();
+    if (n === 8) setTimeout(initSig, 50);
+    if (n === 7) initTriangle();
+  }, 220);
+}
+
+document.querySelectorAll('[data-next]').forEach(el => {
+  el.addEventListener('click', () => showSection(parseInt(el.dataset.next)+1, 'forward'));
+});
+document.querySelectorAll('[data-prev]').forEach(el => {
+  el.addEventListener('click', () => showSection(parseInt(el.dataset.prev)-1, 'back'));
+});
+
+// --- OPTION CARDS ---
+function initOptionCards() {
+  document.querySelectorAll('.option-card').forEach(card => {
+    card.addEventListener('click', function() {
+      const inp = this.querySelector('input');
+      if (!inp) return;
+      if (inp.type === 'radio') {
+        const name = inp.name;
+        document.querySelectorAll('input[name="'+name+'"]').forEach(r => {
+          r.closest('.option-card').classList.remove('selected');
+        });
+        this.classList.add('selected');
+        inp.checked = true;
+      } else {
+        inp.checked = !inp.checked;
+        this.classList.toggle('selected', inp.checked);
+      }
+      handleConditionals(inp);
+    });
+  });
+}
+
+function handleConditionals(inp) {
+  if (inp.name === 'access') {
+    document.getElementById('f-access-detail').style.display = inp.value === 'Yes' ? 'block' : 'none';
+  }
+  if (inp.name === 'pets') {
+    document.getElementById('f-pets-detail').style.display = inp.value === 'Yes' ? 'block' : 'none';
+  }
+  if (inp.name === 'planning-hist') {
+    document.getElementById('f-planning-hist').style.display = inp.value === 'Yes' ? 'block' : 'none';
+  }
+}
+
+initOptionCards();
+
+// Dynamic multi-contact system
+let contactCount = 1;
+
+function addContact() {
+  contactCount++;
+  const n = contactCount;
+  const wrap = document.createElement('div');
+  wrap.id = 'contact-wrap-'+n;
+  wrap.style.cssText = 'margin-top:28px;padding-top:24px;border-top:1px solid var(--border);';
+  wrap.innerHTML =
+    '<p class="body" style="margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">' +
+    '<strong>Contact '+n+'</strong>' +
+    '<button class="btn btn-ghost" onclick="removeContact('+n+')" style="padding:6px 16px;font-size:12px;">− Remove</button>' +
+    '</p>' +
+    '<div class="field-row-2">' +
+    '<div><label class="field-label">First name</label><input type="text" id="f-firstname'+n+'" placeholder="First name"></div>' +
+    '<div><label class="field-label">Last name</label><input type="text" id="f-lastname'+n+'" placeholder="Last name"></div>' +
+    '</div>' +
+    '<div class="field-row"><label class="field-label">Email address</label><input type="email" id="f-email'+n+'" placeholder="your@email.com"></div>' +
+    '<div class="field-row"><label class="field-label">Phone number</label><input type="tel" id="f-phone'+n+'" placeholder="07700 000000"></div>';
+  document.getElementById('extra-contacts').appendChild(wrap);
+}
+
+function removeContact(n) {
+  const wrap = document.getElementById('contact-wrap-'+n);
+  if (wrap) wrap.remove();
+  contactCount = Math.max(1, contactCount - 1);
+  // Renumber remaining contacts
+  const all = document.querySelectorAll('#extra-contacts > div');
+  all.forEach((el, i) => {
+    const num = i + 2;
+    el.querySelector('strong').textContent = 'Contact ' + num;
+  });
+}
+
+document.getElementById('btn-add-contact').addEventListener('click', addContact);
+
+// None of the above — hide checkbox grid, focus textarea
+const changesNone = document.getElementById('changes-none');
+if (changesNone) {
+  changesNone.closest('.option-card').addEventListener('click', function() {
+    const isNone = changesNone.checked;
+    // Uncheck all others if None selected
+    if (isNone) {
+      document.querySelectorAll('#changes-opts input[type="checkbox"]').forEach(cb => {
+        if (cb !== changesNone) { cb.checked = false; cb.closest('.option-card').classList.remove('selected'); }
+      });
+    }
+    // Focus the textarea
+    setTimeout(() => document.getElementById('f-changes-detail').focus(), 100);
+  });
+
+  // If any other checkbox selected, uncheck None
+  document.querySelectorAll('#changes-opts input[type="checkbox"]').forEach(cb => {
+    if (cb !== changesNone) {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          changesNone.checked = false;
+          document.getElementById('changes-none').closest('.option-card').classList.remove('selected');
+        }
+      });
+    }
+  });
+}
+
+// Site address button
+document.getElementById('btn-add-site').addEventListener('click', () => {
+  document.getElementById('site-address-wrap').style.display = 'block';
+  document.getElementById('btn-add-site').style.display = 'none';
+});
+document.getElementById('btn-remove-site').addEventListener('click', () => {
+  document.getElementById('site-address-wrap').style.display = 'none';
+  document.getElementById('btn-add-site').style.display = 'inline-flex';
+  document.getElementById('f-site-address').value = '';
+});
+
+// --- STEPPERS ---
+function initStepper(downId, upId, valId, min, max, onChange) {
+  let val = parseInt(document.getElementById(valId).textContent);
+  document.getElementById(downId).addEventListener('click', () => {
+    if (val > min) { val--; document.getElementById(valId).textContent = val; if(onChange) onChange(val); }
+  });
+  document.getElementById(upId).addEventListener('click', () => {
+    if (val < max) { val++; document.getElementById(valId).textContent = val; if(onChange) onChange(val); }
+  });
+  return () => val;
+}
+
+let getAdults = initStepper('adults-down','adults-up','adults-val',1,10);
+let getChildren = initStepper('children-down','children-up','children-val',0,10, v => {
+  document.getElementById('children-hint').style.display = v > 0 ? 'block' : 'none';
+  document.getElementById('f-children-ages').style.display = v > 0 ? 'block' : 'none';
+});
+
+// --- TRIANGLE ---
+function initTriangle() {
+  const canvas = document.getElementById('tri-canvas');
+  if (!canvas || canvas.dataset.init) return;
+  canvas.dataset.init = '1';
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const vA = {x:W/2, y:52};
+  const vB = {x:72,  y:H-52};
+  const vC = {x:W-72,y:H-52};
+  let pt = {x:W/2, y:(vA.y+vB.y+vC.y)/3};
+
+  function bary(p) {
+    const d = (vB.y-vC.y)*(vA.x-vC.x)+(vC.x-vB.x)*(vA.y-vC.y);
+    const wa = ((vB.y-vC.y)*(p.x-vC.x)+(vC.x-vB.x)*(p.y-vC.y))/d;
+    const wb = ((vC.y-vA.y)*(p.x-vC.x)+(vA.x-vC.x)*(p.y-vC.y))/d;
+    return [wa,wb,1-wa-wb];
+  }
+  function clamp(p) {
+    const [wa,wb,wc] = bary(p);
+    if (wa>=0&&wb>=0&&wc>=0) return p;
+    const c = [Math.max(0,wa),Math.max(0,wb),Math.max(0,wc)];
+    const s = c[0]+c[1]+c[2];
+    const n = c.map(v=>v/s);
+    return {x:n[0]*vA.x+n[1]*vB.x+n[2]*vC.x,y:n[0]*vA.y+n[1]*vB.y+n[2]*vC.y};
+  }
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    const textCol = '#2a2925';
+    const green = '#3a6b52';
+    const [wa,wb,wc] = bary(pt);
+    ctx.beginPath(); ctx.moveTo(vA.x,vA.y); ctx.lineTo(vB.x,vB.y); ctx.lineTo(pt.x,pt.y); ctx.closePath();
+    ctx.fillStyle = 'rgba(58,107,82,'+(0.06+wa*0.28)+')'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(vB.x,vB.y); ctx.lineTo(vC.x,vC.y); ctx.lineTo(pt.x,pt.y); ctx.closePath();
+    ctx.fillStyle = 'rgba(184,146,42,'+(0.06+wb*0.28)+')'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(vC.x,vC.y); ctx.lineTo(vA.x,vA.y); ctx.lineTo(pt.x,pt.y); ctx.closePath();
+    ctx.fillStyle = 'rgba(90,87,79,'+(0.06+wc*0.28)+')'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(vA.x,vA.y); ctx.lineTo(vB.x,vB.y); ctx.lineTo(vC.x,vC.y); ctx.closePath();
+    ctx.strokeStyle = green; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = '500 14px system-ui,sans-serif'; ctx.fillStyle = textCol;
+    ctx.textAlign = 'center'; ctx.fillText('Budget', vA.x, vA.y-18);
+    ctx.textAlign = 'right'; ctx.fillText('Specification', vB.x-14, vB.y+6);
+    ctx.textAlign = 'left'; ctx.fillText('Programme', vC.x+14, vC.y+6);
+    [vA,vB,vC].forEach(v => { ctx.beginPath(); ctx.arc(v.x,v.y,5,0,Math.PI*2); ctx.fillStyle=green; ctx.fill(); });
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,9,0,Math.PI*2); ctx.fillStyle=green; ctx.fill();
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,4,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+  }
+  function update(p) {
+    pt = clamp(p);
+    const [wa,wb,wc] = bary(pt);
+    const a = Math.round(wa*100), b = Math.round(wb*100), c = 100-a-b;
+    triPriorities = {a,b,c};
+    document.getElementById('tri-a').textContent = a+'%';
+    document.getElementById('tri-b').textContent = b+'%';
+    document.getElementById('tri-c').textContent = c+'%';
+    draw();
+  }
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const sx = W/r.width, sy = H/r.height;
+    const s = e.touches ? e.touches[0] : e;
+    return {x:(s.clientX-r.left)*sx, y:(s.clientY-r.top)*sy};
+  }
+  let drag = false;
+  canvas.addEventListener('mousedown', e=>{drag=true;update(pos(e));});
+  canvas.addEventListener('mousemove', e=>{if(drag)update(pos(e));});
+  canvas.addEventListener('mouseup', ()=>drag=false);
+  canvas.addEventListener('mouseleave', ()=>drag=false);
+  canvas.addEventListener('touchstart', e=>{e.preventDefault();drag=true;update(pos(e));},{passive:false});
+  canvas.addEventListener('touchmove', e=>{e.preventDefault();if(drag)update(pos(e));},{passive:false});
+  canvas.addEventListener('touchend', ()=>drag=false);
+  draw();
+}
+
+// --- SIGNATURE PAD ---
+function initSig() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas || signaturePad) return;
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 160 * window.devicePixelRatio;
+  canvas.style.height = '160px';
+  if (typeof SignaturePad !== 'undefined') {
+    signaturePad = new SignaturePad(canvas, {
+      minWidth:0.8, maxWidth:2.5, penColor:'#2a2925',
+      backgroundColor:'rgba(255,255,255,0)'
+    });
+    signaturePad.addEventListener('beginStroke', () => {
+      sigHas = true;
+      document.getElementById('sig-hint').textContent = 'Signature added ✓';
+    });
+  }
+}
+
+document.getElementById('btn-clear-sig').addEventListener('click', () => {
+  if (signaturePad) { signaturePad.clear(); sigHas = false; }
+  document.getElementById('sig-hint').textContent = 'Draw your signature above';
+});
+
+// --- COLLECT DATA ---
+function getRadio(name) {
+  const el = document.querySelector('input[name="'+name+'"]:checked');
+  return el ? el.value : 'Not specified';
+}
+function getChecked(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
+}
+function getCheckedByName(selector) {
+  return Array.from(document.querySelectorAll(selector+':checked')).map(el => el.value);
+}
+function val(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+// --- SUBMIT ---
+document.getElementById('btn-submit').addEventListener('click', () => {
+  let ok = true;
+
+  if (!val('f-home-address')) { document.getElementById('val-address').classList.add('show'); ok=false; }
+  else document.getElementById('val-address').classList.remove('show');
+
+  const email = val('f-email');
+  if (!email || !email.includes('@')) { document.getElementById('val-email').classList.add('show'); ok=false; }
+  else document.getElementById('val-email').classList.remove('show');
+
+  if (!sigHas) { document.getElementById('val-sig').classList.add('show'); ok=false; }
+  else document.getElementById('val-sig').classList.remove('show');
+
+  if (!ok) return;
+
+  const name = (val('f-firstname') + ' ' + val('f-lastname')).trim() || 'Client';
+
+  const sigPng = signaturePad ? signaturePad.toDataURL('image/png') : '';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  const data = {
+    name,
+    extraContacts: (function() {
+      const contacts = [];
+      document.querySelectorAll('#extra-contacts > div').forEach(wrap => {
+        const id = wrap.id.replace('contact-wrap-','');
+        const n = (val('f-firstname'+id)+' '+val('f-lastname'+id)).trim();
+        if (n) contacts.push({name:n, email:val('f-email'+id), phone:val('f-phone'+id)});
+      });
+      return contacts;
+    })(),
+    email: val('f-email'),
+    phone: val('f-phone'),
+    homeAddress: val('f-home-address'),
+    siteAddress: document.getElementById('site-address-wrap').style.display !== 'none' ? val('f-site-address') : val('f-home-address'),
+    siteAddressDifferent: document.getElementById('site-address-wrap').style.display !== 'none' ? 'Yes' : 'No',
+    tenureLength: val('f-tenure-length'),
+    intent: getRadio('intent'),
+    adults: document.getElementById('adults-val').textContent,
+    children: document.getElementById('children-val').textContent,
+    childrenAges: val('f-children-ages'),
+    access: getRadio('access'),
+    accessDetail: val('f-access-detail'),
+    pets: getRadio('pets'),
+    petsDetail: val('f-pets-detail'),
+    changes: getChecked('changes-opts'),
+    changesDetail: val('f-changes-detail'),
+    congregate: val('f-congregate'),
+    morning: val('f-morning'),
+    lifestyle: getCheckedByName('#s4 input[type="checkbox"]'),
+    practical: val('f-practical'),
+    frustration: val('f-frustration'),
+    projectTypes: getChecked('project-type-opts'),
+    spaces: val('f-spaces'),
+    inspiration: val('f-inspiration'),
+    sustain: getRadio('sustain'),
+    propType: getRadio('prop-type'),
+    listed: getRadio('listed'),
+    conservation: getRadio('conservation'),
+    planningHist: getRadio('planning-hist'),
+    planningHistDetail: val('f-planning-hist'),
+    drawings: getRadio('drawings'),
+    constraints: getCheckedByName('#s6 input[type="checkbox"]:checked'),
+    budget: getRadio('budget'),
+    triA: triPriorities.a,
+    triB: triPriorities.b,
+    triC: triPriorities.c,
+    start: val('f-start'),
+    deadlines: val('f-deadlines'),
+    contractor: getRadio('contractor'),
+    consultants: getCheckedByName('#s8 input[type="checkbox"]:checked'),
+    contact: val('f-contact'),
+    comms: getRadio('comms'),
+    source: getRadio('source'),
+    anythingElse: val('f-anything-else'),
+  };
+
+  generateEML(data, sigPng, dateStr, timeStr, name);
+  showSection(9, 'forward');
+});
+
+// --- EML GENERATOR ---
+function toB64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const chunk = 8192;
+  for (let i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode(...bytes.slice(i,i+chunk));
+  return btoa(bin);
+}
+function wrap76(s) {
+  const out = [];
+  for (let i=0;i<s.length;i+=76) out.push(s.slice(i,i+76));
+  return out.join('\r\n');
+}
+
+function generateEML(d, sigPng, dateStr, timeStr, name) {
+  const recordHTML = buildRecordHTML(d, sigPng, dateStr, timeStr);
+  const CRLF = '\r\n';
+  const bd = 'JWA_BRIEF_'+Date.now();
+  const ba = 'JWA_BRIEF_ALT_'+Date.now();
+  const subject = 'Client Brief — '+d.name+(d.extraContacts.length?' & '+d.extraContacts.map(c=>c.name).join(' & '):'')+' — '+d.siteAddress;
+  const encSubj = '=?UTF-8?B?'+btoa(unescape(encodeURIComponent(subject)))+'?=';
+  const sigB64 = sigPng.replace(/^data:image\/png;base64,/,'');
+
+  const plain = [
+    'Dear Jake,',
+    '',
+    'Please find my client brief below.',
+    '',
+    'Name: '+d.name,
+    'Email: '+d.email,
+    'Phone: '+d.phone,
+    'Address: '+d.address,
+    'Date: '+dateStr+' at '+timeStr,
+    '',
+    '--- PROJECT ---',
+    'Type: '+(d.projectTypes.join(', ')||'Not specified'),
+    'Budget: '+d.budget,
+    'Priorities: Budget '+d.triA+'% / Specification '+d.triB+'% / Programme '+d.triC+'%',
+    'Target start: '+d.start,
+    '',
+    '--- HOUSEHOLD ---',
+    'Adults: '+d.adults,
+    'Children: '+d.children+(d.childrenAges?' (ages: '+d.childrenAges+')':''),
+    'Tenure: '+d.tenure,
+    'Intent: '+d.intent,
+    '',
+    'Kind regards,',
+    d.name
+  ].join('\r\n');
+
+  const htmlB64 = wrap76(toB64(recordHTML));
+  const plainB64 = wrap76(toB64(plain));
+
+  const eml = [
+    'MIME-Version: 1.0',
+    'Date: '+new Date().toUTCString(),
+    'From: '+name+' <'+d.email+'>',
+    'To: Jake White Architecture <jake@jakewhitearchitecture.com>',
+    'Subject: '+encSubj,
+    'Content-Type: multipart/mixed; boundary="'+bd+'"',
+    '',
+    '--'+bd,
+    'Content-Type: multipart/alternative; boundary="'+ba+'"',
+    '',
+    '--'+ba,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    plainB64,
+    '',
+    '--'+ba,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    htmlB64,
+    '',
+    '--'+ba+'--',
+    '',
+    '--'+bd,
+    'Content-Type: image/png; name="signature.png"',
+    'Content-Transfer-Encoding: base64',
+    'Content-Disposition: inline; filename="signature.png"',
+    '',
+    wrap76(sigB64),
+    '',
+    '--'+bd+'--',
+    ''
+  ].join(CRLF);
+
+  const blob = new Blob([eml],{type:'message/rfc822'});
+  const safeAddr = d.address.replace(/[^a-zA-Z0-9]/g,'-').slice(0,30);
+  const filename = 'client-brief-'+safeAddr+'.eml';
+  window._briefHTML = recordHTML;
+    window._emlBlob = blob;
+  window._emlFilename = filename;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+// --- RECORD HTML ---
+function row(label, value) {
+  if (!value || value === 'Not specified') return '';
+  return '<tr><td style="padding:10px 0;font-size:13px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#8a877e;width:160px;vertical-align:top;border-bottom:1px solid #e2e0db;">'+label+'</td><td style="padding:10px 0;font-size:17px;color:#2a2925;border-bottom:1px solid #e2e0db;">'+value+'</td></tr>';
+}
+function section(title, content) {
+  return '<div style="margin-bottom:40px;padding-bottom:40px;border-bottom:1px solid #e2e0db;"><h3 style="font-size:22px;font-weight:200;color:#2a2925;margin:0 0 8px;letter-spacing:0.01em;">'+title+'</h3><div style="width:32px;height:1px;background:#c8c4bc;margin:0 0 20px;"></div>'+content+'</div>';
+}
+function detail(label, value) {
+  if (!value) return '';
+  return '<p style="font-size:13px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#8a877e;margin:16px 0 4px;">'+label+'</p><p style="font-size:16px;font-weight:300;color:#5a574f;line-height:1.8;margin:0;">'+value+'</p>';
+}
+
+function buildRecordHTML(d, sigPng, dateStr, timeStr) {
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+  '<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">'+
+  '<style>'+
+  ':root{--bg:#fafaf8;--white:#ffffff;--border:#e2e0db;--text:#2a2925;--text-mid:#5a574f;--text-light:#8a877e;--green:#3a6b52;--amber:#b8922a;--amber-bg:#fdf8f0;--amber-border:#e8dfc8;}'+
+  'body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:"Jost",system-ui,sans-serif;font-weight:300;line-height:1.75;font-size:18px;-webkit-font-smoothing:antialiased;}'+
+  '.page{max-width:900px;margin:0 auto;padding:48px;}'+
+  '</style></head><body>'+
+  '<div class="page">'+
+
+  '<span style="font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#8a877e;display:block;margin-bottom:16px;">Jake White Architecture · BRPD · Haywards Heath · Sussex</span>'+
+  '<h1 style="font-size:36px;font-weight:200;color:#2a2925;margin:0 0 4px;line-height:1.15;">Client Brief</h1>'+
+  '<h2 style="font-size:36px;font-weight:200;color:#2a2925;margin:0 0 8px;line-height:1.15;">'+d.name+'</h2>'+
+  '<p style="font-size:14px;color:#8a877e;margin:0 0 32px;">Submitted '+dateStr+' at '+timeStr+'</p>'+
+
+  '<table style="width:100%;border-collapse:collapse;margin-bottom:40px;">'+
+  row('Home address', d.homeAddress)+
+  (d.siteAddressDifferent==='Yes' ? row('Site address', d.siteAddress) : '')+
+  row('Contact 1', d.name+(d.email?' · '+d.email:'')+(d.phone?' · '+d.phone:''))+
+  d.extraContacts.map((c,i) => row('Contact '+(i+2), c.name+(c.email?' · '+c.email:'')+(c.phone?' · '+c.phone:''))).join('')+
+  row('Tenure', d.tenure+(d.tenureLength?' · '+d.tenureLength:''))+
+  row('Intent', d.intent)+
+  '</table>'+
+
+  section('Your household',
+    '<table style="width:100%;border-collapse:collapse;">'+
+    row('Adults', d.adults)+
+    row('Children', d.children+(d.childrenAges?' · Ages: '+d.childrenAges:''))+
+    row('Specific needs', d.access==='Yes'?d.accessDetail:d.access)+
+    row('Pets', d.pets==='Yes'?d.petsDetail:'No')+
+    '</table>'
+  )+
+
+  section('How your household is changing',
+    (d.changes.length ? '<p style="font-size:16px;font-weight:300;color:#5a574f;line-height:1.8;margin:0 0 16px;">'+d.changes.join('<br>')+'</p>' : '')+
+    detail('Additional context', d.changesDetail)
+  )+
+
+  section('How you live now',
+    detail('Where the family congregates', d.congregate)+
+    detail('Morning routine', d.morning)+
+    (d.lifestyle.length ? detail('Lifestyle', d.lifestyle.join(' · ')) : '')+
+    detail('Practical storage challenges', d.practical)+
+    detail('Biggest frustration', d.frustration)
+  )+
+
+  section('What you want',
+    (d.projectTypes.length ? '<p style="font-size:13px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:#8a877e;margin:0 0 8px;">Project type</p><p style="font-size:16px;font-weight:300;color:#5a574f;line-height:1.8;margin:0 0 16px;">'+d.projectTypes.join('<br>')+'</p>' : '')+
+    detail('Specific spaces', d.spaces)+
+    detail('Inspiration & references', d.inspiration)+
+    detail('Sustainability aspirations', d.sustain)
+  )+
+
+  section('The property',
+    '<table style="width:100%;border-collapse:collapse;">'+
+    row('Property type', d.propType)+
+    row('Listed', d.listed)+
+    row('Conservation area', d.conservation)+
+    row('Planning history', d.planningHist==='Yes'?d.planningHistDetail:d.planningHist)+
+    row('Existing drawings', d.drawings)+
+    (d.constraints.length ? row('Constraints', d.constraints.join(', ')) : '')+
+    '</table>'
+  )+
+
+  section('Budget &amp; programme',
+    '<table style="width:100%;border-collapse:collapse;">'+
+    row('Construction budget', d.budget)+
+    row('Priority: Budget', d.triA+'%')+
+    row('Priority: Specification', d.triB+'%')+
+    row('Priority: Programme', d.triC+'%')+
+    row('Target start', d.start)+
+    '</table>'+
+    detail('Fixed deadlines', d.deadlines)
+  )+
+
+  section('The project team',
+    '<table style="width:100%;border-collapse:collapse;">'+
+    row('Contractor', d.contractor)+
+    (d.consultants.length ? row('Consultants engaged', d.consultants.join(', ')) : '')+
+    row('Main contact', d.contact)+
+    row('Preferred comms', d.comms)+
+    row('How found us', d.source)+
+    '</table>'+
+    detail('Anything else', d.anythingElse)
+  )+
+
+  '<div style="margin-top:40px;padding-top:32px;border-top:1px solid #e2e0db;">'+
+  '<span style="font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:#8a877e;display:block;margin-bottom:12px;">Signature</span>'+
+  '<div style="border:1px solid #e2e0db;border-radius:3px;padding:24px;background:#fff;margin-bottom:12px;">'+
+  '<img src="'+sigPng+'" alt="Signature of '+d.name+'" style="max-width:100%;max-height:120px;height:auto;display:block;">'+
+  '</div>'+
+  '<p style="font-size:16px;font-weight:400;color:#2a2925;margin:0 0 16px;">'+d.name+' · '+dateStr+'</p>'+
+  '<div style="background:#fdf8f0;border-left:3px solid #b8922a;padding:20px 24px;">'+
+  '<p style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#b8922a;margin:0 0 8px;">Next step</p>'+
+  '<p style="font-size:15px;font-weight:300;color:#5a574f;line-height:1.75;margin:0;">Jake White Architecture will be in touch to arrange an initial consultation. We look forward to hearing more about your project.</p>'+
+  '</div>'+
+  '</div>'+
+
+  '<div style="margin-top:40px;padding-top:24px;border-top:1px solid #e2e0db;display:flex;justify-content:space-between;">'+
+  '<span style="font-size:10px;color:#8a877e;letter-spacing:0.1em;text-transform:uppercase;">Jake White Architecture · BRPD · Haywards Heath · Sussex</span>'+
+  '<span style="font-size:10px;color:#8a877e;">www.jakewhitearchitecture.com</span>'+
+  '</div>'+
+
+  '</div></body></html>';
+}
+
+// --- COMPLETION BUTTONS ---
+document.getElementById('btn-view-record').addEventListener('click', () => {
+  if (window._briefHTML) {
+    const win = window.open('','_blank','width=860,height=960,scrollbars=yes');
+    if (win) { win.document.write(window._briefHTML); win.document.close(); }
+  }
+});
+document.getElementById('btn-redownload-eml').addEventListener('click', () => {
+  if (window._emlBlob) {
+    const url = URL.createObjectURL(window._emlBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = window._emlFilename||'client-brief.eml';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
+});
+
+updateProgress();
+
+}); // end DOMContentLoaded
+</script>
+<script src="signature_pad.umd.min.js" onerror="console.warn('Signature Pad not found');"></script>
+</body>
+</html>
