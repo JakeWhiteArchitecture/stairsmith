@@ -66,7 +66,12 @@
             border-bottom: 1px solid var(--line);
         }
         .brand { display: flex; align-items: center; gap: 14px; }
-        .brand img.logo-img { height: 54px; width: auto; }
+        .logo-large {
+            width: min(250px, 70%);
+            height: auto;
+            align-self: center;
+            filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5));
+        }
         .beta {
             font-size: 11px; font-weight: 700; letter-spacing: 1px;
             color: var(--accent); border: 1px solid var(--accent);
@@ -246,7 +251,6 @@
 
     <header class="site">
         <div class="brand">
-            <img src="StairSmith-Logo.png" alt="StairSmith" class="logo-img">
             <span class="beta">BETA</span>
         </div>
         <a class="site-link" href="https://jakewhitearchitecture.com/">jakewhitearchitecture.com</a>
@@ -263,6 +267,7 @@
 
     <main>
         <section class="col-left">
+            <img class="logo-large" src="StairSmith-Logo.png" alt="StairSmith — parametric staircase design tool">
             <h1>Parametric staircase design tool for practitioners</h1>
             <p class="intro">Design straight, single winder and double winder timber staircases in full 3D. Set rise, going and width, shape kite winder turns, and export IFC4 models and dimensioned DXF drawings &mdash; free, browser-based, no login required.</p>
 
@@ -270,14 +275,14 @@
                 <li>Straight, 90&deg; single winder and 180&deg; double winder layouts</li>
                 <li>Traditional kite winder setting-out with newel posts, stringers and balustrade</li>
                 <li>Live 3D preview with measure and dimension tools</li>
-                <li>Rise, going, pitch and 2R+G shown against Approved Document K reference values &mdash; for information only</li>
+                <li>Rise, going, pitch and 2R+G shown to assist designers in achieving compliance</li>
                 <li>IFC4 export for BIM coordination</li>
                 <li>Dimensioned DXF plan, elevations and stepped sections</li>
             </ul>
 
             <div class="callout">
                 <div class="label">DESIGNED FOR</div>
-                <p>Architects, architectural technologists, joiners and self-builders working on residential staircases &mdash; who will check and verify their own designs.</p>
+                <p>Architects, Architectural Technologists, Surveyors and Contractors working on residential staircases &mdash; who can check and verify their own designs.</p>
             </div>
 
             <div class="begin">
