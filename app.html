@@ -43,6 +43,18 @@
         .panel-mid { padding: 8px 20px 8px 0; }
         .panel-bot { padding: 0 20px 20px 20px; }
 
+        /* Boot animations: panel slides out, controls stagger in */
+        @keyframes panel-boot {
+            from { transform: translateX(-100%); }
+            to   { transform: translateX(0); }
+        }
+        .panel.boot { animation: panel-boot 0.45s cubic-bezier(0.22, 0.8, 0.34, 1) both; }
+        @keyframes ctrl-boot {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: none; }
+        }
+        .ctrl-boot { opacity: 0; animation: ctrl-boot 0.4s ease-out forwards; }
+
         .panel-actions {
             padding: 12px 20px 16px;
             border-top: 1px solid #0f3460;
@@ -1529,6 +1541,25 @@
 
         function acceptTerms() {
             document.getElementById('startup-screen').classList.add('hidden');
+            window._bootFade = true;  // fade in the first stair model built
+            // Slide the side tray out and stagger its controls in
+            // (desktop only - the mobile drawer has its own transition).
+            if (window.innerWidth > 768) {
+                var bootPanel = document.getElementById('panel');
+                var bootItems = bootPanel.querySelectorAll('.section, .panel-actions');
+                bootPanel.classList.add('boot');
+                bootItems.forEach(function (el, i) {
+                    el.classList.add('ctrl-boot');
+                    el.style.animationDelay = (0.25 + i * 0.07) + 's';
+                });
+                setTimeout(function () {
+                    bootPanel.classList.remove('boot');
+                    bootItems.forEach(function (el) {
+                        el.classList.remove('ctrl-boot');
+                        el.style.animationDelay = '';
+                    });
+                }, 2400);
+            }
             if (window.pyodideReady) updatePreview();
             // On mobile, open the drawer so the sidebar is visible on start
             if (window.innerWidth <= 768) {
@@ -2152,6 +2183,40 @@ function renderGeometry(meshes) {
             });
 
             scene.add(staircaseGroup);
+            if (window._bootFade) {
+                window._bootFade = false;
+                fadeInStaircase(staircaseGroup);
+            }
+        }
+
+        // One-time fade-in of the stair model on first reveal.
+        function fadeInStaircase(group) {
+            var mats = [];
+            group.traverse(function (obj) {
+                if (!obj.material) return;
+                var list = Array.isArray(obj.material) ? obj.material : [obj.material];
+                list.forEach(function (m) {
+                    mats.push({ m: m, opacity: m.opacity, transparent: m.transparent });
+                    m.transparent = true;
+                    m.opacity = 0;
+                });
+            });
+            if (!mats.length) return;
+            var t0 = performance.now(), DUR = 700;
+            (function step(now) {
+                var k = Math.min(1, (now - t0) / DUR);
+                var e = k * (2 - k);  // ease-out
+                mats.forEach(function (x) { x.m.opacity = x.opacity * e; });
+                if (k < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    mats.forEach(function (x) {
+                        x.m.opacity = x.opacity;
+                        x.m.transparent = x.transparent;
+                        x.m.needsUpdate = true;
+                    });
+                }
+            })(t0);
         }
 
         let dimensionGroup = null;
