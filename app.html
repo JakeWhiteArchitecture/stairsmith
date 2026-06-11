@@ -167,16 +167,29 @@
             transition: background 0.2s;
         }
 
-        /* Animated diagonal hatching while IFC/DXF generation runs */
+        /* Animated diagonal hatching while IFC/DXF generation runs.
+           Animates transform on a pseudo-element so the compositor keeps
+           it moving even while Pyodide blocks the main thread (a
+           background-position animation freezes during generation). */
         .btn-hatched {
-            background-image: repeating-linear-gradient(45deg,
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-hatched::after {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0;
+            left: -68px; right: -68px;
+            background: repeating-linear-gradient(45deg,
                 rgba(255,255,255,0.18) 0 12px,
-                rgba(255,255,255,0.02) 12px 24px) !important;
-            animation: hatch-slide 1.1s linear infinite;
+                rgba(255,255,255,0.02) 12px 24px);
+            animation: hatch-slide 0.9s linear infinite;
+            will-change: transform;
+            pointer-events: none;
         }
         @keyframes hatch-slide {
-            from { background-position: 0 0; }
-            to   { background-position: 34px 0; }
+            from { transform: translateX(0); }
+            to   { transform: translateX(33.94px); }  /* one stripe period */
         }
 
         /* Floating Buy Me a Coffee link, bottom-right */
@@ -2791,6 +2804,9 @@ else:
             btn.disabled = true;
             btn.classList.add('btn-hatched');
             try {
+                await new Promise(function (r) {
+                    requestAnimationFrame(function () { requestAnimationFrame(r); });
+                });
                 await ensureIfcOpenShell();
                 btn.textContent = 'Generating IFC...';
                 const paramsJSON = JSON.stringify(params);
@@ -2826,6 +2842,10 @@ _data
             btn.disabled = true;
             btn.classList.add('btn-hatched');
             try {
+                // Let the hatch render and reach the compositor first.
+                await new Promise(function (r) {
+                    requestAnimationFrame(function () { requestAnimationFrame(r); });
+                });
                 const paramsJSON = JSON.stringify(params);
                 const dxfString = await pyodide.runPythonAsync(`
 import json as _json
