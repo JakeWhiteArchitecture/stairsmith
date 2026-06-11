@@ -285,7 +285,7 @@ def _attach_disclaimer_pset(ifc, product, text):
     try:
         url_prop = ifc.createIfcPropertySingleValue(
             "ToolURL", None,
-            ifc.create_entity("IfcURIReference",
+            ifc.create_entity("IfcText",
                               "https://jakewhitearchitecture.com/stairsmith/"),
             None,
         )
