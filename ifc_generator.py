@@ -282,13 +282,22 @@ def _attach_disclaimer_pset(ifc, product, text):
         ifc.create_entity("IfcText", text),
         None,
     )
+    try:
+        url_prop = ifc.createIfcPropertySingleValue(
+            "ToolURL", None,
+            ifc.create_entity("IfcText",
+                              "https://jakewhitearchitecture.com/stairsmith/"),
+            None,
+        )
+    except Exception:
+        url_prop = None
     owner_history = ifc.by_type("IfcOwnerHistory")[0] if ifc.by_type("IfcOwnerHistory") else None
     pset = ifc.createIfcPropertySet(
         ifcopenshell.guid.new(),
         owner_history,
         "StairSmith_Disclaimer",
         None,
-        [prop],
+        [prop] + ([url_prop] if url_prop else []),
     )
     ifc.createIfcRelDefinesByProperties(
         ifcopenshell.guid.new(),
@@ -2679,6 +2688,13 @@ def meshes_to_ifc(meshes):
     org = ifcopenshell.api.run("owner.add_organisation", ifc,
                                identification="JWA",
                                name="Jake White Architecture")
+    try:
+        org.Addresses = [ifc.create_entity(
+            "IfcTelecomAddress", Purpose="USERDEFINED",
+            UserDefinedPurpose="StairSmith",
+            WWWHomePageURL="https://jakewhitearchitecture.com/stairsmith/")]
+    except Exception:
+        pass
     ifcopenshell.api.run("owner.add_person_and_organisation", ifc,
                          person=person, organisation=org)
     app = ifcopenshell.api.run("owner.add_application", ifc,
