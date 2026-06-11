@@ -167,16 +167,29 @@
             transition: background 0.2s;
         }
 
-        /* Animated diagonal hatching while IFC/DXF generation runs */
+        /* Animated diagonal hatching while IFC/DXF generation runs.
+           Animates transform on a pseudo-element so the compositor keeps
+           it moving even while Pyodide blocks the main thread (a
+           background-position animation freezes during generation). */
         .btn-hatched {
-            background-image: repeating-linear-gradient(45deg,
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-hatched::after {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0;
+            left: -68px; right: -68px;
+            background: repeating-linear-gradient(45deg,
                 rgba(255,255,255,0.18) 0 12px,
-                rgba(255,255,255,0.02) 12px 24px) !important;
-            animation: hatch-slide 1.1s linear infinite;
+                rgba(255,255,255,0.02) 12px 24px);
+            animation: hatch-slide 0.9s linear infinite;
+            will-change: transform;
+            pointer-events: none;
         }
         @keyframes hatch-slide {
-            from { background-position: 0 0; }
-            to   { background-position: 34px 0; }
+            from { transform: translateX(0); }
+            to   { transform: translateX(33.94px); }  /* one stripe period */
         }
 
         /* Floating Buy Me a Coffee link, bottom-right */
@@ -723,6 +736,20 @@
             border-radius: 8px;
             margin-bottom: 24px;
         }
+        #startup-screen.loading-mode {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .loading-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+            text-align: center;
+        }
+        .loading-card .startup-loading { margin-top: 6px; }
+
         .startup-spinner {
             width: 22px;
             height: 22px;
@@ -1150,90 +1177,26 @@
     </style>
 </head>
 <body>
-    <!-- Startup Screen (terms + loading) -->
-    <div id="startup-screen">
-        <!-- Left: logo, loading, checkboxes, buttons -->
-        <div class="startup-left">
-            <div class="startup-logo">
-                <img src="StairSmith-Logo.png" alt="StairSmith" style="width:260px;height:auto;">
-                <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
-            </div>
+    <!-- Session gate: terms are accepted on the landing page -->
+    <script>
+        try {
+            if (sessionStorage.getItem('stairsmith_terms_ok') !== '1') {
+                location.replace('index.html');
+            }
+        } catch (e) { /* storage unavailable - allow through */ }
+    </script>
 
+    <!-- Loading overlay shown while Pyodide boots -->
+    <div id="startup-screen" class="loading-mode">
+        <div class="loading-card">
+            <img src="StairSmith-Logo.png" alt="StairSmith" style="width:220px;height:auto;">
+            <p class="logo-tagline">Parametric staircase design tool (BETA)</p>
             <div class="startup-loading">
                 <div class="startup-spinner" id="startup-spinner"></div>
                 <span class="startup-loading-text" id="startup-loading-text">Initialising...</span>
             </div>
-
-            <div class="startup-checkboxes locked" id="startup-checkboxes">
-                <label class="startup-checkbox-label">
-                    <input type="checkbox" id="terms-check-1" autocomplete="off" onchange="updateStartupAcceptBtn()">
-                    I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only.
-                </label>
-                <label class="startup-checkbox-label">
-                    <input type="checkbox" id="terms-check-2" autocomplete="off" onchange="updateStartupAcceptBtn()">
-                    I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.
-                </label>
-            </div>
-
-            <div class="startup-actions">
-                <button class="startup-btn startup-btn-decline" onclick="declineTerms()">Decline</button>
-                <button class="startup-btn startup-btn-accept" id="startup-accept-btn" onclick="acceptTerms()" disabled>I Accept</button>
-            </div>
-        </div>
-
-        <!-- Right: full-height terms text -->
-        <div class="startup-right">
-            <div class="startup-terms-heading">Terms of Use &amp; Disclaimer</div>
-            <p class="startup-terms-effective">Effective Date: March 2026</p>
-            <div class="startup-terms-body">
-                <h4>1. Nature of the Tool</h4>
-                <p>The Tool is a preliminary design aid only, intended to assist with the visual exploration and conceptual development of building components. It is not a substitute for professional design, structural engineering, or compliance verification. The Tool does not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
-
-                <h4>2. No Compliance Warranty</h4>
-                <p>Outputs have not been verified against any building regulations, standards, or codes of practice — including the Building Regulations 2010 (England and Wales), associated Approved Documents, British Standards or any international equivalent. No representation or warranty is made that any output complies with any regulatory requirement.</p>
-
-                <h4>3. User Responsibility</h4>
-                <p>By using the Tool, you acknowledge that:</p>
-                <ul>
-                    <li>You are solely responsible for verifying the accuracy, suitability, and regulatory compliance of all outputs.</li>
-                    <li>You will not rely on any output as a final design or instruction for construction without your own verification.</li>
-                    <li>You will ensure all outputs are reviewed and validated by you as a competent person, in consultation with others as necessary, before any stair design or associated works are built.</li>
-                    <li>Any use of IFC or other file exports is entirely at your own risk.</li>
-                </ul>
-
-                <h4>4. Limitation of Liability</h4>
-                <p>The Tool is provided "as is" without warranty of any kind, whether express or implied. To the fullest extent permitted by law, the provider shall not be liable for any loss, damage, injury, cost, or expense (whether direct, indirect, or consequential) arising from the use of or reliance upon any output, any errors or omissions in the outputs, any decisions or actions taken based on the outputs, or any failure of the Tool to identify non-compliant configurations.</p>
-
-                <h4>5. Professional Advice</h4>
-                <p>Nothing provided by the Tool constitutes professional advice. Users remain responsible for obtaining any specialist input (structural, fire, regulatory) that falls outside their own competence. Provision of this free tool does not constitute BRPD appointment formally or informally.</p>
-
-                <h4>6. Intellectual Property</h4>
-                <p>The Tool is provided free of charge. Outputs (including IFC files, DXF files and visual previews) may be used freely at your own discretion. The Tool itself, including source code and design, remains the intellectual property of the provider. Credit to ATPT (Architectural Technologist Power Team) — inspiration for development of the Tool was as a result of a group discussion.</p>
-
-                <h4>7. Changes to These Terms</h4>
-                <p>These terms may be updated from time to time. Continued use of the Tool following any changes constitutes acceptance of the revised terms.</p>
-
-                <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
-            </div>
         </div>
     </div>
-
-    <!-- Download Reminder Modal -->
-    <div id="download-reminder" role="dialog" aria-modal="true" aria-label="Download Reminder">
-        <div class="reminder-dialog">
-            <div class="reminder-heading">Reminder</div>
-            <p class="reminder-text">The user must check all outputs / downloads for compliance with UK or other relevant local regulation or standard.</p>
-            <button class="reminder-btn" onclick="confirmDownload()">Understood, proceed to download</button>
-        </div>
-    </div>
-
-    <!-- Loading overlay removed: loading status is now shown in the startup screen -->
-
-    <!-- Mobile drawer toggle -->
-    <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle controls" onclick="toggleDrawer()">
-        <span></span><span></span><span></span>
-    </button>
-    <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
 
     <div class="panel" id="panel">
       <button class="panel-collapse-tab" id="panel-collapse-tab" onclick="togglePanelCollapse()" aria-label="Collapse panel">
@@ -1508,20 +1471,8 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
-        // ─── STARTUP SCREEN (terms + loading) ───
-        // Reset checkboxes on every page load (prevent browser autofill restoring ticks)
-        document.getElementById('terms-check-1').checked = false;
-        document.getElementById('terms-check-2').checked = false;
-        document.getElementById('startup-accept-btn').disabled = true;
-
+        // ─── LOADING OVERLAY (terms are accepted on the landing page) ───
         window.pyodideLoaded = false;
-
-        function unlockCheckboxesIfReady() {
-            // Unlock checkboxes only when Pyodide has finished loading
-            if (window.pyodideLoaded) {
-                document.getElementById('startup-checkboxes').classList.remove('locked');
-            }
-        }
 
         function onPyodideReady() {
             window.pyodideLoaded = true;
@@ -1530,16 +1481,12 @@
             spinner.classList.add('done');
             text.textContent = 'Ready';
             text.classList.add('ready');
-            unlockCheckboxesIfReady();
+            // Terms were accepted on the landing page - reveal the app
+            // after a beat so "Ready" registers.
+            setTimeout(revealApp, 450);
         }
 
-        function updateStartupAcceptBtn() {
-            var c1 = document.getElementById('terms-check-1').checked;
-            var c2 = document.getElementById('terms-check-2').checked;
-            document.getElementById('startup-accept-btn').disabled = !(c1 && c2);
-        }
-
-        function acceptTerms() {
+        function revealApp() {
             document.getElementById('startup-screen').classList.add('hidden');
             window._bootFade = true;  // fade in the first stair model built
             // Slide the side tray out and stagger its controls in
@@ -1565,10 +1512,6 @@
             if (window.innerWidth <= 768) {
                 setTimeout(function() { toggleDrawer(); }, 100);
             }
-        }
-
-        function declineTerms() {
-            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#888;font-family:sans-serif;text-align:center;padding:20px;"><div><h2 style="color:#e94560;margin-bottom:12px;">Access Denied</h2><p>You must accept the Terms of Use &amp; Disclaimer to use this tool.</p><p style="margin-top:16px;"><a href="index.html" style="color:#e94560;">Return to the StairSmith home page</a></p></div></div>';
         }
 
         // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
@@ -2861,6 +2804,9 @@ else:
             btn.disabled = true;
             btn.classList.add('btn-hatched');
             try {
+                await new Promise(function (r) {
+                    requestAnimationFrame(function () { requestAnimationFrame(r); });
+                });
                 await ensureIfcOpenShell();
                 btn.textContent = 'Generating IFC...';
                 const paramsJSON = JSON.stringify(params);
@@ -2896,6 +2842,10 @@ _data
             btn.disabled = true;
             btn.classList.add('btn-hatched');
             try {
+                // Let the hatch render and reach the compositor first.
+                await new Promise(function (r) {
+                    requestAnimationFrame(function () { requestAnimationFrame(r); });
+                });
                 const paramsJSON = JSON.stringify(params);
                 const dxfString = await pyodide.runPythonAsync(`
 import json as _json
@@ -2963,6 +2913,6 @@ from stair_preview import generate_preview_geometry
         initPyodide();
     </script>
 
-    <a class="bmc-float" href="https://buymeacoffee.com/jakewhitearchitecture" target="_blank" rel="noopener">&#9749; Buy me a coffee</a>
+    <a class="bmc-float" href="https://buymeacoffee.com/jakewhite" target="_blank" rel="noopener">&#9749; Buy me a coffee</a>
 </body>
 </html>
