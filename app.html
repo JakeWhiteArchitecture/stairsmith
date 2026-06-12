@@ -1260,7 +1260,7 @@
                 </select>
             </div>
             <div id="mirror-toggle-row">
-                <button id="mirror-btn" onclick="this.classList.toggle('active'); mirrorSides(); updatePreview();">
+                <button id="mirror-btn" onclick="this.classList.toggle('active'); mirrorSides(); ghostModel(); updatePreview();">
                     &#8596; Mirror Staircase
                 </button>
             </div>
@@ -1304,56 +1304,56 @@
             <div class="field-row">
                 <div class="field">
                     <label>Floor to Floor Height <span class="unit">mm</span></label>
-                    <input type="number" id="floor_to_floor" value="2700" min="2200" max="3200" step="10" oninput="updateDerived(); updatePreview();">
+                    <input type="number" id="floor_to_floor" value="2700" min="2200" max="3200" step="10" oninput="updateDerived();" onchange="updateDerived(); updatePreview();">
                 </div>
                 <div class="field">
                     <label>Number of Risers</label>
-                    <input type="number" id="num_risers" value="14" min="10" max="18" step="1" oninput="updateDerived(); updatePreview();">
+                    <input type="number" id="num_risers" value="14" min="10" max="18" step="1" oninput="updateDerived();" onchange="updateDerived(); updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Stair Width (outside to outside) <span class="unit">mm</span></label>
-                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" oninput="updatePreview();">
+                    <input type="number" id="stair_width" value="900" min="600" max="1200" step="10" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Individual Going <span class="unit">mm</span></label>
-                    <input type="number" id="going" value="227" min="220" max="300" step="1" oninput="updateDerived(); updatePreview();">
+                    <input type="number" id="going" value="227" min="220" max="300" step="1" oninput="updateDerived();" onchange="updateDerived(); updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Tread Thickness <span class="unit">mm</span></label>
-                    <input type="number" id="tread_thickness" value="22" min="18" max="40" step="1" oninput="updatePreview();">
+                    <input type="number" id="tread_thickness" value="22" min="18" max="40" step="1" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Riser Thickness <span class="unit">mm</span></label>
-                    <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" oninput="updatePreview();">
+                    <input type="number" id="riser_thickness" value="9" min="0" max="18" step="1" onchange="updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Nosing Overhang <span class="unit">mm</span></label>
-                    <input type="number" id="nosing" value="16" min="0" max="25" step="1" oninput="updatePreview();">
+                    <input type="number" id="nosing" value="16" min="0" max="25" step="1" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Landing Threshold <span class="unit">mm</span></label>
-                    <input type="number" id="threshold_depth" value="100" min="50" max="150" step="5" oninput="updatePreview();">
+                    <input type="number" id="threshold_depth" value="100" min="50" max="150" step="5" onchange="updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Winder X <span class="unit">mm</span></label>
-                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" oninput="winderInputChanged();">
+                    <input type="number" id="winder_x" value="25" min="25" max="120" step="1" onchange="winderInputChanged();">
                 </div>
                 <div class="field">
                     <label>Winder Y <span class="unit">mm</span></label>
-                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" oninput="winderInputChanged();">
+                    <input type="number" id="winder_y" value="50" min="50" max="200" step="1" onchange="winderInputChanged();">
                 </div>
             </div>
             <div class="field">
                 <label>Newel Post Size <span class="unit">mm</span></label>
-                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" oninput="updatePreview();">
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" onchange="updatePreview();">
             </div>
 
         </div>
@@ -1380,31 +1380,31 @@
             <div class="field-row">
                 <div class="field">
                     <label>Handrail Width <span class="unit">mm</span></label>
-                    <input type="number" id="handrail_width" value="70" min="40" max="100" step="1" oninput="updatePreview();">
+                    <input type="number" id="handrail_width" value="70" min="40" max="100" step="1" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Handrail Height <span class="unit">mm</span></label>
-                    <input type="number" id="handrail_height" value="40" min="20" max="80" step="1" oninput="updatePreview();">
+                    <input type="number" id="handrail_height" value="40" min="20" max="80" step="1" onchange="updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Handrail Rise <span class="unit">mm</span></label>
-                    <input type="number" id="handrail_rise" value="900" min="800" max="1100" step="10" oninput="updatePreview();">
+                    <input type="number" id="handrail_rise" value="900" min="800" max="1100" step="10" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Spindle Width <span class="unit">mm</span></label>
-                    <input type="number" id="spindle_width" value="32" min="20" max="50" step="1" oninput="updatePreview();">
+                    <input type="number" id="spindle_width" value="32" min="20" max="50" step="1" onchange="updatePreview();">
                 </div>
             </div>
             <div class="field-row">
                 <div class="field">
                     <label>Baserail Width <span class="unit">mm</span></label>
-                    <input type="number" id="baserail_width" value="50" min="30" max="100" step="1" oninput="updatePreview();">
+                    <input type="number" id="baserail_width" value="50" min="30" max="100" step="1" onchange="updatePreview();">
                 </div>
                 <div class="field">
                     <label>Baserail Height <span class="unit">mm</span></label>
-                    <input type="number" id="baserail_height" value="30" min="15" max="60" step="1" oninput="updatePreview();">
+                    <input type="number" id="baserail_height" value="30" min="15" max="60" step="1" onchange="updatePreview();">
                 </div>
             </div>
 
@@ -2321,6 +2321,46 @@ function meshFingerprint(m) {
                 } else {
                     _animateOut(grp);
                 }
+            });
+        }
+
+        function ghostModel() {
+            // Leave a red ghost of the current model fading out - used by
+            // Mirror so the previous handing visibly dissolves while the
+            // mirrored stair slides into place.
+            if (_reducedMotion || !staircaseGroup) return;
+            const ghost = staircaseGroup.clone(true);
+            const mats = [];
+            ghost.traverse(function (o) {
+                if (o.geometry) o.geometry = o.geometry.clone();
+                if (o.material) {
+                    const cloned = (Array.isArray(o.material)
+                        ? o.material.map(function (mt) { return mt.clone(); })
+                        : o.material.clone());
+                    o.material = cloned;
+                    (Array.isArray(cloned) ? cloned : [cloned]).forEach(function (mt) {
+                        mt.transparent = true;
+                        mats.push({ m: mt, o: mt.opacity,
+                                    c: mt.color ? mt.color.clone() : null });
+                    });
+                }
+            });
+            scene.add(ghost);
+            const red = new THREE.Color(0xe94560);
+            _addAnim(420, 0, function (e) {
+                mats.forEach(function (x) {
+                    x.m.opacity = x.o * (1 - e);
+                    if (x.c && x.m.color) x.m.color.lerpColors(x.c, red, Math.min(1, e * 2.5));
+                });
+            }, function () {
+                scene.remove(ghost);
+                ghost.traverse(function (o) {
+                    if (o.geometry) o.geometry.dispose();
+                    if (o.material) {
+                        (Array.isArray(o.material) ? o.material : [o.material])
+                            .forEach(function (mt) { mt.dispose(); });
+                    }
+                });
             });
         }
 
