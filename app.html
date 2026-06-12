@@ -2210,14 +2210,14 @@ function meshFingerprint(m) {
             }
         }
 
-        function _animateOut(grp) {
+        function _animateOut(grp, duration) {
             const entries = _collectMats(grp).map(function (mt) {
                 mt.transparent = true;
                 return { m: mt, o: mt.opacity,
                          c: mt.color ? mt.color.clone() : null };
             });
             const red = new THREE.Color(0xe94560);
-            _addAnim(260, 0, function (e) {
+            _addAnim(duration || 260, 0, function (e) {
                 entries.forEach(function (x) {
                     x.m.opacity = x.o * (1 - e);
                     if (x.c && x.m.color) x.m.color.lerpColors(x.c, red, Math.min(1, e * 2));
@@ -2228,7 +2228,7 @@ function meshFingerprint(m) {
             });
         }
 
-        function _animateIn(grp) {
+        function _animateIn(grp, duration, delay) {
             const entries = _collectMats(grp).map(function (mt) {
                 mt.transparent = true;
                 const hasEm = !!mt.emissive;
@@ -2236,7 +2236,7 @@ function meshFingerprint(m) {
             });
             entries.forEach(function (x) { x.m.opacity = 0; });
             const glow = new THREE.Color(0xe94560);
-            _addAnim(320, 120, function (e) {
+            _addAnim(duration || 320, (delay === undefined ? 120 : delay), function (e) {
                 entries.forEach(function (x) {
                     x.m.opacity = x.o * e;
                     if (x.hasEm) x.m.emissive.copy(glow).multiplyScalar(0.35 * (1 - e));
@@ -2285,6 +2285,10 @@ function meshFingerprint(m) {
             // of elements gliding across.
             const noSlide = !!window._noSlideOnce;
             window._noSlideOnce = false;
+            // Mirror gets a slower, more legible crossfade (2x).
+            const outMs = noSlide ? 520 : undefined;
+            const inMs = noSlide ? 640 : undefined;
+            const inDelay = noSlide ? 240 : undefined;
             if (!staircaseGroup) {
                 staircaseGroup = new THREE.Group();
                 scene.add(staircaseGroup);
@@ -2313,9 +2317,9 @@ function meshFingerprint(m) {
                         return;
                     }
                     if (_reducedMotion) { _disposeGroup(old); }
-                    else { staircaseGroup.add(old); _animateOut(old); }
+                    else { staircaseGroup.add(old); _animateOut(old, outMs); }
                 }
-                if (!_reducedMotion) _animateIn(grp);
+                if (!_reducedMotion) _animateIn(grp, inMs, inDelay);
             });
             _liveMeshes.forEach(function (grp, name) {
                 if (seen.has(name)) return;
@@ -2324,7 +2328,7 @@ function meshFingerprint(m) {
                     staircaseGroup.remove(grp);
                     _disposeGroup(grp);
                 } else {
-                    _animateOut(grp);
+                    _animateOut(grp, outMs);
                 }
             });
         }
