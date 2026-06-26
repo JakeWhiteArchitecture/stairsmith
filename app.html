@@ -192,21 +192,29 @@
             to   { transform: translateX(33.94px); }  /* one stripe period */
         }
 
-        /* Floating Buy Me a Coffee link, bottom-right */
+        /* Floating Buy Me a Coffee link, bottom-right. Understated at rest,
+           brightens to the full Buy Me a Coffee yellow on hover. */
         .bmc-float {
             position: fixed;
             right: 16px; bottom: 16px;
             z-index: 900;
-            display: inline-flex; align-items: center; gap: 8px;
-            padding: 9px 16px;
-            background: #ffdd00; color: #1a1a2e;
-            font-weight: 700; font-size: 13.5px;
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 7px 13px;
+            background: rgba(30,30,46,0.7); color: #c9c9d4;
+            font-weight: 600; font-size: 12px;
+            border: 1px solid rgba(255,221,0,0.35);
             border-radius: 999px;
             text-decoration: none;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.45);
-            transition: transform 0.15s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            opacity: 0.75;
+            transition: transform 0.15s, opacity 0.15s, background 0.15s, color 0.15s;
         }
-        .bmc-float:hover { transform: translateY(-2px); }
+        .bmc-float:hover {
+            transform: translateY(-2px);
+            opacity: 1;
+            background: #ffdd00; color: #1a1a2e;
+            border-color: #ffdd00;
+        }
 
         .btn-primary {
             background: #e94560;
