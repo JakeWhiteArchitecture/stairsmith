@@ -1540,12 +1540,15 @@
     </div>
 
     <!-- Pyodide -->
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js"></script>
+    <!-- Pyodide loader. SRI is intentionally omitted: this loader fetches the
+         WASM runtime and package wheels at runtime (which SRI here would not
+         cover), and the pinned version tag is the integrity anchor. -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.27.4/full/pyodide.js" crossorigin="anonymous"></script>
     <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
     <!-- html2canvas -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 
     <script>
         // ─── LOADING OVERLAY (terms are accepted on the landing page) ───
@@ -2133,11 +2136,14 @@
             const paramsJSON = JSON.stringify(params);
             updateDerived();
             try {
+                // Pass params as a variable, never spliced into source, so the
+                // value cannot break out of the literal and inject Python.
+                pyodide.globals.set('_params_json', paramsJSON);
                 const resultJSON = await pyodide.runPythonAsync(`
 import json as _json
 import math as _math
 from dxf_generator import _compute_plan_dimensions as _cpd
-_params = _json.loads('''${paramsJSON}''')
+_params = _json.loads(_params_json)
 _geo = generate_preview_geometry(_params)
 try:
     _dims_raw = _cpd(_geo, _params, 0, 0)
@@ -3029,10 +3035,11 @@ else:
                 await ensureIfcOpenShell();
                 btn.textContent = 'Generating IFC...';
                 const paramsJSON = JSON.stringify(params);
+                pyodide.globals.set('_params_json', paramsJSON);
                 const ifcProxy = await pyodide.runPythonAsync(`
 import json as _json
 from ifc_generator import meshes_to_ifc as _to_ifc
-_p = _json.loads('''${paramsJSON}''')
+_p = _json.loads(_params_json)
 _meshes = generate_preview_geometry(_p)
 _path = _to_ifc(_meshes)
 with open(_path, 'rb') as _f:
@@ -3066,10 +3073,11 @@ _data
                     requestAnimationFrame(function () { requestAnimationFrame(r); });
                 });
                 const paramsJSON = JSON.stringify(params);
+                pyodide.globals.set('_params_json', paramsJSON);
                 const dxfString = await pyodide.runPythonAsync(`
 import json as _json
 from dxf_generator import meshes_to_dxf_string as _to_dxf
-_p = _json.loads('''${paramsJSON}''')
+_p = _json.loads(_params_json)
 _meshes = generate_preview_geometry(_p)
 _to_dxf(_meshes, _p)
 `);
