@@ -320,11 +320,11 @@
             background: rgba(22, 33, 62, 0.85);
             color: #9aa1b5;
             border: 1px solid #0f3460;
-            font-size: 19px;
-            line-height: 1;
+            display: flex; align-items: center; justify-content: center;
             cursor: pointer;
             transition: background 0.15s, color 0.15s;
         }
+        .spin-btn svg { width: 20px; height: 20px; display: block; }
         .spin-btn:hover { color: #fff; }
         .spin-btn.active {
             background: #e94560;
@@ -1482,7 +1482,7 @@
     </div>
 
     <div class="viewport" id="viewport">
-        <button class="spin-btn" id="spin-btn" onclick="toggleSpin()" title="Auto-rotate view" aria-pressed="false">&#10227;</button>
+        <button class="spin-btn" id="spin-btn" onclick="toggleSpin()" title="Auto-rotate view" aria-pressed="false" aria-label="Auto-rotate view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></button>
         <div class="viewport-info"><span class="desktop-hint">Orbit: drag | Zoom: scroll | Pan: right-drag | M: measure</span><span class="touch-hint">Rotate: drag | Zoom: pinch | Pan: two-finger drag</span></div>
         <div class="measure-overlay" id="measure-overlay">
             <div class="measure-title">Measure</div>
