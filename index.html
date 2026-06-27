@@ -148,6 +148,28 @@
             width: 17px; height: 17px; margin-top: 1px;
             accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
         }
+
+        /* ── Stepped gate ── */
+        .gate-num {
+            flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+            margin-top: 0;
+        }
+        button.gate-step {
+            display: flex; align-items: center; gap: 11px; width: 100%;
+            text-align: left; padding: 11px 13px; margin-bottom: 9px;
+            background: #1b2036; border: 1px solid var(--line); border-radius: 8px;
+            color: #d4d9e6; cursor: pointer; font-family: inherit;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        button.gate-step:hover { border-color: var(--accent); }
+        .gate-copy { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        .gate-copy strong { font-size: 12.5px; font-weight: 700; color: #e6e9f2; }
+        .gate-sub { font-size: 11px; color: var(--muted); }
+        .gate-chevron { color: var(--muted); font-size: 18px; line-height: 1; }
+        button.gate-step.done { border-color: #3ddc84; background: rgba(61,220,132,0.09); }
+        button.gate-step.done .gate-num { background: #3ddc84; }
         .begin .actions { display: flex; gap: 10px; margin: 10px 0 8px; }
         .btn {
             padding: 10px 22px; font-size: 14px; font-weight: 700;
@@ -214,6 +236,7 @@
         }
         .modal-overlay.open { display: flex; }
         .modal {
+            position: relative;
             background: var(--panel); border: 1px solid var(--line);
             border-radius: 12px; max-width: 680px; width: 100%;
             max-height: 86vh; display: flex; flex-direction: column;
@@ -224,12 +247,72 @@
         }
         .modal header h2 { font-size: 18px; color: #fff; }
         .modal .close-x { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
-        .modal .terms-body { padding: 18px 22px; overflow-y: auto; font-size: 13.5px; color: #cdd2e0; line-height: 1.55; }
+        /* Reading-progress bar — fills as the user scrolls the terms */
+        .read-progress { height: 4px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
+        .read-progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.12s linear; }
+        .modal .terms-body {
+            padding: 18px 22px; overflow-y: scroll; font-size: 13.5px;
+            color: #cdd2e0; line-height: 1.55; flex: 1 1 auto; min-height: 0;
+            scrollbar-width: auto; scrollbar-color: var(--accent) rgba(255,255,255,0.08);
+        }
+        /* Make the scrollbar deliberately obvious — users must scroll to read */
+        .modal .terms-body::-webkit-scrollbar { width: 14px; }
+        .modal .terms-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.07); border-radius: 8px; }
+        .modal .terms-body::-webkit-scrollbar-thumb {
+            background: var(--accent); border-radius: 8px;
+            border: 3px solid var(--panel);
+        }
+        .modal .terms-body::-webkit-scrollbar-thumb:hover { background: #ff5c77; }
         .modal .terms-body h3 { color: #fff; font-size: 14.5px; margin: 14px 0 5px; }
         .modal .terms-body h3:first-of-type { margin-top: 0; }
         .modal .terms-body p { margin-bottom: 9px; }
         .modal .terms-body ul { margin: 0 0 9px 22px; }
         .modal .terms-body li { margin-bottom: 4px; }
+
+        /* In-terms acceptance, at the very bottom of the text */
+        .modal-accept {
+            display: flex; gap: 10px; align-items: flex-start;
+            margin-top: 20px; padding: 12px 14px;
+            background: rgba(233,69,96,0.08);
+            border: 1px solid var(--accent); border-radius: 8px;
+            font-size: 13px; color: #e6e9f2; line-height: 1.45; cursor: pointer;
+        }
+        .modal-accept input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+        .modal-accept.disabled { opacity: 0.5; cursor: not-allowed; border-style: dashed; }
+        .modal-accept.disabled input { cursor: not-allowed; }
+        .accept-note { font-size: 12px; color: var(--accent); margin-top: 8px; font-weight: 600; }
+        .accept-note.hidden { display: none; }
+
+        /* Floating "scroll to read" cue */
+        .scroll-cue {
+            position: absolute; left: 50%; bottom: 86px; transform: translateX(-50%);
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--accent); color: #fff;
+            padding: 7px 16px; border-radius: 999px;
+            font-size: 12.5px; font-weight: 700;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.55);
+            pointer-events: none; z-index: 2;
+            animation: cue-bounce 1.3s ease-in-out infinite;
+        }
+        .scroll-cue.hidden { opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        @keyframes cue-bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(5px); }
+        }
+
+        /* Modal footer with the continue button */
+        .modal-footer {
+            padding: 13px 22px; border-top: 1px solid var(--line);
+            display: flex; justify-content: flex-end; align-items: center; gap: 12px;
+        }
+        .btn-continue {
+            padding: 10px 22px; font-size: 14px; font-weight: 700;
+            border-radius: 8px; border: 1px solid var(--accent);
+            background: var(--accent); color: #fff; cursor: pointer;
+            font-family: inherit; transition: opacity 0.15s, background 0.15s;
+        }
+        .btn-continue:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-continue:not(:disabled):hover { background: #ff5c77; }
 
         /* ── Responsive: stack below 920px ── */
         @media (max-width: 920px) {
@@ -273,19 +356,18 @@
 
             <div class="begin">
                 <div class="label">BEFORE YOU BEGIN</div>
-                <label class="tick">
-                    <input type="checkbox" id="tick-terms">
-                    <span>I have read, understood, and accept the Terms of Use &amp; Disclaimer. I acknowledge that this is a preliminary design aid only.</span>
-                </label>
-                <label class="tick">
-                    <input type="checkbox" id="tick-competency">
-                    <span>I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.</span>
-                </label>
+                <button type="button" class="gate-step" id="open-terms" aria-expanded="false">
+                    <span class="gate-num" id="gate-num-1">!</span>
+                    <span class="gate-copy">
+                        <strong id="gate-title-1">Read &amp; accept the Terms of Use</strong>
+                        <span class="gate-sub" id="gate-sub-1">Open, scroll to the end, then tick both confirmations</span>
+                    </span>
+                    <span class="gate-chevron" aria-hidden="true">&rsaquo;</span>
+                </button>
                 <div class="actions">
                     <a class="btn btn-decline" href="https://jakewhitearchitecture.com/">Decline</a>
                     <a class="btn btn-launch" id="launch-btn" href="app.html" aria-disabled="true">Launch tool &rarr;</a>
                 </div>
-                <button type="button" class="terms-link" id="open-terms">Read full terms of use</button>
             </div>
         </section>
 
@@ -308,7 +390,8 @@
                 <h2 id="terms-title">StairSmith &mdash; Terms of Use &amp; Disclaimer</h2>
                 <button type="button" class="close-x" id="close-terms" aria-label="Close">&times;</button>
             </header>
-            <div class="terms-body">
+            <div class="read-progress" aria-hidden="true"><div class="read-progress-fill" id="read-progress-fill"></div></div>
+            <div class="terms-body" id="terms-body" tabindex="0">
 <p style="color:#9aa1b5;font-size:12.5px;margin-bottom:12px;">Effective Date: March 2026</p>
                 <h3>1. Nature of the Tool</h3>
                 <p>The Tool is a preliminary design aid only, intended to assist with the visual exploration and conceptual development of building components. It is not a substitute for professional design, structural engineering, or compliance verification. The Tool does not produce fabrication drawings, construction drawings, or specifications suitable for building, procurement, or regulatory approval.</p>
@@ -338,20 +421,123 @@
                 <p>These terms may be updated from time to time. Continued use of the Tool following any changes constitutes acceptance of the revised terms.</p>
 
                 <p class="terms-attribution">The Tool is provided by Jake White Architecture. For professional Architectural Technology services, visit <a href="https://www.jakewhitearchitecture.com" target="_blank" rel="noopener">www.jakewhitearchitecture.com</a>.</p>
+
+                <label class="modal-accept disabled" id="modal-accept-row">
+                    <input type="checkbox" id="tick-terms" disabled>
+                    <span>I have read, understood, and accept the Terms of Use &amp; Disclaimer above. I acknowledge that this is a preliminary design aid only.</span>
+                </label>
+                <label class="modal-accept disabled" id="modal-competency-row">
+                    <input type="checkbox" id="tick-competency" disabled>
+                    <span>I confirm that I have sufficient competency in the UK Building Regulations (or my local equivalent) to critically evaluate the outputs of this tool. I understand that no compliance checking is performed by the tool.</span>
+                </label>
+                <p class="accept-note" id="accept-note">Scroll to the end of the terms above to enable both confirmations.</p>
+            </div>
+            <div class="scroll-cue" id="scroll-cue" aria-hidden="true">Scroll to read <span aria-hidden="true">&#9660;</span></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-continue" id="terms-done" disabled>Accept &amp; continue</button>
             </div>
         </div>
     </div>
 
     <script>
         (function () {
-            var t1 = document.getElementById('tick-terms');
-            var t2 = document.getElementById('tick-competency');
-            var launch = document.getElementById('launch-btn');
-            var preview = document.getElementById('preview-launch');
-            var modal = document.getElementById('terms-modal');
+            // Read + accept terms in the modal. Both confirmations live at the
+            // bottom of the terms and are gated behind scrolling to the end.
+            var openBtn   = document.getElementById('open-terms');
+            var modal     = document.getElementById('terms-modal');
+            var body      = document.getElementById('terms-body');
+            var acceptBox = document.getElementById('tick-terms');
+            var acceptRow = document.getElementById('modal-accept-row');
+            var compBox   = document.getElementById('tick-competency');
+            var compRow   = document.getElementById('modal-competency-row');
+            var acceptNote= document.getElementById('accept-note');
+            var doneBtn   = document.getElementById('terms-done');
+            var cue       = document.getElementById('scroll-cue');
+            var fill      = document.getElementById('read-progress-fill');
+            var closeBtn  = document.getElementById('close-terms');
 
-            function sync() {
-                var ok = t1.checked && t2.checked;
+            var launch   = document.getElementById('launch-btn');
+            var preview  = document.getElementById('preview-launch');
+
+            var reachedEnd = false;     // scrolled to the bottom this session
+            var termsDone  = false;     // both boxes accepted via the modal
+
+            function atBottom() {
+                return body.scrollTop + body.clientHeight >= body.scrollHeight - 6;
+            }
+            function updateProgress() {
+                var max = body.scrollHeight - body.clientHeight;
+                var pct = max <= 0 ? 100 : Math.min(100, (body.scrollTop / max) * 100);
+                fill.style.width = pct + '%';
+            }
+            function bothChecked() { return acceptBox.checked && compBox.checked; }
+            function syncDone() { doneBtn.disabled = !bothChecked(); }
+            function unlockAcceptance() {
+                reachedEnd = true;
+                acceptBox.disabled = false;
+                compBox.disabled = false;
+                acceptRow.classList.remove('disabled');
+                compRow.classList.remove('disabled');
+                acceptNote.classList.add('hidden');
+                cue.classList.add('hidden');
+                fill.style.width = '100%';
+            }
+            body.addEventListener('scroll', function () {
+                updateProgress();
+                if (!reachedEnd && atBottom()) unlockAcceptance();
+            });
+
+            function openModal() {
+                modal.classList.add('open');
+                requestAnimationFrame(function () {
+                    if (termsDone) {
+                        // Review mode \u2014 keep both confirmations accepted
+                        unlockAcceptance();
+                        acceptBox.checked = true;
+                        compBox.checked = true;
+                        doneBtn.disabled = false;
+                        return;
+                    }
+                    // Fresh read \u2014 force scrolling from the top
+                    reachedEnd = false;
+                    acceptBox.checked = false;
+                    compBox.checked = false;
+                    acceptBox.disabled = true;
+                    compBox.disabled = true;
+                    acceptRow.classList.add('disabled');
+                    compRow.classList.add('disabled');
+                    acceptNote.classList.remove('hidden');
+                    doneBtn.disabled = true;
+                    body.scrollTop = 0;
+                    fill.style.width = '0%';
+                    cue.classList.remove('hidden');
+                    // If the text is short enough to need no scrolling, allow it
+                    if (body.scrollHeight <= body.clientHeight + 6) unlockAcceptance();
+                });
+            }
+            function closeModal() { modal.classList.remove('open'); }
+
+            acceptBox.addEventListener('change', syncDone);
+            compBox.addEventListener('change', syncDone);
+
+            doneBtn.addEventListener('click', function () {
+                if (!bothChecked()) return;
+                termsDone = true;
+                closeModal();
+                openBtn.classList.add('done');
+                openBtn.setAttribute('aria-expanded', 'false');
+                document.getElementById('gate-num-1').innerHTML = '&#10003;';
+                document.getElementById('gate-title-1').textContent = 'Terms read & accepted';
+                document.getElementById('gate-sub-1').textContent = 'Click to review again';
+                syncLaunch();
+            });
+
+            openBtn.addEventListener('click', openModal);
+            closeBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+            function syncLaunch() {
+                var ok = termsDone;
                 [launch, preview].forEach(function (el) {
                     if (ok) { el.removeAttribute('aria-disabled'); }
                     else { el.setAttribute('aria-disabled', 'true'); }
@@ -359,31 +545,17 @@
                 preview.classList.toggle('ready', ok);
                 preview.textContent = ok ? 'Launch StairSmith \u2192' : 'Accept terms to launch';
             }
-            t1.addEventListener('change', sync);
-            t2.addEventListener('change', sync);
-            sync();
 
             [launch, preview].forEach(function (el) {
                 el.addEventListener('click', function (e) {
-                    if (el.getAttribute('aria-disabled') === 'true') {
-                        e.preventDefault();
-                        return;
-                    }
-                    // Both boxes ticked - record acceptance for the tool's
-                    // session gate (app.html bounces back here without it).
+                    if (el.getAttribute('aria-disabled') === 'true') { e.preventDefault(); return; }
+                    // Record acceptance for the tool's session gate
+                    // (app.html bounces back here without it).
                     try { sessionStorage.setItem('stairsmith_terms_ok', '1'); } catch (err) {}
                 });
             });
 
-            document.getElementById('open-terms').addEventListener('click', function () {
-                modal.classList.add('open');
-            });
-            document.getElementById('close-terms').addEventListener('click', function () {
-                modal.classList.remove('open');
-            });
-            modal.addEventListener('click', function (e) {
-                if (e.target === modal) modal.classList.remove('open');
-            });
+            syncLaunch();
         })();
     </script>
 </body>
