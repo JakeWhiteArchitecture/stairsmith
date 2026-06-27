@@ -194,10 +194,15 @@
 
         /* Floating Buy Me a Coffee link, bottom-right. Understated at rest,
            brightens to the full Buy Me a Coffee yellow on hover. */
-        .bmc-float {
+        /* Bottom-right corner stack: coffee on top, GitHub capsule beneath it. */
+        .corner-stack {
             position: fixed;
             right: 16px; bottom: 16px;
             z-index: 900;
+            display: flex; flex-direction: column;
+            align-items: flex-end; gap: 8px;
+        }
+        .bmc-float {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 7px 13px;
             background: rgba(30,30,46,0.7); color: #c9c9d4;
@@ -216,32 +221,29 @@
             border-color: #ffdd00;
         }
 
+        /* Sized to match the coffee button above it. */
         .gh-capsule {
-            position: fixed;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 900;
-            display: inline-flex; align-items: center; gap: 10px;
-            padding: 7px 16px;
-            background: rgba(30,30,46,0.85);
-            backdrop-filter: blur(6px);
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 7px 13px;
+            background: rgba(30,30,46,0.7);
             border: 1px solid rgba(255,255,255,0.12);
             border-radius: 999px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.45);
-            font-size: 13px; font-weight: 600;
-            color: #ccc;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            font-size: 12px; font-weight: 600;
+            color: #c9c9d4;
+            opacity: 0.75;
             text-decoration: none;
-            transition: transform 0.15s, background 0.15s;
+            transition: transform 0.15s, opacity 0.15s, background 0.15s, color 0.15s;
         }
-        .gh-capsule:hover { transform: translateX(-50%) translateY(-2px); background: rgba(40,40,60,0.95); }
-        .gh-capsule svg { fill: #ccc; flex-shrink: 0; }
+        .gh-capsule:hover { transform: translateY(-2px); opacity: 1; background: rgba(40,40,60,0.95); color: #fff; }
+        .gh-capsule svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
         .gh-capsule .gh-star {
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 3px 10px;
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 1px 8px;
+            margin: -2px 0;
             background: rgba(255,255,255,0.1);
             border-radius: 999px;
-            font-size: 12px;
+            font-size: 11px;
             color: #e8e8e8;
             transition: background 0.15s;
         }
@@ -3140,11 +3142,13 @@ from stair_preview import generate_preview_geometry
         initPyodide();
     </script>
 
-    <a class="gh-capsule" href="https://github.com/JakeWhiteArchitecture/stairsmith" target="_blank" rel="noopener">
-        <svg height="18" width="18" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        <span>StairSmith</span>
-        <span class="gh-star">&#9733; Star</span>
-    </a>
-    <a class="bmc-float" href="https://buymeacoffee.com/jakewhite" target="_blank" rel="noopener">&#9749; Buy me a coffee</a>
+    <div class="corner-stack">
+        <a class="bmc-float" href="https://buymeacoffee.com/jakewhite" target="_blank" rel="noopener">&#9749; Buy me a coffee</a>
+        <a class="gh-capsule" href="https://github.com/JakeWhiteArchitecture/stairsmith" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            <span>StairSmith</span>
+            <span class="gh-star">&#9733; Star</span>
+        </a>
+    </div>
 </body>
 </html>
