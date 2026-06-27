@@ -1900,14 +1900,19 @@
                 minF2 = 1;
             } else if (type === 'single_winder') {
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF2 = 1;  // Flight 2 needs minimum 1 when turn1 is flat landing
+                    minF2 = 2;  // A flat landing needs at least 2 treads in the adjacent flight
                 }
             } else if (type === 'double_winder') {
                 // U-shape: the middle flight must always be at least 1 step,
                 // otherwise the two turn newel posts clash.
                 minF2 = 1;
+                // A flat landing needs at least 2 treads in each adjacent flight.
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 2;
+                }
                 if (!isTurnWinder('turn2-toggle')) {
-                    minF3 = 1;  // Flight 3 needs minimum 1 when turn2 is flat landing
+                    minF2 = 2;
+                    minF3 = 2;
                 }
             }
 
@@ -1951,17 +1956,21 @@
                 minF1 = 1;
                 minF2 = 1;
             } else if (type === 'single_winder') {
-                // If turn1 uses flat landing, flight 2 needs minimum 1 step
+                // A flat landing needs at least 2 treads in the adjacent flight
                 if (!isTurnWinder('turn1-toggle')) {
-                    minF2 = 1;
+                    minF2 = 2;
                 }
             } else if (type === 'double_winder') {
                 // U-shape: the middle flight must always be at least 1 step,
                 // otherwise the two turn newel posts clash.
                 minF2 = 1;
-                // If turn2 uses flat landing, flight 3 also needs minimum 1 step
+                // A flat landing needs at least 2 treads in each adjacent flight.
+                if (!isTurnWinder('turn1-toggle')) {
+                    minF2 = 2;
+                }
                 if (!isTurnWinder('turn2-toggle')) {
-                    minF3 = 1;
+                    minF2 = 2;
+                    minF3 = 2;
                 }
             }
 
