@@ -1224,6 +1224,15 @@ def _preview_double_winder(p):
     turn1_enabled = p.get("turn1_enabled", True)
     turn2_enabled = p.get("turn2_enabled", True)
 
+    # Half-landing (U-shape): flight 2 collapses into a single flat
+    # half-landing spanning both flights; both corners become flat landings
+    # at the same level and the separation is driven by centre-newel-to-
+    # centre-newel rather than a middle flight length.
+    half_landing = p.get("half_landing", False)
+    if half_landing:
+        turn1_enabled = False
+        turn2_enabled = False
+
     # Balustrade keyword dicts (passed to handrail/baserail/spindle helpers)
     hr_kw = {"hr_width": p["handrail_width"], "hr_height": p["handrail_height"],
              "hr_rise": p["handrail_rise"]}
@@ -1255,6 +1264,18 @@ def _preview_double_winder(p):
         flight1_treads = straight_treads // 3
         flight2_treads = straight_treads // 3
         flight3_treads = straight_treads - flight1_treads - flight2_treads
+
+    if half_landing:
+        # Flight 2 disappears into the half-landing; the single landing
+        # consumes one rise and the remaining straight treads split between
+        # flights 1 and 3 (respecting the F1/F3 overrides when they sum right).
+        flight2_treads = 0
+        if f1_ov >= 0 and f3_ov >= 0 and f1_ov + f3_ov == straight_treads:
+            flight1_treads = f1_ov
+            flight3_treads = f3_ov
+        else:
+            flight1_treads = straight_treads // 2
+            flight3_treads = straight_treads - flight1_treads
 
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
@@ -1399,11 +1420,21 @@ def _preview_double_winder(p):
         corner2_x = -(flight2_treads * going) - winder_offset1 - winder_offset2
     else:
         corner2_x = width + flight2_treads * going + winder_offset1 + winder_offset2
+    if half_landing:
+        # Drive the flight separation from the centre-newel-to-centre-newel
+        # dimension: corner 2 sits D across from corner 1 (across the well).
+        D = p["newel_to_newel"]
+        corner2_x = corner1_x - D if turn1_dir == "left" else corner1_x + D
     # Corner 2 Y position matches landing1_y to maintain alignment when corner 1 is a flat landing
     corner2_y = landing1_y
 
     # Turn 2 rotation: flight 2 approaches along -X (left) or +X (right)
     turn2_rotation = 90 if turn1_dir == "left" else -90
+
+    if half_landing:
+        # Single half-landing: the second landing sits at the SAME level as the
+        # first (no climb between the two turns).
+        riser_idx = turn1_winder_start
 
     turn2_winder_start = riser_idx
     for i in range(actual_winders2):
@@ -1438,7 +1469,10 @@ def _preview_double_winder(p):
     # When turn 2 winders are off, the landing consumes 1 rise — shift flight 3 up
     if actual_winders2 == 0:
         riser_idx += 1
-        flight3_treads = max(0, flight3_treads - 1)
+        # In half-landing mode the shared landing already accounted for its
+        # single rise; flight 3 keeps its full tread count.
+        if not half_landing:
+            flight3_treads = max(0, flight3_treads - 1)
     flight3_riser_start = riser_idx
 
     if turn1_dir == "left" and turn2_dir == "left":
@@ -1470,6 +1504,19 @@ def _preview_double_winder(p):
             width, landing2_depth, tread_t, "#c8a87c",
             name="Landing 2", ifc_type="landing",
         ))
+
+        if half_landing:
+            # Bridge the well between the two coplanar landings so the whole
+            # turn reads as one continuous half-landing platform.
+            y0 = min(landing1_cy - landing1_depth / 2, landing2_cy - landing2_depth / 2)
+            y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
+            bridge_cx = (corner1_x + corner2_x) / 2
+            bridge_w = abs(corner1_x - corner2_x) + 2 * (nosing + riser_t)
+            meshes.append(_box_mesh(
+                bridge_cx, (y0 + y1) / 2, landing2_z + tread_t / 2,
+                bridge_w, y1 - y0, tread_t, "#c8a87c",
+                name="Half Landing", ifc_type="landing",
+            ))
 
     # Flight 3 shift — nosing centred on post when winders off
     if actual_winders2 > 0:
@@ -1662,7 +1709,10 @@ def _preview_double_winder(p):
             # In wall condition, drop landing stringers to align top edge with flight stringers
             landing1_z_stringer = landing1_z if render_outer else (landing1_z - STRINGER_PITCH_OFFSET)
             if turn1_dir == "left":
-                meshes.append(_stringer_landing_x(landing1_y, f2_x_first, f1_inner_x, landing1_z))
+                # The flight-2-side front landing stringer is a stray stub with no
+                # flight 2 to serve; the well balustrade guards that edge instead.
+                if not half_landing:
+                    meshes.append(_stringer_landing_x(landing1_y, f2_x_first, f1_inner_x, landing1_z))
                 # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_landing_y_start, f1_landing_y_end, landing1_z_stringer))
                 meshes.append(_stringer_landing_x(outer1_corner_y, f2_landing_x_end, f1_outer_x - st2, landing1_z_stringer))
@@ -1677,7 +1727,8 @@ def _preview_double_winder(p):
                     meshes.extend(_spindles_landing_y(f1_outer_x, f1_y1 + hp, landing1_y + width - hp, landing1_z, **sp_kw))
                     meshes.extend(_spindles_landing_x(landing1_y + width, f2_x_first + hp, f1_outer_x - hp, landing1_z, **sp_kw))
             else:
-                meshes.append(_stringer_landing_x(landing1_y, f1_inner_x, f2_x_first, landing1_z))
+                if not half_landing:
+                    meshes.append(_stringer_landing_x(landing1_y, f1_inner_x, f2_x_first, landing1_z))
                 # Outer landing stringers - Y runs newel-to-newel, X stops flush with Y stringer face
                 meshes.append(_stringer_landing_y(f1_outer_x, f1_landing_y_start, f1_landing_y_end, landing1_z_stringer))
                 meshes.append(_stringer_landing_x(outer1_corner_y, f1_outer_x + st2, f2_landing_x_start, landing1_z_stringer))
@@ -2358,7 +2409,9 @@ def _preview_double_winder(p):
             meshes.append(_box_mesh(outer_x, outer_y_pos, oc1_h / 2, ns, ns, oc1_h, "#8B7355"))
             hr_pc_f2s = flight2_riser_start * rise + nzs_w + hr_rise
             pc_f2s_h = hr_pc_f2s + NEWEL_CAP
-            meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
+            # No flight 2 in half-landing mode: skip its rear pitch-change post.
+            if not half_landing:
+                meshes.append(_box_mesh(f2_x0_val, outer_y_pos, pc_f2s_h / 2, ns, ns, pc_f2s_h, "#8B7355"))
 
         if actual_winders2 > 0:
             # Pitch-change at flight 2 end
@@ -2380,7 +2433,9 @@ def _preview_double_winder(p):
             outer_corner_y2_val = corner2_y + width
             hr_pc_t2a = (flight2_riser_start + flight2_treads) * rise + nzs_w + hr_rise
             pc_t2a_h = hr_pc_t2a + NEWEL_CAP
-            meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
+            # No flight 2 in half-landing mode: skip its rear pitch-change post.
+            if not half_landing:
+                meshes.append(_box_mesh(f2_x_end_val, outer_corner_y2_val, pc_t2a_h / 2, ns, ns, pc_t2a_h, "#8B7355"))
             # Outer corner 2 - same height as pitch-change newel at flight 2 end
             oc2_h = pc_t2a_h  # Match height of pc_t2a
             meshes.append(_box_mesh(f3_outer_x_val, outer_corner_y2_val, oc2_h / 2, ns, ns, oc2_h, "#8B7355"))

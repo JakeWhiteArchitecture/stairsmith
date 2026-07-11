@@ -74,6 +74,19 @@ def _parse(params):
     p["winder_x2"] = p["winder_x"]
     p["winder_y2"] = p["winder_y"]
     p["threshold_depth"] = float(params.get("threshold_depth", 100))
+    # Half-landing mode (U-shape only): flight 2 collapses into a single
+    # half-landing and the two flights' separation is driven by a
+    # centre-newel-to-centre-newel dimension.
+    p["half_landing"] = bool(params.get("half_landing", False))
+    # Clamp centre-to-centre so there is always a 50mm clear gap between the
+    # inner faces of the two corner newels, whatever the newel size.
+    _ntn_min = p["newel_size"] + 50.0
+    _ntn = params.get("newel_to_newel", _ntn_min)
+    try:
+        _ntn = float(_ntn) if _ntn is not None else _ntn_min
+    except (TypeError, ValueError):
+        _ntn = _ntn_min
+    p["newel_to_newel"] = max(_ntn_min, _ntn)
     # Flight distribution overrides (-1 = auto / equal split)
     # JS may send null (Python None) when value is NaN; treat as -1 (auto).
     _f1 = params.get("flight1_steps", -1)
