@@ -1529,6 +1529,20 @@ def _preview_double_winder(p):
                 name="Half Landing", ifc_type="landing",
             ))
 
+            # Well-edge trimmer between the two inner newels: a horizontal
+            # stringer guarding the stairwell void, at the same level as the
+            # rear (opposing) landing stringer, with handrail / baserail /
+            # spindles spanning newel-to-newel.
+            wl_lo = min(corner1_x, corner2_x)
+            wl_hi = max(corner1_x, corner2_x)
+            wl_y = hl_slab_y0                     # front face of the cut-back slab
+            meshes.append(_stringer_landing_x(
+                wl_y, wl_lo, wl_hi, landing2_z, name="Half Landing Well Stringer"))
+            wl_rail_y = wl_y - STRINGER_THICKNESS / 2
+            meshes.append(_handrail_landing_x(wl_rail_y, wl_lo + hp, wl_hi - hp, landing2_z, **hr_kw))
+            meshes.append(_baserail_landing_x(wl_rail_y, wl_lo + hp, wl_hi - hp, landing2_z, **br_kw))
+            meshes.extend(_spindles_landing_x(wl_rail_y, wl_lo + hp, wl_hi - hp, landing2_z, **sp_kw))
+
     # Flight 3 shift — nosing centred on post when winders off
     if actual_winders2 > 0:
         flight3_shift_y = -(winder_offset2 + riser_t)
