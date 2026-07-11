@@ -1365,13 +1365,16 @@ def _preview_double_winder(p):
             landing1_cx = (width - nosing - riser_t) / 2
         landing1_depth = width + nosing
         landing1_cy = landing1_y + landing1_depth / 2
-        meshes.append(_box_mesh(
-            landing1_cx,
-            landing1_cy,
-            landing1_z + tread_t / 2,
-            landing1_w, landing1_depth, tread_t, "#c8a87c",
-            name="Landing 1", ifc_type="landing",
-        ))
+        # In half-landing mode the two landings + well become one slab, emitted
+        # once after landing 2 is sized.
+        if not half_landing:
+            meshes.append(_box_mesh(
+                landing1_cx,
+                landing1_cy,
+                landing1_z + tread_t / 2,
+                landing1_w, landing1_depth, tread_t, "#c8a87c",
+                name="Landing 1", ifc_type="landing",
+            ))
 
     riser_idx += actual_winders1
     # When turn 1 winders are off, the landing consumes 1 rise — shift flight 2 up
@@ -1497,24 +1500,32 @@ def _preview_double_winder(p):
         landing2_cx = flight3_start_x + width / 2
         landing2_depth = width + 2 * nosing + riser_t
         landing2_cy = corner2_y + (width - riser_t) / 2
-        meshes.append(_box_mesh(
-            landing2_cx,
-            landing2_cy,
-            landing2_z + tread_t / 2,
-            width, landing2_depth, tread_t, "#c8a87c",
-            name="Landing 2", ifc_type="landing",
-        ))
+        if not half_landing:
+            meshes.append(_box_mesh(
+                landing2_cx,
+                landing2_cy,
+                landing2_z + tread_t / 2,
+                width, landing2_depth, tread_t, "#c8a87c",
+                name="Landing 2", ifc_type="landing",
+            ))
 
         if half_landing:
-            # Bridge the well between the two coplanar landings so the whole
-            # turn reads as one continuous half-landing platform.
-            y0 = min(landing1_cy - landing1_depth / 2, landing2_cy - landing2_depth / 2)
-            y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
-            bridge_cx = (corner1_x + corner2_x) / 2
-            bridge_w = abs(corner1_x - corner2_x) + 2 * (nosing + riser_t)
+            # One continuous half-landing slab spanning both flights and the
+            # well (the union of what would otherwise be two landings + bridge).
+            slab_x0 = min(landing1_cx - landing1_w / 2, landing2_cx - width / 2)
+            slab_x1 = max(landing1_cx + landing1_w / 2, landing2_cx + width / 2)
+            slab_y0 = min(landing1_cy - landing1_depth / 2, landing2_cy - landing2_depth / 2)
+            slab_y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
+            # Cut the well-front edge back by one stringer so the inner stringer
+            # (added below, between the two inner newels) sits flush.
+            hl_slab_x0 = slab_x0
+            hl_slab_x1 = slab_x1
+            hl_slab_y0 = slab_y0 + STRINGER_THICKNESS
+            hl_slab_y1 = slab_y1
             meshes.append(_box_mesh(
-                bridge_cx, (y0 + y1) / 2, landing2_z + tread_t / 2,
-                bridge_w, y1 - y0, tread_t, "#c8a87c",
+                (hl_slab_x0 + hl_slab_x1) / 2, (hl_slab_y0 + hl_slab_y1) / 2,
+                landing2_z + tread_t / 2,
+                hl_slab_x1 - hl_slab_x0, hl_slab_y1 - hl_slab_y0, tread_t, "#c8a87c",
                 name="Half Landing", ifc_type="landing",
             ))
 
