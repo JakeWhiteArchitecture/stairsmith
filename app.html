@@ -1394,7 +1394,7 @@
             </div>
             <div class="field">
                 <label>Newel Post Size <span class="unit">mm</span></label>
-                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" onchange="updatePreview();">
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" onchange="updateNewelToNewelMin(); updateHalfLandingDerived(); updatePreview();">
             </div>
 
         </div>
@@ -1465,6 +1465,19 @@
             <div id="turn2-toggle" class="turn-toggle">
                 <button class="turn-btn active" data-value="winder" onclick="selectWinderTurn('turn2-toggle');">Winder Treads</button>
                 <button class="turn-btn" data-value="landing" onclick="selectWinderTurn('turn2-toggle');">Flat Landing</button>
+            </div>
+        </div>
+
+        <div class="section half-landing-options" id="half-landing-options" style="display:none;">
+            <h2>Half-landing</h2>
+            <div id="half-landing-toggle" class="turn-toggle">
+                <button class="turn-btn active" data-value="off" onclick="selectHalfLanding('off');">Two Corner Landings</button>
+                <button class="turn-btn" data-value="on" onclick="selectHalfLanding('on');">Single Half-Landing</button>
+            </div>
+            <div id="half-landing-fields" style="display:none; margin-top:12px;">
+                <label>Newel to newel <span class="unit">mm (centre to centre)</span></label>
+                <input type="number" id="newel_to_newel" value="400" min="140" step="10" onchange="onNewelToNewelChange();">
+                <p id="hl-derived" style="font-size:11.5px;color:#9aa1b5;margin-top:8px;line-height:1.5;"></p>
             </div>
         </div>
 
@@ -1933,7 +1946,8 @@
             const type = document.getElementById('staircase_type').value;
             const section = document.getElementById('flight-dist-section');
             const heading = document.getElementById('flight-dist-heading');
-            if (type === 'straight') {
+            // Single half-landing distributes flights automatically — hide the control.
+            if (type === 'straight' || (type === 'double_winder' && isHalfLanding())) {
                 section.style.display = 'none';
                 heading.style.display = 'none';
                 return;
@@ -2003,6 +2017,8 @@
                 turn2_direction: document.getElementById('mirror-btn').classList.contains('active') ? 'right' : 'left',
                 turn2_enabled: isTurnWinder('turn2-toggle'),
                 newel_size: parseFloat(document.getElementById('newel_size').value),
+                half_landing: isHalfLanding(),
+                newel_to_newel: parseFloat(document.getElementById('newel_to_newel').value),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
                 winder_y: parseFloat(document.getElementById('winder_y').value),
                 flight1_steps: flightDist.f1,
@@ -2049,9 +2065,66 @@
             turn2Opts.classList.toggle('visible', type === 'double_winder');
             mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
+            // Half-landing option is only meaningful for the U-shape
+            document.getElementById('half-landing-options').style.display =
+                (type === 'double_winder') ? 'block' : 'none';
+            if (type !== 'double_winder') setHalfLanding(false);
+            applyHalfLandingUI();
+
             // Update turn labels and reset flight distribution
             updateToggleState();
             redistributeFlights();
+        }
+
+        function isHalfLanding() {
+            const b = document.querySelector('#half-landing-toggle .turn-btn.active');
+            return !!b && b.dataset.value === 'on';
+        }
+        function setHalfLanding(on) {
+            document.querySelectorAll('#half-landing-toggle .turn-btn').forEach(function (b) {
+                b.classList.toggle('active', (b.dataset.value === 'on') === on);
+            });
+        }
+        function selectHalfLanding(val) {
+            setHalfLanding(val === 'on');
+            applyHalfLandingUI();
+            updatePreview();
+        }
+        function applyHalfLandingUI() {
+            const on = isHalfLanding() && document.getElementById('staircase_type').value === 'double_winder';
+            document.getElementById('half-landing-fields').style.display = on ? 'block' : 'none';
+            // With a single half-landing the corner toggles and the flight
+            // distribution are driven automatically, so hide them.
+            document.getElementById('winder-options').style.display = on ? 'none' : '';
+            document.getElementById('turn2-options').style.display = on ? 'none' : '';
+            if (on) {
+                document.getElementById('flight-dist-section').style.display = 'none';
+                document.getElementById('flight-dist-heading').style.display = 'none';
+                updateNewelToNewelMin();
+                updateHalfLandingDerived();
+            }
+        }
+        function updateNewelToNewelMin() {
+            const ns = parseFloat(document.getElementById('newel_size').value) || 90;
+            const input = document.getElementById('newel_to_newel');
+            const min = ns + 50;              // guarantee a 50mm clear gap between newel faces
+            input.min = min;
+            if (parseFloat(input.value) < min) input.value = min;
+        }
+        function onNewelToNewelChange() {
+            updateNewelToNewelMin();
+            updateHalfLandingDerived();
+            updatePreview();
+        }
+        function updateHalfLandingDerived() {
+            const ntn = parseFloat(document.getElementById('newel_to_newel').value) || 0;
+            const ns = parseFloat(document.getElementById('newel_size').value) || 90;
+            const sw = parseFloat(document.getElementById('stair_width').value) || 900;
+            const gap = Math.round(ntn - ns);
+            const overall = Math.round(ntn + 2 * sw);   // outside-to-outside, approx
+            document.getElementById('hl-derived').innerHTML =
+                'Clear gap between newels: <b>' + gap + ' mm</b><br>' +
+                'Overall width (out-to-out): <b>~' + overall + ' mm</b>';
         }
 
         function selectTurn(groupId) {
