@@ -1401,8 +1401,9 @@ def _preview_double_winder(p):
             name=f"Flight 2 Tread {i+1}", ifc_type="tread",
         ))
 
-    # Flight 2 risers
-    if riser_t > 0:
+    # Flight 2 risers (none in half-landing mode — flight 2 is the landing,
+    # so range(flight2_treads + 1) would emit one stray riser at the well)
+    if riser_t > 0 and not half_landing:
         for i in range(flight2_treads + 1):
             riser_z = (flight2_riser_start + i - 1) * rise + riser_h / 2
             if turn1_dir == "left":
@@ -1510,24 +1511,39 @@ def _preview_double_winder(p):
             ))
 
         if half_landing:
-            # One continuous half-landing slab spanning both flights and the
-            # well (the union of what would otherwise be two landings + bridge).
+            # One half-landing slab spanning both flights and the well.
             slab_x0 = min(landing1_cx - landing1_w / 2, landing2_cx - width / 2)
             slab_x1 = max(landing1_cx + landing1_w / 2, landing2_cx + width / 2)
-            slab_y0 = min(landing1_cy - landing1_depth / 2, landing2_cy - landing2_depth / 2)
             slab_y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
-            # Cut the well-front edge back by one stringer so the inner stringer
-            # (added below, between the two inner newels) sits flush.
-            hl_slab_x0 = slab_x0
-            hl_slab_x1 = slab_x1
-            hl_slab_y0 = slab_y0 + STRINGER_THICKNESS
-            hl_slab_y1 = slab_y1
-            meshes.append(_box_mesh(
-                (hl_slab_x0 + hl_slab_x1) / 2, (hl_slab_y0 + hl_slab_y1) / 2,
-                landing2_z + tread_t / 2,
-                hl_slab_x1 - hl_slab_x0, hl_slab_y1 - hl_slab_y0, tread_t, "#c8a87c",
-                name="Half Landing", ifc_type="landing",
-            ))
+            # The front edge staggers to meet three junctions across its width:
+            #  - flight 1 side: acts as the nosing of flight 1's last tread
+            #  - well (between the inner newels): on the newel line, so the
+            #    well trimmer stringer cuts it like any other landing
+            #  - flight 2 side: terminates on the back face of flight 2's
+            #    (upper flight's) first riser
+            y_front_f1 = landing1_y + nosing + riser_t
+            y_front_well = landing1_y
+            y_front_f2 = landing1_y - nosing
+            # Partition the width at the two inner newels. Flight 1 is on the
+            # corner-1 side (away from the well); flight 2 on the corner-2 side.
+            w_lo, w_hi = min(corner1_x, corner2_x), max(corner1_x, corner2_x)
+            if corner1_x > corner2_x:
+                f1_x0, f1_x1 = corner1_x, slab_x1
+                f2_x0, f2_x1 = slab_x0, corner2_x
+            else:
+                f1_x0, f1_x1 = slab_x0, corner1_x
+                f2_x0, f2_x1 = corner2_x, slab_x1
+            zc = landing2_z + tread_t / 2
+
+            def _hl_slab(x0, x1, y_front, name):
+                if x1 - x0 > 1e-6 and slab_y1 - y_front > 1e-6:
+                    meshes.append(_box_mesh(
+                        (x0 + x1) / 2, (y_front + slab_y1) / 2, zc,
+                        x1 - x0, slab_y1 - y_front, tread_t, "#c8a87c",
+                        name=name, ifc_type="landing"))
+            _hl_slab(f1_x0, f1_x1, y_front_f1, "Half Landing (flight 1)")
+            _hl_slab(w_lo, w_hi, y_front_well, "Half Landing (well)")
+            _hl_slab(f2_x0, f2_x1, y_front_f2, "Half Landing (flight 2)")
 
             # Well-edge trimmer between the two inner newels: a horizontal
             # stringer guarding the stairwell void, at the same level as the
