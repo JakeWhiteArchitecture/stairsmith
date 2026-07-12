@@ -1867,6 +1867,12 @@
                     flightDist.f1 = Math.floor(rem / 2);
                     flightDist.f3 = rem - flightDist.f1;
                 }
+            } else if (type === 'half_landing') {
+                // Two flights: lower (F1) + upper (F2). The half-landing takes
+                // one rise and sits ~halfway. F2 maps to the geometry flight 3.
+                flightDist.f1 = Math.floor(st / 2);
+                flightDist.f2 = st - flightDist.f1;
+                flightDist.f3 = 0;
             } else if (type === 'y_shaped') {
                 flightDist.f1 = 7;
                 flightDist.f2 = 6;
@@ -1924,6 +1930,9 @@
                     minF2 = 2;
                     minF3 = 2;
                 }
+            } else if (type === 'half_landing') {
+                minF1 = 2;
+                minF2 = 2;
             }
 
             const mins = { f1: minF1, f2: minF2, f3: minF3 };
@@ -1941,8 +1950,7 @@
             const type = document.getElementById('staircase_type').value;
             const section = document.getElementById('flight-dist-section');
             const heading = document.getElementById('flight-dist-heading');
-            // Single half-landing distributes flights automatically — hide the control.
-            if (type === 'straight' || type === 'half_landing') {
+            if (type === 'straight') {
                 section.style.display = 'none';
                 heading.style.display = 'none';
                 return;
@@ -1983,6 +1991,11 @@
                     minF2 = 2;
                     minF3 = 2;
                 }
+            } else if (type === 'half_landing') {
+                // Two flights (lower + upper); each keeps at least 2 treads so
+                // neither collapses and the landing stays roughly central.
+                minF1 = 2;
+                minF2 = 2;
             }
 
             // F1 ↔ F2 buttons
@@ -2017,8 +2030,10 @@
                 winder_x: parseFloat(document.getElementById('winder_x').value),
                 winder_y: parseFloat(document.getElementById('winder_y').value),
                 flight1_steps: flightDist.f1,
-                flight2_steps: flightDist.f2,
-                flight3_steps: flightDist.f3,
+                // Half-landing has no middle flight; the upper flight (UI F2) maps
+                // to the geometry's flight 3.
+                flight2_steps: isHalfLanding() ? 0 : flightDist.f2,
+                flight3_steps: isHalfLanding() ? flightDist.f2 : flightDist.f3,
                 handrail_width: parseFloat(document.getElementById('handrail_width').value),
                 handrail_height: parseFloat(document.getElementById('handrail_height').value),
                 handrail_rise: parseFloat(document.getElementById('handrail_rise').value),
