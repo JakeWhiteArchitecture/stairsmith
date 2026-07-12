@@ -2478,6 +2478,23 @@ def _preview_double_winder(p):
             top_z_center = (newel_bottom + newel_top) / 2
             meshes.append(_box_mesh(f3_outer_x_val, top_post_y, top_z_center, ns, ns, top_h, "#8B7355"))
 
+    if half_landing:
+        # Flight 2 has no treads, so any balustrade member that ran along it
+        # collapses to a zero-length stub (e.g. the flight-2 outer handrail /
+        # stringer / baserail). Drop these degenerate members.
+        _cleaned = []
+        for m in meshes:
+            if m.get("type") == "box":
+                sx, sy = m["ifc_size"][0], m["ifc_size"][1]
+                if min(abs(sx), abs(sy)) < 2.0:
+                    continue
+            elif m.get("type") == "stringer":
+                xs = [pt[0] for pt in m["profile"]]
+                if max(xs) - min(xs) < 2.0:
+                    continue
+            _cleaned.append(m)
+        meshes = _cleaned
+
     return meshes
 
 
