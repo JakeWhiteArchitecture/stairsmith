@@ -1296,6 +1296,7 @@
                     <option value="straight" selected>Straight Flight</option>
                     <option value="single_winder">Single Winder (L-shape)</option>
                     <option value="double_winder">Double Winder (U-shape)</option>
+                    <option value="half_landing">Half-Landing (U-shape)</option>
                     <!-- Y-shaped Stair hidden pending further development -->
                     <!-- <option value="y_shaped">Y-shaped Stair</option> -->
                 </select>
@@ -1469,16 +1470,10 @@
         </div>
 
         <div class="section half-landing-options" id="half-landing-options" style="display:none;">
-            <h2>Half-landing</h2>
-            <div id="half-landing-toggle" class="turn-toggle">
-                <button class="turn-btn active" data-value="off" onclick="selectHalfLanding('off');">Two Corner Landings</button>
-                <button class="turn-btn" data-value="on" onclick="selectHalfLanding('on');">Single Half-Landing</button>
-            </div>
-            <div id="half-landing-fields" style="display:none; margin-top:12px;">
-                <label>Newel to newel <span class="unit">mm (centre to centre)</span></label>
-                <input type="number" id="newel_to_newel" value="400" min="140" step="10" onchange="onNewelToNewelChange();">
-                <p id="hl-derived" style="font-size:11.5px;color:#9aa1b5;margin-top:8px;line-height:1.5;"></p>
-            </div>
+            <h2>Half-landing set-out</h2>
+            <label>Newel to newel <span class="unit">mm (centre to centre)</span></label>
+            <input type="number" id="newel_to_newel" value="400" min="140" step="10" onchange="onNewelToNewelChange();">
+            <p id="hl-derived" style="font-size:11.5px;color:#9aa1b5;margin-top:8px;line-height:1.5;"></p>
         </div>
 
         </div><!-- /panel-bot -->
@@ -1947,7 +1942,7 @@
             const section = document.getElementById('flight-dist-section');
             const heading = document.getElementById('flight-dist-heading');
             // Single half-landing distributes flights automatically — hide the control.
-            if (type === 'straight' || (type === 'double_winder' && isHalfLanding())) {
+            if (type === 'straight' || type === 'half_landing') {
                 section.style.display = 'none';
                 heading.style.display = 'none';
                 return;
@@ -2060,16 +2055,17 @@
             const winderOpts = document.getElementById('winder-options');
             const turn2Opts = document.getElementById('turn2-options');
             const mirrorRow = document.getElementById('mirror-toggle-row');
+            const hl = (type === 'half_landing');
 
-            winderOpts.classList.toggle('visible', type !== 'straight');
+            // Corner toggles apply to the L/U winder stairs; the half-landing
+            // has no corners to configure (both are flat, driven automatically).
+            winderOpts.classList.toggle('visible', type === 'single_winder' || type === 'double_winder');
             turn2Opts.classList.toggle('visible', type === 'double_winder');
             mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
-            // Half-landing option is only meaningful for the U-shape
-            document.getElementById('half-landing-options').style.display =
-                (type === 'double_winder') ? 'block' : 'none';
-            if (type !== 'double_winder') setHalfLanding(false);
-            applyHalfLandingUI();
+            // Half-landing set-out (newel-to-newel) is its own stair type
+            document.getElementById('half-landing-options').style.display = hl ? 'block' : 'none';
+            if (hl) { updateNewelToNewelMin(); updateHalfLandingDerived(); }
 
             // Update turn labels and reset flight distribution
             updateToggleState();
@@ -2077,32 +2073,7 @@
         }
 
         function isHalfLanding() {
-            const b = document.querySelector('#half-landing-toggle .turn-btn.active');
-            return !!b && b.dataset.value === 'on';
-        }
-        function setHalfLanding(on) {
-            document.querySelectorAll('#half-landing-toggle .turn-btn').forEach(function (b) {
-                b.classList.toggle('active', (b.dataset.value === 'on') === on);
-            });
-        }
-        function selectHalfLanding(val) {
-            setHalfLanding(val === 'on');
-            applyHalfLandingUI();
-            updatePreview();
-        }
-        function applyHalfLandingUI() {
-            const on = isHalfLanding() && document.getElementById('staircase_type').value === 'double_winder';
-            document.getElementById('half-landing-fields').style.display = on ? 'block' : 'none';
-            // With a single half-landing the corner toggles and the flight
-            // distribution are driven automatically, so hide them.
-            document.getElementById('winder-options').style.display = on ? 'none' : '';
-            document.getElementById('turn2-options').style.display = on ? 'none' : '';
-            if (on) {
-                document.getElementById('flight-dist-section').style.display = 'none';
-                document.getElementById('flight-dist-heading').style.display = 'none';
-                updateNewelToNewelMin();
-                updateHalfLandingDerived();
-            }
+            return document.getElementById('staircase_type').value === 'half_landing';
         }
         function updateNewelToNewelMin() {
             const ns = parseFloat(document.getElementById('newel_size').value) || 90;

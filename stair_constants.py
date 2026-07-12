@@ -77,7 +77,7 @@ def _parse(params):
     # Half-landing mode (U-shape only): flight 2 collapses into a single
     # half-landing and the two flights' separation is driven by a
     # centre-newel-to-centre-newel dimension.
-    p["half_landing"] = bool(params.get("half_landing", False))
+    p["half_landing"] = bool(params.get("half_landing", False)) or p["staircase_type"] == "half_landing"
     # Clamp centre-to-centre so there is always a 50mm clear gap between the
     # inner faces of the two corner newels, whatever the newel size.
     _ntn_min = p["newel_size"] + 50.0

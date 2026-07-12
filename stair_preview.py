@@ -33,6 +33,11 @@ def generate_preview_geometry(params):
         meshes = _preview_single_winder(p)
     elif stair_type == "double_winder":
         meshes = _preview_double_winder(p)
+    elif stair_type == "half_landing":
+        # Half-height-landing U-stair: same builder as the U-shape, with the
+        # half-landing behaviour forced on. Keeps the double-winder path clean.
+        p["half_landing"] = True
+        meshes = _preview_double_winder(p)
     elif stair_type == "y_shaped":
         meshes = _preview_y_shaped(p)
     else:
