@@ -1524,7 +1524,9 @@ def _preview_double_winder(p):
             slab_y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
             y_f1 = landing1_y
             y_well = landing1_y
-            y_f2 = landing1_y - nosing
+            # flight-2 side reaches the REAR (back) face of flight 2's first
+            # riser, so the slab runs right under that riser (not to its middle).
+            y_f2 = landing1_y - nosing - riser_t
             w_lo, w_hi = min(corner1_x, corner2_x), max(corner1_x, corner2_x)
             if corner1_x > corner2_x:
                 f1 = (corner1_x, slab_x1, y_f1); f2 = (slab_x0, corner2_x, y_f2)
