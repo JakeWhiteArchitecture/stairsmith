@@ -2515,6 +2515,34 @@ def _preview_double_winder(p):
             _cleaned.append(m)
         meshes = _cleaned
 
+        # The rear landing balustrade is emitted per flight (two segments with
+        # a gap where the removed mid post was). Replace both with one
+        # continuous run from outer newel to outer newel.
+        rear_y = landing1_y + width
+        ox_lo, ox_hi = min(f1_outer_x, f3_outer_x), max(f1_outer_x, f3_outer_x)
+
+        def _is_rear(m):
+            t = m.get("type")
+            if t == "stringer":
+                return m.get("axis") == "y" and abs(m.get("y", 1e9) - (rear_y - STRINGER_THICKNESS / 2)) < 25
+            if t == "box" and m.get("ifc_type") in ("handrail", "baserail", "spindle"):
+                c, s = m["ifc_center"], m["ifc_size"]
+                if abs(c[1] - rear_y) > 40:
+                    return False
+                if m["ifc_type"] == "spindle":
+                    # keep the corner side-spindles (which sit at an outer newel)
+                    return ox_lo + 80 < c[0] < ox_hi - 80
+                return s[0] > s[1]      # X-running rail, not a side (Y) rail
+            return False
+
+        meshes = [m for m in meshes if not _is_rear(m)]
+        meshes.append(_stringer_landing_x(rear_y, ox_lo, ox_hi, landing2_z,
+                                          name="Half Landing Rear Stringer"))
+        if render_outer:
+            meshes.append(_handrail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **hr_kw))
+            meshes.append(_baserail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **br_kw))
+            meshes.extend(_spindles_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **sp_kw))
+
     return meshes
 
 
