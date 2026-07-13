@@ -1376,6 +1376,53 @@ def _compute_plan_dimensions(meshes, params, plan_min_x, plan_min_y):
     dims = []
     dim_offset = 300.0
 
+    if stair_type == "half_landing":
+        # Dedicated dimensions for the half-landing: the two flight-length
+        # dims run the full extent (to the landing rear), plus an overall
+        # width across both flights, plus the single flight width.
+        lx, ly, f1x, f1y, f3x, f3y = [], [], [], [], [], []
+        for m in meshes:
+            it = m.get("ifc_type")
+            if it == "landing":
+                for pt in m.get("profile", []):
+                    lx.append(pt[0]); ly.append(pt[1])
+            elif it == "tread" and m.get("ifc_center"):
+                c, s, nm = m["ifc_center"], m["ifc_size"], m.get("name", "")
+                xr = [c[0] - s[0] / 2, c[0] + s[0] / 2]
+                yr = [c[1] - s[1] / 2, c[1] + s[1] / 2]
+                if re.search(r"[Ff]light\s*1", nm):
+                    f1x += xr; f1y += yr
+                elif re.search(r"[Ff]light\s*3", nm):
+                    f3x += xr; f3y += yr
+        if lx and f1x and f3x:
+            rear_y = max(ly)
+            x_lo = min(min(lx), min(f1x), min(f3x))
+            x_hi = max(max(lx), max(f1x), max(f3x))
+            f1c = sum(f1x) / len(f1x); f3c = sum(f3x) / len(f3x)
+            if f1c > f3c:
+                f1_out, f3_out = max(f1x), min(f3x); f1_n, f3_n = (1, 0), (-1, 0)
+            else:
+                f1_out, f3_out = min(f1x), max(f3x); f1_n, f3_n = (-1, 0), (1, 0)
+            dims.append({"p1": (f1_out, min(f1y)), "p2": (f1_out, rear_y),
+                         "offset": dim_offset, "norm": f1_n})
+            dims.append({"p1": (f3_out, min(f3y)), "p2": (f3_out, rear_y),
+                         "offset": dim_offset, "norm": f3_n})
+            # Missing dim: overall width across both flights (outer stringer
+            # to outer stringer), placed along the landing rear.
+            oa = _stringer_extent_perp(meshes, "y", flight_bbox=None)
+            if oa:
+                dims.append({"p1": (oa[0], rear_y), "p2": (oa[1], rear_y),
+                             "offset": dim_offset, "norm": (0, 1),
+                             "label": "%.0f Overall O/A\nStringer to Stringer" % (oa[1] - oa[0])})
+            # Single flight width (flight 1 stringer to stringer).
+            f1b = (min(f1x), max(f1x), min(f1y), max(f1y))
+            fw = _stringer_extent_perp(meshes, "y", flight_bbox=f1b)
+            if fw:
+                dims.append({"p1": (fw[0], min(f1y)), "p2": (fw[1], min(f1y)),
+                             "offset": dim_offset, "norm": (0, -1),
+                             "label": "%.0f O/A\nStringer to Stringer" % (fw[1] - fw[0])})
+        return dims
+
     if not flight_info:
         return dims
 
