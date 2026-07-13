@@ -1568,9 +1568,15 @@ def _preview_double_winder(p):
             wl_z = landing2_z + tread_t
             meshes.append(_stringer_landing_x(
                 wl_y, wl_lo, wl_hi, wl_z, name="Half Landing Well Stringer"))
-            meshes.append(_handrail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **hr_kw))
-            meshes.append(_baserail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **br_kw))
-            meshes.extend(_spindles_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **sp_kw))
+            # The well is on the inner (newel) side — its rail infill follows
+            # the same Left/Right Side condition as every other inner-side
+            # member (flight 1 / flight 3 inner rails, corner newel height).
+            # In wall mode there is no handrail/baserail/spindles here, only
+            # the stringer and the (already shortened) stub newels.
+            if render_inner:
+                meshes.append(_handrail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **hr_kw))
+                meshes.append(_baserail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **br_kw))
+                meshes.extend(_spindles_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **sp_kw))
 
     # Flight 3 shift — nosing centred on post when winders off
     if actual_winders2 > 0:
