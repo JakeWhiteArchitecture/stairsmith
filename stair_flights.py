@@ -1511,39 +1511,41 @@ def _preview_double_winder(p):
             ))
 
         if half_landing:
-            # One half-landing slab spanning both flights and the well.
+            # One half-landing slab (a single extruded polygon) whose front
+            # edge staggers to meet three junctions across its width:
+            #  - flight 1 side: overhangs flight 1's last riser to form a
+            #    nosing — scales with the nosing parameter via landing1_y
+            #    (= corner1_y - nosing)
+            #  - well (between the inner newels): on the newel line, so the
+            #    well trimmer stringer cuts it like any other landing
+            #  - flight 2 side: on the back face of flight 2's first riser
             slab_x0 = min(landing1_cx - landing1_w / 2, landing2_cx - width / 2)
             slab_x1 = max(landing1_cx + landing1_w / 2, landing2_cx + width / 2)
             slab_y1 = max(landing1_cy + landing1_depth / 2, landing2_cy + landing2_depth / 2)
-            # The front edge staggers to meet three junctions across its width:
-            #  - flight 1 side: acts as the nosing of flight 1's last tread
-            #  - well (between the inner newels): on the newel line, so the
-            #    well trimmer stringer cuts it like any other landing
-            #  - flight 2 side: terminates on the back face of flight 2's
-            #    (upper flight's) first riser
-            y_front_f1 = landing1_y + nosing + riser_t
-            y_front_well = landing1_y
-            y_front_f2 = landing1_y - nosing
-            # Partition the width at the two inner newels. Flight 1 is on the
-            # corner-1 side (away from the well); flight 2 on the corner-2 side.
+            y_f1 = landing1_y
+            y_well = landing1_y
+            y_f2 = landing1_y - nosing
             w_lo, w_hi = min(corner1_x, corner2_x), max(corner1_x, corner2_x)
             if corner1_x > corner2_x:
-                f1_x0, f1_x1 = corner1_x, slab_x1
-                f2_x0, f2_x1 = slab_x0, corner2_x
+                f1 = (corner1_x, slab_x1, y_f1); f2 = (slab_x0, corner2_x, y_f2)
             else:
-                f1_x0, f1_x1 = slab_x0, corner1_x
-                f2_x0, f2_x1 = corner2_x, slab_x1
-            zc = landing2_z + tread_t / 2
-
-            def _hl_slab(x0, x1, y_front, name):
-                if x1 - x0 > 1e-6 and slab_y1 - y_front > 1e-6:
-                    meshes.append(_box_mesh(
-                        (x0 + x1) / 2, (y_front + slab_y1) / 2, zc,
-                        x1 - x0, slab_y1 - y_front, tread_t, "#c8a87c",
-                        name=name, ifc_type="landing"))
-            _hl_slab(f1_x0, f1_x1, y_front_f1, "Half Landing (flight 1)")
-            _hl_slab(w_lo, w_hi, y_front_well, "Half Landing (well)")
-            _hl_slab(f2_x0, f2_x1, y_front_f2, "Half Landing (flight 2)")
+                f1 = (slab_x0, corner1_x, y_f1); f2 = (corner2_x, slab_x1, y_f2)
+            well = (w_lo, w_hi, y_well)
+            # Walk the front edge right -> left as one staggered polygon.
+            regions = sorted([f1, well, f2], key=lambda r: -r[1])
+            front = []
+            for (rx0, rx1, ry) in regions:
+                front.append([rx1, ry]); front.append([rx0, ry])
+            raw = [[slab_x1, slab_y1]] + front + [[slab_x0, slab_y1]]
+            poly = []
+            for pt in raw:                     # drop consecutive duplicate vertices
+                if not poly or abs(poly[-1][0] - pt[0]) > 1e-6 or abs(poly[-1][1] - pt[1]) > 1e-6:
+                    poly.append(pt)
+            meshes.append({
+                "type": "winder_polygon", "profile": poly,
+                "z": landing2_z, "thickness": tread_t, "color": "#c8a87c",
+                "name": "Half Landing", "ifc_type": "landing",
+            })
 
             # Well-edge trimmer between the two inner newels: a horizontal
             # stringer guarding the stairwell void, at the same level as the
@@ -2512,6 +2514,34 @@ def _preview_double_winder(p):
                     continue
             _cleaned.append(m)
         meshes = _cleaned
+
+        # The rear landing balustrade is emitted per flight (two segments with
+        # a gap where the removed mid post was). Replace both with one
+        # continuous run from outer newel to outer newel.
+        rear_y = landing1_y + width
+        ox_lo, ox_hi = min(f1_outer_x, f3_outer_x), max(f1_outer_x, f3_outer_x)
+
+        def _is_rear(m):
+            t = m.get("type")
+            if t == "stringer":
+                return m.get("axis") == "y" and abs(m.get("y", 1e9) - (rear_y - STRINGER_THICKNESS / 2)) < 25
+            if t == "box" and m.get("ifc_type") in ("handrail", "baserail", "spindle"):
+                c, s = m["ifc_center"], m["ifc_size"]
+                if abs(c[1] - rear_y) > 40:
+                    return False
+                if m["ifc_type"] == "spindle":
+                    # keep the corner side-spindles (which sit at an outer newel)
+                    return ox_lo + 80 < c[0] < ox_hi - 80
+                return s[0] > s[1]      # X-running rail, not a side (Y) rail
+            return False
+
+        meshes = [m for m in meshes if not _is_rear(m)]
+        meshes.append(_stringer_landing_x(rear_y, ox_lo, ox_hi, landing2_z,
+                                          name="Half Landing Rear Stringer"))
+        if render_outer:
+            meshes.append(_handrail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **hr_kw))
+            meshes.append(_baserail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **br_kw))
+            meshes.extend(_spindles_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **sp_kw))
 
     return meshes
 
