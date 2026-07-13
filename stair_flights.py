@@ -1559,11 +1559,18 @@ def _preview_double_winder(p):
             # newel posts (which sit on the landing1_y line), so the whole
             # central section is symmetric about the posts.
             wl_y = landing1_y
+            # Stringers/rails reference the riser-line level (turn2_winder_start
+            # * rise), not the slab-base level landing2_z holds at this point
+            # in the function (landing2_z == that level - tread_t here; it is
+            # reassigned to the riser-line level later, which is what the
+            # other landing stringers use) — add tread_t back so this trimmer
+            # sits level with the rest of the landing balustrade.
+            wl_z = landing2_z + tread_t
             meshes.append(_stringer_landing_x(
-                wl_y, wl_lo, wl_hi, landing2_z, name="Half Landing Well Stringer"))
-            meshes.append(_handrail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, landing2_z, **hr_kw))
-            meshes.append(_baserail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, landing2_z, **br_kw))
-            meshes.extend(_spindles_landing_x(wl_y, wl_lo + hp, wl_hi - hp, landing2_z, **sp_kw))
+                wl_y, wl_lo, wl_hi, wl_z, name="Half Landing Well Stringer"))
+            meshes.append(_handrail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **hr_kw))
+            meshes.append(_baserail_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **br_kw))
+            meshes.extend(_spindles_landing_x(wl_y, wl_lo + hp, wl_hi - hp, wl_z, **sp_kw))
 
     # Flight 3 shift — nosing centred on post when winders off
     if actual_winders2 > 0:
