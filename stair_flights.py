@@ -2419,6 +2419,13 @@ def _preview_double_winder(p):
         f3_stringer_top_c2    = pitch_c2_f3 + STRINGER_PITCH_OFFSET
         stub_bottom_c2 = f2_stringer_bottom_c2 - 50.0
         stub_top_c2    = f3_stringer_top_c2    + 50.0
+        if half_landing:
+            # Flight 2 doesn't exist here (0 treads), so pitch_c2_f2 collapses
+            # to the flat landing level and gives corner 2's stub almost no
+            # downward reach. Anchor its bottom the same way corner 1's is
+            # (against flight 1's real stringer pitch) so both well stubs
+            # extend down to the same level.
+            stub_bottom_c2 = stub_bottom_c1
         stub_h_c2 = stub_top_c2 - stub_bottom_c2
         stub_z_center_c2 = (stub_top_c2 + stub_bottom_c2) / 2
         meshes.append(_box_mesh(corner2_x, corner2_y, stub_z_center_c2, ns, ns, stub_h_c2, "#8B7355"))
@@ -2551,7 +2558,11 @@ def _preview_double_winder(p):
             return False
 
         meshes = [m for m in meshes if not _is_rear(m)]
-        meshes.append(_stringer_landing_x(rear_y, ox_lo, ox_hi, landing2_z,
+        # In wall condition (no outer balustrade), the stringer top drops to
+        # align with the flight stringers either side of it — same convention
+        # every other landing stringer in this file follows.
+        rear_z_stringer = landing2_z if render_outer else (landing2_z - STRINGER_PITCH_OFFSET)
+        meshes.append(_stringer_landing_x(rear_y, ox_lo, ox_hi, rear_z_stringer,
                                           name="Half Landing Rear Stringer"))
         if render_outer:
             meshes.append(_handrail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **hr_kw))
