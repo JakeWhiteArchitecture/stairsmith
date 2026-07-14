@@ -2551,7 +2551,15 @@ def _preview_double_winder(p):
         # a gap where the removed mid post was). Replace both with one
         # continuous run from outer newel to outer newel.
         rear_y = landing1_y + width
-        ox_lo, ox_hi = min(f1_outer_x, f3_outer_x), max(f1_outer_x, f3_outer_x)
+        # f1_outer_x/f3_outer_x are the abutting side stringers' CENTRELINES,
+        # and also where the corner newels sit. The rail/spindles still
+        # terminate at the newel post faces (corner_lo/corner_hi), but the
+        # STRINGER BOARD extends half a thickness further out on each end,
+        # so it reaches the true outer edge of the abutting side stringer
+        # instead of stopping midway through it.
+        corner_lo, corner_hi = min(f1_outer_x, f3_outer_x), max(f1_outer_x, f3_outer_x)
+        ox_lo = corner_lo - STRINGER_THICKNESS / 2
+        ox_hi = corner_hi + STRINGER_THICKNESS / 2
 
         def _is_rear(m):
             t = m.get("type")
@@ -2563,7 +2571,7 @@ def _preview_double_winder(p):
                     return False
                 if m["ifc_type"] == "spindle":
                     # keep the corner side-spindles (which sit at an outer newel)
-                    return ox_lo + 80 < c[0] < ox_hi - 80
+                    return corner_lo + 80 < c[0] < corner_hi - 80
                 return s[0] > s[1]      # X-running rail, not a side (Y) rail
             return False
 
@@ -2575,9 +2583,9 @@ def _preview_double_winder(p):
         meshes.append(_stringer_landing_x(rear_y, ox_lo, ox_hi, rear_z_stringer,
                                           name="Half Landing Rear Stringer"))
         if render_outer:
-            meshes.append(_handrail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **hr_kw))
-            meshes.append(_baserail_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **br_kw))
-            meshes.extend(_spindles_landing_x(rear_y, ox_lo + hp, ox_hi - hp, landing2_z, **sp_kw))
+            meshes.append(_handrail_landing_x(rear_y, corner_lo + hp, corner_hi - hp, landing2_z, **hr_kw))
+            meshes.append(_baserail_landing_x(rear_y, corner_lo + hp, corner_hi - hp, landing2_z, **br_kw))
+            meshes.extend(_spindles_landing_x(rear_y, corner_lo + hp, corner_hi - hp, landing2_z, **sp_kw))
 
     return meshes
 
