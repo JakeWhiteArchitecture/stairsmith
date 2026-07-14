@@ -1395,7 +1395,7 @@
             </div>
             <div class="field">
                 <label>Newel Post Size <span class="unit">mm</span></label>
-                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" onchange="updateNewelToNewelMin(); updateHalfLandingDerived(); updatePreview();">
+                <input type="number" id="newel_size" value="90" min="75" max="120" step="5" onchange="updateHalfLandingDerived(); updatePreview();">
             </div>
 
         </div>
@@ -1471,8 +1471,8 @@
 
         <div class="section half-landing-options" id="half-landing-options" style="display:none;">
             <h2>Half-landing set-out</h2>
-            <label>Newel to newel <span class="unit">mm (centre to centre)</span></label>
-            <input type="number" id="newel_to_newel" value="400" min="140" step="10" onchange="onNewelToNewelChange();">
+            <label>Landing Width Oversize <span class="unit">mm (0 = matches the flights)</span></label>
+            <input type="number" id="landing_oversize" value="0" min="0" step="10" onchange="onLandingOversizeChange();">
             <p id="hl-derived" style="font-size:11.5px;color:#9aa1b5;margin-top:8px;line-height:1.5;"></p>
         </div>
 
@@ -2026,7 +2026,7 @@
                 turn2_enabled: isTurnWinder('turn2-toggle'),
                 newel_size: parseFloat(document.getElementById('newel_size').value),
                 half_landing: isHalfLanding(),
-                newel_to_newel: parseFloat(document.getElementById('newel_to_newel').value),
+                newel_to_newel: computeNewelToNewel(),
                 winder_x: parseFloat(document.getElementById('winder_x').value),
                 winder_y: parseFloat(document.getElementById('winder_y').value),
                 flight1_steps: flightDist.f1,
@@ -2078,9 +2078,9 @@
             turn2Opts.classList.toggle('visible', type === 'double_winder');
             mirrorRow.style.display = (type === 'straight' || type === 'y_shaped') ? 'none' : 'block';
 
-            // Half-landing set-out (newel-to-newel) is its own stair type
+            // Half-landing set-out (landing width oversize) is its own stair type
             document.getElementById('half-landing-options').style.display = hl ? 'block' : 'none';
-            if (hl) { updateNewelToNewelMin(); updateHalfLandingDerived(); }
+            if (hl) { updateHalfLandingDerived(); }
 
             // Update turn labels and reset flight distribution
             updateToggleState();
@@ -2090,25 +2090,30 @@
         function isHalfLanding() {
             return document.getElementById('staircase_type').value === 'half_landing';
         }
-        function updateNewelToNewelMin() {
+        // Newel-to-newel (centre-to-centre) is derived, not entered directly:
+        // the natural minimum (a 50mm clear gap between newel faces) plus
+        // whatever oversize the user asks for. Oversize itself only has a
+        // floor of 0 — you can't go narrower than the natural minimum, but
+        // there's no ceiling on how much wider you can make the landing.
+        function computeNewelToNewel() {
             const ns = parseFloat(document.getElementById('newel_size').value) || 90;
-            const input = document.getElementById('newel_to_newel');
-            const min = ns + 50;              // guarantee a 50mm clear gap between newel faces
-            input.min = min;
-            if (parseFloat(input.value) < min) input.value = min;
+            const oversize = Math.max(0, parseFloat(document.getElementById('landing_oversize').value) || 0);
+            return ns + 50 + oversize;
         }
-        function onNewelToNewelChange() {
-            updateNewelToNewelMin();
+        function onLandingOversizeChange() {
+            const input = document.getElementById('landing_oversize');
+            if (parseFloat(input.value) < 0 || isNaN(parseFloat(input.value))) input.value = 0;
             updateHalfLandingDerived();
             updatePreview();
         }
         function updateHalfLandingDerived() {
-            const ntn = parseFloat(document.getElementById('newel_to_newel').value) || 0;
             const ns = parseFloat(document.getElementById('newel_size').value) || 90;
+            const ntn = computeNewelToNewel();
             const sw = parseFloat(document.getElementById('stair_width').value) || 900;
             const gap = Math.round(ntn - ns);
             const overall = Math.round(ntn + 2 * sw);   // outside-to-outside, approx
             document.getElementById('hl-derived').innerHTML =
+                'Newel to newel (centre to centre): <b>' + Math.round(ntn) + ' mm</b><br>' +
                 'Clear gap between newels: <b>' + gap + ' mm</b><br>' +
                 'Overall width (out-to-out): <b>~' + overall + ' mm</b>';
         }
