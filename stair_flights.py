@@ -1766,6 +1766,11 @@ def _preview_double_winder(p):
             # Handrail/baserail/spindles still terminate at the newel post face (hp).
             f1_landing_y_start = (f1_y1 + hp) if render_outer else f1_y1_ext
             f1_landing_y_end = outer1_corner_y + st2
+            if half_landing:
+                # The continuous rear stringer masters this corner instead —
+                # the side stringer butts against its near face rather than
+                # running through to its far face.
+                f1_landing_y_end = outer1_corner_y - st2
             # In wall condition, drop landing stringers to align top edge with flight stringers
             landing1_z_stringer = landing1_z if render_outer else (landing1_z - STRINGER_PITCH_OFFSET)
             if turn1_dir == "left":
@@ -1937,6 +1942,11 @@ def _preview_double_winder(p):
             # Y-direction landing stringer masters the X stringer: extends through the full X
             # stringer thickness to its rear edge (+st2 past the X stringer centre).
             f3_landing_y_start = outer2_corner_y + st2
+            if half_landing:
+                # The continuous rear stringer masters this corner instead —
+                # the side stringer butts against its near face rather than
+                # running through to its far face.
+                f3_landing_y_start = outer2_corner_y - st2
             f3_landing_y_end = f3_y_first_unclipped + hp if render_outer else f3_y_first_ext
             # In wall condition, drop landing stringers to align top edge with flight stringers
             landing2_z_stringer = landing2_z if render_outer else (landing2_z - STRINGER_PITCH_OFFSET)

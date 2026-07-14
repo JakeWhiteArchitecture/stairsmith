@@ -2644,6 +2644,102 @@ def _stringer_housing_boxes(smesh, meshes):
                 continue
 
 
+def _mesh_xy_polygon(mesh):
+    """Return (shapely polygon, z0, z1) for a box or winder_polygon mesh,
+    or None if it can't be represented as a flat XY footprint."""
+    try:
+        from shapely.geometry import Polygon as _SP, box as _sb
+    except Exception:
+        return None
+    if mesh.get("type") == "box" and mesh.get("ifc_center") and mesh.get("ifc_size"):
+        ctr, sz = mesh["ifc_center"], mesh["ifc_size"]
+        poly = _sb(ctr[0] - sz[0] / 2, ctr[1] - sz[1] / 2,
+                   ctr[0] + sz[0] / 2, ctr[1] + sz[1] / 2)
+        return poly, ctr[2] - sz[2] / 2, ctr[2] + sz[2] / 2
+    if mesh.get("type") == "winder_polygon" and mesh.get("profile"):
+        try:
+            poly = _SP([(p[0], p[1]) for p in mesh["profile"]])
+            if not poly.is_valid:
+                poly = poly.buffer(0)
+        except Exception:
+            return None
+        z0 = mesh.get("z", 0)
+        return poly, z0, z0 + mesh.get("thickness", 0)
+    return None
+
+
+# Only the half-landing's own slab/stringers get boolean-cut against each
+# other — existing (regular) landings and stringers are left exactly as
+# they were, so this doesn't touch any previously-verified geometry.
+def _is_half_landing_mesh(mesh):
+    return mesh.get("name", "").startswith("Half Landing")
+
+
+def _landing_newel_voids(landing_mesh, meshes):
+    """Yield (name, center, size) box openings where a newel post's
+    footprint overlaps the half-landing slab's plan area, so the slab
+    has a clean void where each post passes through it."""
+    land = _mesh_xy_polygon(landing_mesh)
+    if not land:
+        return
+    lpoly, z0, z1 = land
+    for c in meshes:
+        if c.get("ifc_type") != "newel":
+            continue
+        nb = _mesh_xy_polygon(c)
+        if not nb:
+            continue
+        npoly, nz0, nz1 = nb
+        if nz1 < z0 - 1.0 or nz0 > z1 + 1.0:
+            continue
+        piece = lpoly.intersection(npoly)
+        if piece.is_empty or piece.area < 1.0:
+            continue
+        b = piece.bounds
+        yield (c.get("name", "Newel"),
+               [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2, (z0 + z1) / 2],
+               [b[2] - b[0], b[3] - b[1], z1 - z0])
+
+
+def _stringer_landing_voids(smesh, meshes):
+    """Yield (name, center, size) box openings where the half-landing
+    slab's volume overlaps a stringer board, so the stringer is cut
+    clean where it passes under/through the landing."""
+    try:
+        from shapely.geometry import box as _sb
+    except Exception:
+        return
+    axis = smesh.get("axis")
+    th = smesh.get("thickness", 0)
+    spos = smesh.get("y", 0) if axis == "y" else smesh.get("x", 0)
+    prof = smesh.get("profile", [])
+    if not prof:
+        return
+    s_along = [p[0] for p in prof]
+    s_z = [p[1] for p in prof]
+    s_lo, s_hi = min(s_along), max(s_along)
+    sz_lo, sz_hi = min(s_z), max(s_z)
+    sbox = _sb(s_lo, spos, s_hi, spos + th) if axis == "y" \
+        else _sb(spos, s_lo, spos + th, s_hi)
+    for c in meshes:
+        if c.get("ifc_type") != "landing" or not _is_half_landing_mesh(c):
+            continue
+        land = _mesh_xy_polygon(c)
+        if not land:
+            continue
+        lpoly, z0, z1 = land
+        zlo, zhi = max(sz_lo, z0), min(sz_hi, z1)
+        if zhi - zlo < 1.0:
+            continue
+        piece = sbox.intersection(lpoly)
+        if piece.is_empty or piece.area < 1.0:
+            continue
+        b = piece.bounds
+        yield (c.get("name", "Landing"),
+               [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2, (zlo + zhi) / 2],
+               [b[2] - b[0], b[3] - b[1], zhi - zlo])
+
+
 def _derive_flight_metrics(meshes):
     """Derive (rise, going) in mm from flight 1's tread meshes, or (None, None)."""
     treads = [m for m in meshes
@@ -2750,6 +2846,7 @@ def meshes_to_ifc(meshes):
     elements = []
     elem_fingerprints = {}  # elem id -> content key for stable GUIDs
     stringer_hosts = []     # (element, mesh) pairs for housing voids
+    landing_hosts = []      # (element, mesh) pairs for the half-landing slab
     counter = {}  # for auto-naming: {ifc_type: count}
 
     for mesh in meshes:
@@ -2779,6 +2876,8 @@ def meshes_to_ifc(meshes):
                 ifc_class, name, _mesh_fingerprint(mesh))
             if ifc_type == "stringer" and mesh_type == "stringer":
                 stringer_hosts.append((elem, mesh))
+            elif ifc_type == "landing" and _is_half_landing_mesh(mesh):
+                landing_hosts.append((elem, mesh))
 
     # Clean geometry: housed treads/risers/newels are boolean-cut out of
     # the stringer boards with IfcOpeningElement voids, so the delivered
@@ -2792,6 +2891,37 @@ def meshes_to_ifc(meshes):
                     ifc, body, {"ifc_center": ctr, "ifc_size": sz},
                     "IfcOpeningElement",
                     "Housing - %s" % cname)
+                ifc.create_entity(
+                    "IfcRelVoidsElement",
+                    GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner0,
+                    RelatingBuildingElement=host_elem,
+                    RelatedOpeningElement=opening)
+            except Exception:
+                continue
+
+    # Half-landing only: the slab is voided where the newel posts pass
+    # through it, and the landing-level stringers are voided where the
+    # slab's own volume overlaps them — same IfcOpeningElement technique,
+    # so neither the slab nor the stringers double up as overlapping solids.
+    for host_elem, lmesh in landing_hosts:
+        for cname, ctr, sz in _landing_newel_voids(lmesh, meshes):
+            try:
+                opening = _convert_box_mesh(
+                    ifc, body, {"ifc_center": ctr, "ifc_size": sz},
+                    "IfcOpeningElement", "Newel void - %s" % cname)
+                ifc.create_entity(
+                    "IfcRelVoidsElement",
+                    GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner0,
+                    RelatingBuildingElement=host_elem,
+                    RelatedOpeningElement=opening)
+            except Exception:
+                continue
+    for host_elem, smesh in stringer_hosts:
+        for cname, ctr, sz in _stringer_landing_voids(smesh, meshes):
+            try:
+                opening = _convert_box_mesh(
+                    ifc, body, {"ifc_center": ctr, "ifc_size": sz},
+                    "IfcOpeningElement", "Landing void - %s" % cname)
                 ifc.create_entity(
                     "IfcRelVoidsElement",
                     GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner0,
