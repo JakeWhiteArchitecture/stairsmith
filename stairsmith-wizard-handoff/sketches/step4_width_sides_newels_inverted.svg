@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 860" width="800" height="860">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#8a93ad" stroke-width="1.5"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#00ccff" stroke-width="1.5"/></marker>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#5b6688" stroke-width="1"/></pattern>
+</defs>
+<text x="24" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="20" font-weight="600" fill="#e0e0e0">4  Width, sides and newels: plan per stair type</text>
+<clipPath id="outside10"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M159.5,375.0 H240.5 V109.4 H159.5 Z " clip-rule="evenodd"/></clipPath>
+<line x1="159.5" y1="375.0" x2="233.3" y2="375.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="354.6" x2="233.3" y2="354.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="334.1" x2="233.3" y2="334.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="313.7" x2="233.3" y2="313.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="293.3" x2="233.3" y2="293.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="272.9" x2="233.3" y2="272.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="252.4" x2="233.3" y2="252.4" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="232.0" x2="233.3" y2="232.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="211.6" x2="233.3" y2="211.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="191.1" x2="233.3" y2="191.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="170.7" x2="233.3" y2="170.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="150.3" x2="233.3" y2="150.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="129.8" x2="233.3" y2="129.8" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="159.5" y1="109.4" x2="233.3" y2="109.4" stroke="#c9c9d4" stroke-width="1"/>
+<g clip-path="url(#outside10)"><polygon points="159.5,375.0 159.5,109.4 149.6,109.4 149.6,375.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="159.5,375.0 159.5,109.4" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="239.6,375.0 239.6,109.4" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="233.3,375.0 233.3,109.4" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="232.4" y="366.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="232.4" y="109.4" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<polyline points="200.0,369.6 200.0,114.8" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<line x1="159.5" y1="375.0" x2="159.5" y2="397.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="240.5" y1="375.0" x2="240.5" y2="397.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="155.5" y1="393.0" x2="244.5" y2="393.0" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="156.0" y1="389.5" x2="163.0" y2="396.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="237.0" y1="389.5" x2="244.0" y2="396.5" stroke="#00ccff" stroke-width="1.8"/>
+<text x="200.0" y="407.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#4fdcff" text-anchor="middle" font-weight="600">width 900</text>
+<text x="200.0" y="76.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#c9c9d4" text-anchor="middle" font-weight="600">Straight</text>
+<clipPath id="outside11"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M590.1,375.0 H671.1 V191.1 H590.1 Z M528.9,191.1 H590.1 V110.1 H528.9 Z M590.1,191.1 H671.1 V110.1 H590.1 Z " clip-rule="evenodd"/></clipPath>
+<line x1="590.1" y1="375.0" x2="663.9" y2="375.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="354.6" x2="663.9" y2="354.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="334.1" x2="663.9" y2="334.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="313.7" x2="663.9" y2="313.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="293.3" x2="663.9" y2="293.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="272.9" x2="663.9" y2="272.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="252.4" x2="663.9" y2="252.4" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="232.0" x2="663.9" y2="232.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="211.6" x2="663.9" y2="211.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="191.1" x2="663.9" y2="191.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="528.9" y1="191.1" x2="528.9" y2="117.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="549.3" y1="191.1" x2="549.3" y2="117.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="569.7" y1="191.1" x2="569.7" y2="117.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="590.1" y1="191.1" x2="590.1" y2="117.3" stroke="#c9c9d4" stroke-width="1"/>
+<g clip-path="url(#outside11)"><polygon points="590.1,375.0 590.1,191.1 528.9,191.1 528.9,201.0 580.2,201.0 580.2,375.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="590.1,375.0 590.1,191.1 528.9,191.1" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="670.2,375.0 670.2,111.0 528.9,111.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="663.9,375.0 663.9,117.3 528.9,117.3" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="663.0" y="366.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="663.0" y="110.1" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="528.9" y="110.1" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<polyline points="630.6,369.6 630.6,150.6 534.3,150.6" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<line x1="590.1" y1="375.0" x2="590.1" y2="397.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="671.1" y1="375.0" x2="671.1" y2="397.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="586.1" y1="393.0" x2="675.1" y2="393.0" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="586.6" y1="389.5" x2="593.7" y2="396.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="667.6" y1="389.5" x2="674.7" y2="396.5" stroke="#00ccff" stroke-width="1.8"/>
+<text x="630.6" y="407.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#4fdcff" text-anchor="middle" font-weight="600">width 900</text>
+<text x="600.0" y="76.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#c9c9d4" text-anchor="middle" font-weight="600">Single winder (L)</text>
+<clipPath id="outside12"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M220.4,750.0 H301.4 V647.9 H220.4 Z M179.6,647.9 H220.4 V566.9 H179.6 Z M98.6,750.0 H179.6 V647.9 H98.6 Z M220.4,647.9 H301.4 V566.9 H220.4 Z M98.6,647.9 H179.6 V566.9 H98.6 Z " clip-rule="evenodd"/></clipPath>
+<line x1="220.4" y1="750.0" x2="294.2" y2="750.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="729.6" x2="294.2" y2="729.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="709.1" x2="294.2" y2="709.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="688.7" x2="294.2" y2="688.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="668.3" x2="294.2" y2="668.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="647.9" x2="294.2" y2="647.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="179.6" y1="647.9" x2="179.6" y2="574.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="200.0" y1="647.9" x2="200.0" y2="574.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="220.4" y1="647.9" x2="220.4" y2="574.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="750.0" x2="179.6" y2="750.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="729.6" x2="179.6" y2="729.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="709.1" x2="179.6" y2="709.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="688.7" x2="179.6" y2="688.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="668.3" x2="179.6" y2="668.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="105.8" y1="647.9" x2="179.6" y2="647.9" stroke="#c9c9d4" stroke-width="1"/>
+<g clip-path="url(#outside12)"><polygon points="220.4,750.0 220.4,647.9 179.6,647.9 179.6,750.0 189.5,750.0 189.5,657.8 210.5,657.8 210.5,750.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="220.4,750.0 220.4,647.9 179.6,647.9 179.6,750.0" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="300.5,750.0 300.5,567.8 99.5,567.8 99.5,750.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="294.2,750.0 294.2,574.0 105.8,574.0 105.8,750.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="293.3" y="741.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="293.3" y="566.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="98.6" y="566.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="98.6" y="741.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<polyline points="260.9,744.6 260.9,607.4 139.1,607.4 139.1,744.6" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<line x1="220.4" y1="750.0" x2="220.4" y2="772.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="301.4" y1="750.0" x2="301.4" y2="772.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="216.4" y1="768.0" x2="305.4" y2="768.0" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="216.9" y1="764.5" x2="224.0" y2="771.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="297.9" y1="764.5" x2="305.0" y2="771.5" stroke="#00ccff" stroke-width="1.8"/>
+<text x="260.9" y="782.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#4fdcff" text-anchor="middle" font-weight="600">width 900</text>
+<text x="200.0" y="451.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#c9c9d4" text-anchor="middle" font-weight="600">Double winder (U)</text>
+<clipPath id="outside13"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M602.2,750.0 H683.2 V627.4 H602.2 Z M516.8,750.0 H597.8 V627.4 H516.8 Z M516.8,627.4 H683.2 V546.4 H516.8 Z " clip-rule="evenodd"/></clipPath>
+<line x1="602.2" y1="750.0" x2="676.0" y2="750.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="729.6" x2="676.0" y2="729.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="709.1" x2="676.0" y2="709.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="688.7" x2="676.0" y2="688.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="668.3" x2="676.0" y2="668.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="647.9" x2="676.0" y2="647.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="602.2" y1="627.4" x2="676.0" y2="627.4" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="750.0" x2="597.8" y2="750.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="729.6" x2="597.8" y2="729.6" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="709.1" x2="597.8" y2="709.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="688.7" x2="597.8" y2="688.7" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="668.3" x2="597.8" y2="668.3" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="647.9" x2="597.8" y2="647.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="524.0" y1="627.4" x2="597.8" y2="627.4" stroke="#c9c9d4" stroke-width="1"/>
+<g clip-path="url(#outside13)"><polygon points="602.2,750.0 602.2,627.4 597.8,627.4 597.8,750.0 607.6,750.0 607.6,637.3 592.4,637.3 592.4,750.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="602.2,750.0 602.2,627.4 597.8,627.4 597.8,750.0" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="682.4,750.0 682.4,547.3 517.6,547.3 517.6,750.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="676.0,750.0 676.0,553.6 524.0,553.6 524.0,750.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="675.1" y="741.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="675.1" y="546.4" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="516.8" y="546.4" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="516.8" y="741.9" width="8.1" height="8.1" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<polyline points="642.8,744.6 642.8,586.9 557.2,586.9 557.2,744.6" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<line x1="602.2" y1="750.0" x2="602.2" y2="772.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="683.2" y1="750.0" x2="683.2" y2="772.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="598.2" y1="768.0" x2="687.2" y2="768.0" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="598.7" y1="764.5" x2="605.8" y2="771.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="679.7" y1="764.5" x2="686.8" y2="771.5" stroke="#00ccff" stroke-width="1.8"/>
+<text x="642.8" y="782.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#4fdcff" text-anchor="middle" font-weight="600">width 900</text>
+<text x="600.0" y="451.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#c9c9d4" text-anchor="middle" font-weight="600">Half-landing (U)</text>
+<text x="400.0" y="815.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">Left side: wall. Right side: balustrade. Left turns shown.</text>
+<text x="400.0" y="842" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">Treads stop at the inner balustrade line. Corners shown as flat landings.</text>
+</svg>

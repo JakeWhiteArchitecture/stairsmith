@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 640" width="800" height="640">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#8a93ad" stroke-width="1.5"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#00ccff" stroke-width="1.5"/></marker>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#5b6688" stroke-width="1"/></pattern>
+</defs>
+<text x="24" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="20" font-weight="600" fill="#e0e0e0">1  Height</text>
+<line x1="111.0" y1="565.0" x2="594.0" y2="565.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="60.0" y1="575.5" x2="90.0" y2="575.5" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="615.0" y1="575.5" x2="760.0" y2="575.5" stroke="#c9c9d4" stroke-width="2"/>
+<polyline points="69.0,199.9 352.5,36.2 636.0,199.9" fill="none" stroke="#c9c9d4" stroke-width="2" stroke-linejoin="round"/>
+<line x1="69.0" y1="220.1" x2="69.0" y2="199.9" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="636.0" y1="220.1" x2="636.0" y2="199.9" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="69.0" y1="220.1" x2="90.0" y2="208.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="615.0" y1="208.0" x2="636.0" y2="220.1" stroke="#c9c9d4" stroke-width="2"/>
+<polyline points="111.0,195.9 352.5,56.4 594.0,195.9" fill="none" stroke="#c9c9d4" stroke-width="2" stroke-linejoin="round"/>
+<line x1="90.0" y1="575.5" x2="90.0" y2="208.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="615.0" y1="575.5" x2="615.0" y2="208.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="111.0" y1="195.9" x2="111.0" y2="376.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="111.0" y1="393.5" x2="111.0" y2="565.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="594.0" y1="195.9" x2="594.0" y2="376.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="594.0" y1="393.5" x2="594.0" y2="565.0" stroke="#c9c9d4" stroke-width="2"/>
+<polyline points="181.0,565.0 181.0,551.5 196.9,551.5 196.9,538.0 212.8,538.0 212.8,524.5 228.7,524.5 228.7,511.0 244.6,511.0 244.6,497.5 260.5,497.5 260.5,484.0 276.3,484.0 276.3,470.5 292.2,470.5 292.2,457.0 308.1,457.0 308.1,443.5 324.0,443.5 324.0,430.0 339.9,430.0 339.9,416.5 355.8,416.5 355.8,403.0 371.7,403.0 371.7,389.5 387.6,389.5 387.6,376.0" fill="none" stroke="#c9c9d4" stroke-width="1.4" stroke-linejoin="round"/>
+<line x1="111.0" y1="376.0" x2="205.6" y2="376.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="111.0" y1="393.5" x2="205.6" y2="393.5" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="205.6" y1="376.0" x2="205.6" y2="393.5" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="387.6" y1="376.0" x2="594.0" y2="376.0" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="387.6" y1="393.5" x2="594.0" y2="393.5" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="387.6" y1="376.0" x2="387.6" y2="393.5" stroke="#c9c9d4" stroke-width="2"/>
+<line x1="615.0" y1="565.0" x2="659.0" y2="565.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="615.0" y1="376.0" x2="659.0" y2="376.0" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="655.0" y1="569.0" x2="655.0" y2="372.0" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="651.5" y1="568.5" x2="658.5" y2="561.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="651.5" y1="379.5" x2="658.5" y2="372.5" stroke="#00ccff" stroke-width="1.8"/>
+<text x="662.0" y="474.5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#4fdcff" text-anchor="start" font-weight="600">2700</text>
+<text x="662.0" y="489.5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="start">floor to floor, mm</text>
+<text x="584.0" y="555.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="end">ground floor</text>
+<text x="584.0" y="366.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="end">first floor</text>
+<text x="400.0" y="622" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">Section through a simple two-storey house. Finished floor to finished floor.</text>
+</svg>

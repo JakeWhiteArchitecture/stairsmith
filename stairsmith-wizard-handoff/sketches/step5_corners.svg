@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#8a93ad" stroke-width="1.5"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#00ccff" stroke-width="1.5"/></marker>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#5b6688" stroke-width="1"/></pattern>
+</defs>
+<text x="24" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="20" font-weight="600" fill="#e0e0e0">5  Corners</text>
+<clipPath id="outside17"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M150.4,385.0 H229.6 V205.2 H150.4 Z M90.4,205.2 H150.4 V126.0 H90.4 Z M150.4,205.2 H229.6 V126.0 H150.4 Z " clip-rule="evenodd"/></clipPath>
+<line x1="157.4" y1="385.0" x2="229.6" y2="385.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="365.0" x2="229.6" y2="365.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="345.0" x2="229.6" y2="345.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="325.1" x2="229.6" y2="325.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="305.1" x2="229.6" y2="305.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="285.1" x2="229.6" y2="285.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="265.1" x2="229.6" y2="265.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="245.2" x2="229.6" y2="245.2" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="225.2" x2="229.6" y2="225.2" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="157.4" y1="205.2" x2="229.6" y2="205.2" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="90.4" y1="198.2" x2="90.4" y2="126.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="110.4" y1="198.2" x2="110.4" y2="126.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="130.4" y1="198.2" x2="130.4" y2="126.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="150.4" y1="198.2" x2="150.4" y2="126.0" stroke="#c9c9d4" stroke-width="1"/>
+<polyline points="151.2,385.0 151.2,204.3 90.4,204.3" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="157.4,385.0 157.4,198.2 90.4,198.2" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="150.4" y="377.1" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="150.4" y="197.3" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="90.4" y="197.3" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<g clip-path="url(#outside17)"><polygon points="229.6,385.0 229.6,126.0 90.4,126.0 90.4,116.3 239.2,116.3 239.2,385.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="229.6,385.0 229.6,126.0 90.4,126.0" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="190.0,379.7 190.0,165.6 95.7,165.6" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<circle cx="254.2" cy="101.4" r="9" fill="#16213e" stroke="#c9c9d4" stroke-width="1.2"/>
+<text x="254.2" y="105.4" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#c9c9d4" text-anchor="middle" font-weight="600">1</text>
+<text x="20.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="start" font-weight="600">Corner 1</text>
+<rect x="90.0" y="410.0" width="70" height="22" fill="#1a1a2e" stroke="#555555" stroke-width="1"/>
+<text x="125.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle" font-weight="600">Winders</text>
+<rect x="160.0" y="410.0" width="92" height="22" fill="#e94560" stroke="#555555" stroke-width="1"/>
+<text x="206.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="600">Flat landing</text>
+<text x="20.0" y="488.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="start">Treads per flight</text>
+<text x="95.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">9</text>
+<text x="95.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 1</text>
+<rect x="125.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="141.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9664;</text>
+<rect x="163.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="179.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9654;</text>
+<text x="225.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">3</text>
+<text x="225.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 2</text>
+<text x="160.0" y="60.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="middle" font-weight="600">L, automatic split</text>
+<clipPath id="outside18"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M490.3,385.0 H569.5 V245.2 H490.3 Z M390.5,245.2 H490.3 V166.0 H390.5 Z M490.3,245.2 H569.5 V166.0 H490.3 Z " clip-rule="evenodd"/></clipPath>
+<line x1="497.4" y1="385.0" x2="569.5" y2="385.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="365.0" x2="569.5" y2="365.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="345.0" x2="569.5" y2="345.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="325.1" x2="569.5" y2="325.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="305.1" x2="569.5" y2="305.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="285.1" x2="569.5" y2="285.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="265.1" x2="569.5" y2="265.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="497.4" y1="245.2" x2="569.5" y2="245.2" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="390.5" y1="238.1" x2="390.5" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="410.4" y1="238.1" x2="410.4" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="430.4" y1="238.1" x2="430.4" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="450.4" y1="238.1" x2="450.4" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="470.4" y1="238.1" x2="470.4" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="490.3" y1="238.1" x2="490.3" y2="166.0" stroke="#c9c9d4" stroke-width="1"/>
+<polyline points="491.2,385.0 491.2,244.3 390.5,244.3" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="497.4,385.0 497.4,238.1 390.5,238.1" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="490.3" y="377.1" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="490.3" y="237.2" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="390.5" y="237.2" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<g clip-path="url(#outside18)"><polygon points="569.5,385.0 569.5,166.0 390.5,166.0 390.5,156.3 579.2,156.3 579.2,385.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="569.5,385.0 569.5,166.0 390.5,166.0" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="529.9,379.7 529.9,205.6 395.7,205.6" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<polygon points="490.3,385.0 569.5,385.0 569.5,245.2 490.3,245.2" fill="none" stroke="#00ccff" stroke-width="1.4" stroke-linejoin="round" stroke-dasharray="5 3"/>
+<polygon points="390.5,245.2 490.3,245.2 490.3,166.0 390.5,166.0" fill="none" stroke="#00ccff" stroke-width="1.4" stroke-linejoin="round" stroke-dasharray="5 3"/>
+<circle cx="594.2" cy="141.3" r="9" fill="#16213e" stroke="#c9c9d4" stroke-width="1.2"/>
+<text x="594.2" y="145.3" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#c9c9d4" text-anchor="middle" font-weight="600">1</text>
+<text x="340.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="start" font-weight="600">Corner 1</text>
+<rect x="410.0" y="410.0" width="70" height="22" fill="#1a1a2e" stroke="#555555" stroke-width="1"/>
+<text x="445.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle" font-weight="600">Winders</text>
+<rect x="480.0" y="410.0" width="92" height="22" fill="#e94560" stroke="#555555" stroke-width="1"/>
+<text x="526.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="600">Flat landing</text>
+<text x="340.0" y="488.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="start">Treads per flight</text>
+<text x="415.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">7</text>
+<text x="415.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 1</text>
+<rect x="445.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="461.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9664;</text>
+<rect x="483.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="499.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9654;</text>
+<text x="545.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">5</text>
+<text x="545.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 2</text>
+<text x="480.0" y="60.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="middle" font-weight="600">L, two steps moved to flight 2</text>
+<clipPath id="outside19"><path d="M-2000,-2000 H4000 V4000 H-2000 Z M820.0,385.0 H899.2 V285.1 H820.0 Z M780.0,285.1 H820.0 V205.9 H780.0 Z M700.8,385.0 H780.0 V285.1 H700.8 Z M820.0,285.1 H899.2 V205.9 H820.0 Z M700.8,285.1 H780.0 V205.9 H700.8 Z " clip-rule="evenodd"/></clipPath>
+<line x1="827.0" y1="385.0" x2="899.2" y2="385.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="827.0" y1="365.0" x2="899.2" y2="365.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="827.0" y1="345.0" x2="899.2" y2="345.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="827.0" y1="325.1" x2="899.2" y2="325.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="827.0" y1="305.1" x2="899.2" y2="305.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="827.0" y1="285.1" x2="899.2" y2="285.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="780.0" y1="278.1" x2="780.0" y2="205.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="800.0" y1="278.1" x2="800.0" y2="205.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="820.0" y1="278.1" x2="820.0" y2="205.9" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="385.0" x2="773.0" y2="385.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="365.0" x2="773.0" y2="365.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="345.0" x2="773.0" y2="345.0" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="325.1" x2="773.0" y2="325.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="305.1" x2="773.0" y2="305.1" stroke="#c9c9d4" stroke-width="1"/>
+<line x1="700.8" y1="285.1" x2="773.0" y2="285.1" stroke="#c9c9d4" stroke-width="1"/>
+<polyline points="820.9,385.0 820.9,284.2 779.1,284.2 779.1,385.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<polyline points="827.0,385.0 827.0,278.1 773.0,278.1 773.0,385.0" fill="none" stroke="#00ccff" stroke-width="1.6" stroke-linejoin="round"/>
+<rect x="820.0" y="377.1" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="820.0" y="277.2" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="772.1" y="277.2" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="772.1" y="377.1" width="7.9" height="7.9" fill="#16213e" stroke="#00ccff" stroke-width="1.6"/>
+<g clip-path="url(#outside19)"><polygon points="899.2,385.0 899.2,205.9 700.8,205.9 700.8,385.0 691.1,385.0 691.1,196.2 908.9,196.2 908.9,385.0" fill="url(#hatch)" stroke="none" stroke-width="0" stroke-linejoin="round"/>
+</g>
+<polyline points="899.2,385.0 899.2,205.9 700.8,205.9 700.8,385.0" fill="none" stroke="#c9c9d4" stroke-width="2.2" stroke-linejoin="round"/>
+<polyline points="859.6,379.7 859.6,245.5 740.4,245.5 740.4,379.7" fill="none" stroke="#8a93ad" stroke-width="1.2" stroke-linejoin="round" marker-end="url(#a)"/>
+<line x1="827.9" y1="279.4" x2="899.2" y2="237.0" stroke="#00ccff" stroke-width="1.6"/>
+<line x1="825.7" y1="277.2" x2="868.1" y2="205.9" stroke="#00ccff" stroke-width="1.6"/>
+<circle cx="923.8" cy="181.3" r="9" fill="#16213e" stroke="#c9c9d4" stroke-width="1.2"/>
+<text x="923.8" y="185.3" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#c9c9d4" text-anchor="middle" font-weight="600">1</text>
+<circle cx="676.2" cy="181.3" r="9" fill="#16213e" stroke="#c9c9d4" stroke-width="1.2"/>
+<text x="676.2" y="185.3" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#c9c9d4" text-anchor="middle" font-weight="600">2</text>
+<text x="660.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="start" font-weight="600">Corner 1</text>
+<rect x="730.0" y="410.0" width="70" height="22" fill="#e94560" stroke="#555555" stroke-width="1"/>
+<text x="765.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="600">Winders</text>
+<rect x="800.0" y="410.0" width="92" height="22" fill="#1a1a2e" stroke="#555555" stroke-width="1"/>
+<text x="846.0" y="425.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle" font-weight="600">Flat landing</text>
+<text x="660.0" y="457.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="start" font-weight="600">Corner 2</text>
+<rect x="730.0" y="442.0" width="70" height="22" fill="#1a1a2e" stroke="#555555" stroke-width="1"/>
+<text x="765.0" y="457.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#aaaaaa" text-anchor="middle" font-weight="600">Winders</text>
+<rect x="800.0" y="442.0" width="92" height="22" fill="#e94560" stroke="#555555" stroke-width="1"/>
+<text x="846.0" y="457.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#ffffff" text-anchor="middle" font-weight="600">Flat landing</text>
+<text x="660.0" y="488.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="start">Treads per flight</text>
+<text x="670.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">5</text>
+<text x="670.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 1</text>
+<rect x="700.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="716.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9664;</text>
+<rect x="738.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="754.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9654;</text>
+<text x="800.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">2</text>
+<text x="800.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 2</text>
+<rect x="830.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="846.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9664;</text>
+<rect x="868.0" y="500.0" width="32" height="40" rx="4" fill="#0f3460" stroke="#1a4a80" stroke-width="1"/>
+<text x="884.0" y="524.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#e0e0e0" text-anchor="middle">&#9654;</text>
+<text x="930.0" y="520.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="22" fill="#4fdcff" text-anchor="middle" font-weight="600">5</text>
+<text x="930.0" y="536.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="10" fill="#888888" text-anchor="middle">FLIGHT 3</text>
+<text x="800.0" y="60.0" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="12" fill="#c9c9d4" text-anchor="middle" font-weight="600">U, corner 1 winders, corner 2 landing</text>
+<text x="480.0" y="582" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">Corner toggles, then treads per flight. Starts on the automatic split; the plan redraws as steps move.</text>
+</svg>

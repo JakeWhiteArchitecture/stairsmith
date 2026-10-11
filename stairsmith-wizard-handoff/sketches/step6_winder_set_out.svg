@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 700" width="800" height="700">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#8a93ad" stroke-width="1.5"/></marker>
+<marker id="aa" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9" fill="none" stroke="#00ccff" stroke-width="1.5"/></marker>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#5b6688" stroke-width="1"/></pattern>
+</defs>
+<text x="24" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="20" font-weight="600" fill="#e0e0e0">6  Winder set-out</text>
+<clipPath id="w_crop"><rect x="119.5" y="70.5" width="561.0" height="595.0"/></clipPath>
+<g clip-path="url(#w_crop)"><line x1="408.5" y1="383.3" x2="1737.9" y2="383.3" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="401.7" y1="537.7" x2="1737.9" y2="537.7" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="401.7" y1="692.0" x2="1737.9" y2="692.0" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="401.7" y1="846.4" x2="1737.9" y2="846.4" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="357.5" y1="332.3" x2="357.5" y2="-997.1" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="203.1" y1="339.1" x2="203.1" y2="-997.1" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="48.8" y1="339.1" x2="48.8" y2="-997.1" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="-105.6" y1="339.1" x2="-105.6" y2="-997.1" stroke="#c9c9d4" stroke-width="1.2"/>
+<line x1="408.5" y1="349.3" x2="1569.3" y2="-330.7" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="391.5" y1="332.3" x2="1071.5" y2="-828.5" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="354.1" y1="1722.9" x2="354.1" y2="393.5" stroke="#00ccff" stroke-width="1.6"/>
+<line x1="-982.1" y1="386.7" x2="347.3" y2="386.7" stroke="#00ccff" stroke-width="1.6"/>
+<line x1="401.7" y1="1722.9" x2="401.7" y2="393.5" stroke="#00ccff" stroke-width="1.6"/>
+<line x1="-982.1" y1="339.1" x2="347.3" y2="339.1" stroke="#00ccff" stroke-width="1.6"/>
+<rect x="347.3" y="332.3" width="61.2" height="61.2" fill="#16213e" stroke="#c9c9d4" stroke-width="2"/>
+</g>
+<line x1="412.5" y1="332.3" x2="446.5" y2="332.3" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="412.5" y1="349.3" x2="446.5" y2="349.3" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="412.5" y1="383.3" x2="446.5" y2="383.3" stroke="#8a93ad" stroke-width="1" stroke-dasharray="4 3"/>
+<line x1="442.5" y1="328.3" x2="442.5" y2="353.3" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="446.0" y1="328.8" x2="439.0" y2="335.8" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="446.0" y1="345.8" x2="439.0" y2="352.8" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="442.5" y1="345.3" x2="442.5" y2="387.3" stroke="#00ccff" stroke-width="1.4"/>
+<line x1="446.0" y1="345.8" x2="439.0" y2="352.8" stroke="#00ccff" stroke-width="1.8"/>
+<line x1="446.0" y1="379.8" x2="439.0" y2="386.8" stroke="#00ccff" stroke-width="1.8"/>
+<text x="451.5" y="345.8" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#4fdcff" text-anchor="start" font-weight="600">X 25</text>
+<text x="451.5" y="371.3" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="13" fill="#4fdcff" text-anchor="start" font-weight="600">Y 50</text>
+<text x="547.9" y="621.3" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">flight 1</text>
+<text x="153.5" y="104.5" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="start">flight 2</text>
+<text x="400.0" y="682" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" font-size="11" fill="#8a93ad" text-anchor="middle">Close-up of the newel at a left quarter turn. Winders start at the X marks; the flights meet the newel at the Y marks.</text>
+</svg>
