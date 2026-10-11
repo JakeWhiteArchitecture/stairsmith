@@ -1058,6 +1058,224 @@
         .reminder-btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .reminder-btn:active { transform: translateY(0); }
 
+        /* ─── SETUP WIZARD ─── */
+        #wizard-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            background: rgba(10, 10, 26, 0.82);
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+            overflow-y: auto;
+        }
+        #wizard-overlay.open { display: flex; }
+
+        .wizard-card {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 14px;
+            max-width: 460px;
+            width: 92%;
+            padding: 24px 28px 20px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            position: relative;
+            margin-bottom: 40px;
+        }
+        .wizard-logo {
+            display: block;
+            width: 160px;
+            height: auto;
+            margin: 0 auto 4px;
+        }
+        .wizard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .wizard-dots {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .wizard-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid #0f3460;
+            background: transparent;
+            cursor: default;
+            transition: background 0.2s, border-color 0.2s;
+            padding: 0;
+        }
+        .wizard-dot.visited {
+            background: #0f3460;
+            cursor: pointer;
+        }
+        .wizard-dot.current {
+            background: #00ccff;
+            border-color: #00ccff;
+        }
+        .wizard-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 22px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: background 0.15s;
+            flex-shrink: 0;
+        }
+        .wizard-close:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+
+        .wizard-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #e0e0e0;
+            letter-spacing: 0.03em;
+            margin: 0;
+        }
+        .wizard-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin: -8px 0 0;
+        }
+        .wizard-diagram {
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .wizard-diagram svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .wizard-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .wizard-field-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .wizard-field-row label {
+            font-size: 12px;
+            color: #c9c9d4;
+            font-weight: 500;
+        }
+        .wizard-field-row .wiz-unit {
+            color: #8a93ad;
+            font-weight: 400;
+        }
+        .wizard-field-row input[type="number"] {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 14px;
+            padding: 8px 10px;
+            width: 100%;
+            box-sizing: border-box;
+            outline: none;
+            -moz-appearance: textfield;
+        }
+        .wizard-field-row input[type="number"]:focus {
+            border-color: #00ccff;
+        }
+        .wizard-ref-values {
+            font-size: 12px;
+            color: #8a93ad;
+            line-height: 1.6;
+            padding: 6px 0;
+        }
+        .wizard-ref-values b {
+            color: #c9c9d4;
+            font-weight: 600;
+        }
+        .wizard-toggle-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .wizard-toggle-label {
+            font-size: 12px;
+            color: #c9c9d4;
+            font-weight: 500;
+        }
+        .wizard-toggle-row {
+            display: flex;
+            gap: 0;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #0f3460;
+        }
+        .wizard-toggle-btn {
+            flex: 1;
+            padding: 8px 6px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            background: #1a1a2e;
+            color: #aaa;
+            transition: background 0.15s, color 0.15s;
+            text-align: center;
+        }
+        .wizard-toggle-btn + .wizard-toggle-btn {
+            border-left: 1px solid #0f3460;
+        }
+        .wizard-toggle-btn.active {
+            background: #e94560;
+            color: #fff;
+        }
+        .wizard-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding-top: 4px;
+        }
+        .wizard-btn-back,
+        .wizard-btn-next {
+            padding: 10px 28px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .wizard-btn-back {
+            background: #1a1a2e;
+            color: #c9c9d4;
+            border: 1px solid #0f3460;
+        }
+        .wizard-btn-next {
+            background: #e94560;
+            color: #fff;
+            margin-left: auto;
+        }
+        .wizard-btn-back:hover, .wizard-btn-next:hover { opacity: 0.88; }
+
+        @media (max-width: 768px) {
+            #wizard-overlay { padding-top: 12px; }
+            .wizard-card {
+                max-width: 100%;
+                border-radius: 10px;
+                padding: 18px 16px 16px;
+            }
+        }
+
         /* ─── HAMBURGER BUTTON (hidden on desktop) ─── */
         .hamburger-btn {
             display: none;
@@ -1514,6 +1732,7 @@
       </div>
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="openWizard();" style="margin-bottom:8px;">Stair wizard</button>
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
             <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
             <div style="display:flex; gap:6px; margin-top:8px; align-items:center;">
@@ -1582,6 +1801,25 @@
         </div>
     </div>
 
+    <!-- Setup Wizard -->
+    <div id="wizard-overlay">
+        <div class="wizard-card">
+            <img src="StairSmith-Logo.png" alt="StairSmith" class="wizard-logo">
+            <div class="wizard-header">
+                <div class="wizard-dots" id="wizard-dots"></div>
+                <button class="wizard-close" onclick="closeWizard(true)" aria-label="Close">&#10005;</button>
+            </div>
+            <h3 class="wizard-title" id="wizard-title"></h3>
+            <p class="wizard-subtitle" id="wizard-subtitle"></p>
+            <div class="wizard-diagram" id="wizard-diagram"></div>
+            <div class="wizard-fields" id="wizard-fields"></div>
+            <div class="wizard-nav">
+                <button class="btn wizard-btn-back" id="wizard-back" onclick="wizardBack()">Back</button>
+                <button class="btn wizard-btn-next" id="wizard-next" onclick="wizardNext()">Next</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Pyodide -->
     <!-- Pyodide loader. SRI is intentionally omitted: this loader fetches the
          WASM runtime and package wheels at runtime (which SRI here would not
@@ -1634,6 +1872,8 @@
             if (window.innerWidth <= 768) {
                 setTimeout(function() { toggleDrawer(); }, 100);
             }
+            // Auto-open the setup wizard on first load
+            setTimeout(function() { openWizard(); }, 600);
         }
 
         // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
@@ -1865,6 +2105,276 @@
                 if (e.target === this) closeShareModal();
             });
         });
+
+        // ─── SETUP WIZARD ───
+        let _wizardOpen = false;
+        let _wizardStep = 0;
+        let _wizardSteps = [];
+        let _wizardVisited = new Set();
+        let _wizardDiagramDebounce = null;
+        let _orbControlsSaved = true;
+
+        async function initWizard() {
+            try {
+                const stepsJSON = await pyodide.runPythonAsync(`
+import json as _json
+from stair_wizard import get_steps_for_type as _gsft, compute_ref_values as _crv
+_json.dumps([])
+`);
+            } catch (e) {
+                console.warn('Wizard init:', e);
+            }
+        }
+
+        function _getWizardSteps() {
+            var type = document.getElementById('staircase_type').value;
+            var isTurning = (type === 'single_winder' || type === 'double_winder');
+            var isHalf = (type === 'half_landing');
+            var isTurningOrHalf = isTurning || isHalf;
+            var hasWinders = false;
+            if (isTurning) {
+                hasWinders = isTurnWinder('turn1-toggle') || isTurnWinder('turn2-toggle');
+            }
+            var steps = [
+                { id: 'stair_type', title: 'Stair type', subtitle: 'Choose the shape of your staircase', diagram: 'step0_stair_type' },
+                { id: 'height', title: 'Height', subtitle: 'Set the floor-to-floor dimension', diagram: 'step1_height' },
+            ];
+            return steps;
+        }
+
+        function openWizard() {
+            _wizardOpen = true;
+            _wizardStep = 0;
+            _wizardSteps = _getWizardSteps();
+            _wizardVisited = new Set([0]);
+            document.getElementById('wizard-overlay').classList.add('open');
+            if (window.controls) {
+                _orbControlsSaved = window.controls.enabled;
+                window.controls.enabled = false;
+            }
+            renderWizardStep();
+            document.addEventListener('keydown', _wizardEscHandler);
+        }
+
+        function closeWizard(resetDefaults) {
+            _wizardOpen = false;
+            document.getElementById('wizard-overlay').classList.remove('open');
+            document.removeEventListener('keydown', _wizardEscHandler);
+            if (window.controls) {
+                window.controls.enabled = _orbControlsSaved;
+            }
+            if (resetDefaults) {
+                document.getElementById('staircase_type').value = 'straight';
+                onTypeChange();
+                document.getElementById('floor_to_floor').value = 2700;
+                document.getElementById('num_risers').value = 14;
+                document.getElementById('going').value = 227;
+                document.getElementById('nosing').value = 16;
+                document.getElementById('tread_thickness').value = 22;
+                document.getElementById('riser_thickness').value = 9;
+                document.getElementById('stair_width').value = 900;
+                document.getElementById('newel_size').value = 90;
+                updateDerived();
+                updatePreview();
+            }
+        }
+
+        function _wizardEscHandler(e) {
+            if (e.key === 'Escape') {
+                closeWizard(true);
+            }
+        }
+
+        async function renderWizardStep() {
+            var steps = _wizardSteps;
+            if (!steps.length) return;
+            var step = steps[_wizardStep];
+            document.getElementById('wizard-title').textContent = step.title;
+            document.getElementById('wizard-subtitle').textContent = step.subtitle || '';
+            _renderWizardDots();
+            _renderWizardFields(step);
+            var backBtn = document.getElementById('wizard-back');
+            var nextBtn = document.getElementById('wizard-next');
+            backBtn.style.display = _wizardStep === 0 ? 'none' : '';
+            nextBtn.textContent = _wizardStep === steps.length - 1 ? 'Finish' : 'Next';
+            await _renderWizardDiagram(step);
+        }
+
+        function _renderWizardDots() {
+            var container = document.getElementById('wizard-dots');
+            container.innerHTML = '';
+            for (var i = 0; i < _wizardSteps.length; i++) {
+                var dot = document.createElement('button');
+                dot.className = 'wizard-dot';
+                if (i === _wizardStep) dot.classList.add('current');
+                else if (_wizardVisited.has(i)) dot.classList.add('visited');
+                dot.setAttribute('aria-label', 'Step ' + (i + 1));
+                if (_wizardVisited.has(i) && i !== _wizardStep) {
+                    (function(idx) {
+                        dot.onclick = function() { _wizardGoTo(idx); };
+                    })(i);
+                }
+                container.appendChild(dot);
+            }
+        }
+
+        function _renderWizardFields(step) {
+            var container = document.getElementById('wizard-fields');
+            container.innerHTML = '';
+
+            if (step.id === 'stair_type') {
+                _renderTypeToggles(container);
+                _renderHandToggle(container);
+            } else if (step.id === 'height') {
+                _renderNumberField(container, 'floor_to_floor', 'Floor to floor height', 'mm', 2200, 3200, 10);
+            }
+        }
+
+        function _renderTypeToggles(container) {
+            var group = document.createElement('div');
+            group.className = 'wizard-toggle-group';
+            var label = document.createElement('div');
+            label.className = 'wizard-toggle-label';
+            label.textContent = 'Layout';
+            group.appendChild(label);
+            var row = document.createElement('div');
+            row.className = 'wizard-toggle-row';
+            var types = [
+                { value: 'straight', label: 'Straight' },
+                { value: 'single_winder', label: 'L-shape' },
+                { value: 'double_winder', label: 'U-shape' },
+                { value: 'half_landing', label: 'Half-landing' },
+            ];
+            var current = document.getElementById('staircase_type').value;
+            types.forEach(function(t) {
+                var btn = document.createElement('button');
+                btn.className = 'wizard-toggle-btn';
+                if (t.value === current) btn.classList.add('active');
+                btn.textContent = t.label;
+                btn.onclick = function() {
+                    document.getElementById('staircase_type').value = t.value;
+                    onTypeChange();
+                    _wizardSteps = _getWizardSteps();
+                    _wizardVisited = new Set([0]);
+                    _wizardStep = 0;
+                    renderWizardStep();
+                };
+                row.appendChild(btn);
+            });
+            group.appendChild(row);
+            container.appendChild(group);
+        }
+
+        function _renderHandToggle(container) {
+            var type = document.getElementById('staircase_type').value;
+            if (type === 'straight') return;
+            var group = document.createElement('div');
+            group.className = 'wizard-toggle-group';
+            var label = document.createElement('div');
+            label.className = 'wizard-toggle-label';
+            label.textContent = 'Hand';
+            group.appendChild(label);
+            var row = document.createElement('div');
+            row.className = 'wizard-toggle-row';
+            var isRight = document.getElementById('mirror-btn').classList.contains('active');
+            [{ value: 'left', label: 'Left turn' }, { value: 'right', label: 'Right turn' }].forEach(function(opt) {
+                var btn = document.createElement('button');
+                btn.className = 'wizard-toggle-btn';
+                if ((opt.value === 'right' && isRight) || (opt.value === 'left' && !isRight)) {
+                    btn.classList.add('active');
+                }
+                btn.textContent = opt.label;
+                btn.onclick = function() {
+                    var mirrorBtn = document.getElementById('mirror-btn');
+                    var wantRight = (opt.value === 'right');
+                    var currentRight = mirrorBtn.classList.contains('active');
+                    if (wantRight !== currentRight) {
+                        mirrorBtn.classList.toggle('active');
+                        mirrorSides();
+                        updatePreview();
+                    }
+                    renderWizardStep();
+                };
+                row.appendChild(btn);
+            });
+            group.appendChild(row);
+            container.appendChild(group);
+        }
+
+        function _renderNumberField(container, paramId, label, unit, min, max, step) {
+            var row = document.createElement('div');
+            row.className = 'wizard-field-row';
+            var lbl = document.createElement('label');
+            lbl.innerHTML = label + ' <span class="wiz-unit">' + unit + '</span>';
+            row.appendChild(lbl);
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.value = document.getElementById(paramId).value;
+            input.min = min;
+            input.max = max;
+            input.step = step;
+            input.oninput = function() {
+                document.getElementById(paramId).value = input.value;
+                updateDerived();
+                updatePreview();
+                _debounceWizardDiagram();
+            };
+            row.appendChild(input);
+            container.appendChild(row);
+        }
+
+        function _debounceWizardDiagram() {
+            if (_wizardDiagramDebounce) clearTimeout(_wizardDiagramDebounce);
+            _wizardDiagramDebounce = setTimeout(function() {
+                var step = _wizardSteps[_wizardStep];
+                if (step) _renderWizardDiagram(step);
+            }, 200);
+        }
+
+        async function _renderWizardDiagram(step) {
+            if (!window.pyodideReady || !step.diagram) {
+                document.getElementById('wizard-diagram').innerHTML = '';
+                return;
+            }
+            try {
+                var params = getParams();
+                var paramsJSON = JSON.stringify(params);
+                pyodide.globals.set('_wizard_params_json', paramsJSON);
+                pyodide.globals.set('_wizard_diagram_fn', step.diagram);
+                var svg = await pyodide.runPythonAsync(`
+import json as _json
+from stair_diagrams import get_diagram as _get_diagram
+_get_diagram(_wizard_diagram_fn, _json.loads(_wizard_params_json))
+`);
+                document.getElementById('wizard-diagram').innerHTML = svg;
+            } catch (err) {
+                console.warn('Wizard diagram error:', err);
+            }
+        }
+
+        function wizardNext() {
+            if (_wizardStep < _wizardSteps.length - 1) {
+                _wizardStep++;
+                _wizardVisited.add(_wizardStep);
+                renderWizardStep();
+            } else {
+                closeWizard(false);
+            }
+        }
+
+        function wizardBack() {
+            if (_wizardStep > 0) {
+                _wizardStep--;
+                renderWizardStep();
+            }
+        }
+
+        function _wizardGoTo(idx) {
+            if (idx >= 0 && idx < _wizardSteps.length && _wizardVisited.has(idx)) {
+                _wizardStep = idx;
+                renderWizardStep();
+            }
+        }
 
         // ─── FLIGHT DISTRIBUTION ───
         let flightDist = { f1: 0, f2: 0, f3: 0 };
@@ -3215,6 +3725,8 @@ _to_dxf(_meshes, _p)
                     'stair_flights.py',
                     'stair_preview.py',
                     'dxf_generator.py',
+                    'stair_wizard.py',
+                    'stair_diagrams.py',
                 ];
                 const v = Date.now();
                 for (const mod of stairModules) {
@@ -3228,6 +3740,8 @@ _to_dxf(_meshes, _p)
 import sys
 sys.path.insert(0, '/home/pyodide')
 from stair_preview import generate_preview_geometry
+from stair_wizard import get_steps_for_type, compute_ref_values
+from stair_diagrams import get_diagram
 `);
                 window.pyodideReady = true;
                 onPyodideReady();
