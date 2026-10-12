@@ -79,9 +79,67 @@ class _DxfWriter:
     def add_text(self, text, position, height=5.0, layer="0"):
         self._texts.append((text, position, height, layer))
 
+    def _layer_color(self, layer):
+        return self._layers.get(layer, {"color": 7})["color"]
+
+    def _drop_grey_under_white(self):
+        """Remove the parts of grey (colour 8) lines that lie on top of white (colour 7) lines.
+
+        A grey hidden or beyond line drawn over a white visible edge reads as a
+        doubled line in CAD, so the white edge wins wherever the two coincide.
+        """
+        tol = 0.01
+
+        def frame(a, b):
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(dx, dy)
+            if L < _MIN_LENGTH:
+                return None
+            ux, uy = dx / L, dy / L
+            if ux < -1e-9 or (abs(ux) <= 1e-9 and uy < 0):   # one direction per line
+                ux, uy = -ux, -uy
+            off = a[0] * uy - a[1] * ux                      # signed distance from origin
+            return ux, uy, off
+
+        def key(ux, uy, off):
+            return (round(ux, 4), round(uy, 4), round(off / tol))
+
+        white = {}
+        for a, b, layer in self._entities:
+            if self._layer_color(layer) == 7:
+                f = frame(a, b)
+                if f:
+                    ux, uy, off = f
+                    t0, t1 = sorted((a[0] * ux + a[1] * uy, b[0] * ux + b[1] * uy))
+                    white.setdefault(key(*f), []).append((t0, t1))
+
+        kept = []
+        for a, b, layer in self._entities:
+            f = None if self._layer_color(layer) != 8 else frame(a, b)
+            if not f:
+                kept.append((a, b, layer))
+                continue
+            ux, uy, off = f
+            k = key(*f)
+            cuts = []
+            for dk in (-1, 0, 1):
+                cuts.extend(white.get((k[0], k[1], k[2] + dk), ()))
+            if not cuts:
+                kept.append((a, b, layer))
+                continue
+            t0, t1 = sorted((a[0] * ux + a[1] * uy, b[0] * ux + b[1] * uy))
+            for s0, s1 in _subtract_intervals([(t0, t1)], cuts):
+                if s1 - s0 > tol:
+                    # Rebuild points on the grey line from the along-line parameter.
+                    p0 = (s0 * ux + off * uy, s0 * uy - off * ux)
+                    p1 = (s1 * ux + off * uy, s1 * uy - off * ux)
+                    kept.append((p0, p1, layer))
+        self._entities = kept
+
     # ── serialisation ──
 
     def to_string(self):
+        self._drop_grey_under_white()
         lines = []
         a = lines.append
 

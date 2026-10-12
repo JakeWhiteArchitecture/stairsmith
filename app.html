@@ -1165,7 +1165,40 @@
         .wizard-toggle-btn + .wizard-toggle-btn { border-left: 1px solid #0f3460; }
         .wizard-toggle-btn:hover:not(.active) { color: #e0e0e0; }
         .wizard-toggle-btn.active { background: #e94560; color: #fff; }
-        .wizard-nav { display: flex; align-items: center; gap: 10px; padding-top: 2px; }
+        .wizard-dist { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+        .wizard-dist-track { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+        .wizard-dist-flight { display: flex; flex-direction: column; align-items: center; min-width: 56px; }
+        .wizard-dist-flight strong { font-size: 24px; font-weight: 700; color: #4fdcff; line-height: 1.1; }
+        .wizard-dist-flight span { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.06em; }
+        .wizard-dist-arrows { display: flex; gap: 6px; }
+        .wizard-dist-btn {
+            width: 44px;
+            height: 40px;
+            border-radius: 6px;
+            border: 1px solid #1a4a80;
+            background: #0f3460;
+            color: #e0e0e0;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .wizard-dist-btn:hover:not(:disabled) { border-color: #00ccff; }
+        .wizard-dist-btn:disabled { opacity: 0.35; cursor: default; }
+        .wizard-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: sticky;           /* Back/Next stay in view on tall steps */
+            bottom: 0;
+            margin: 0 -28px -20px;
+            padding: 12px 28px 20px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            border-radius: 0 0 14px 14px;
+        }
+        @media (max-height: 960px) {
+            .wizard-logo { width: 110px; }
+            .wizard-diagram svg { max-height: 38vh; }
+        }
         .wizard-btn-back, .wizard-btn-next {
             padding: 10px 28px;
             font-size: 14px;
@@ -1184,6 +1217,7 @@
         @media (max-width: 768px) {
             #wizard-overlay { padding: 12px 0; }
             .wizard-card { padding: 16px; gap: 12px; }
+            .wizard-nav { margin: 0 -16px -16px; padding: 10px 16px 16px; }
             .wizard-logo { width: 120px; }
             .wizard-toggle-row { flex-wrap: wrap; }
             .wizard-toggle-btn { flex: 1 1 45%; border-top: 1px solid #0f3460; margin-top: -1px; }
@@ -1787,7 +1821,7 @@
                 setTimeout(function() { toggleDrawer(); }, 100);
             }
             // Auto-open the setup wizard on first load
-            setTimeout(function() { openWizard(); }, 600);
+            setTimeout(function() { openWizard(true); }, 600);
         }
 
         // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
@@ -2072,11 +2106,20 @@ _json.dumps(_sfu(_json.loads(_wz_params), _ad()))
             return _wizardSteps.findIndex(s => s.id === _wizardStepId);
         }
 
-        function openWizard() {
+        // initial=true on page load: apply the wizard's start values (corners as
+        // flat landings). From the sidebar button it opens on the current settings.
+        function openWizard(initial) {
             if (!window.pyodideReady || _wizardOpen) return;
             _wizardStepId = null;
             _wizardVisited = new Set();
             try {
+                if (initial === true) {
+                    const start = JSON.parse(_wizardPy(`
+from stair_wizard import wizard_start_values as _wsv
+_json.dumps(_wsv())
+`));
+                    Object.entries(start).forEach(([k, v]) => _wizardApplyToggle(k, v));
+                }
                 _wizardLoadSteps();
             } catch (err) {
                 console.error('Wizard failed to load:', err);
@@ -2113,8 +2156,10 @@ _json.dumps(_sfu(_json.loads(_wz_params), _ad()))
         function _renderWizard() {
             const idx = _wizardIndex();
             const step = _wizardSteps[idx];
+            const type = document.getElementById('staircase_type').value;
             document.getElementById('wizard-title').textContent = step.title;
-            document.getElementById('wizard-subtitle').textContent = step.subtitle || '';
+            document.getElementById('wizard-subtitle').textContent =
+                (step.subtitle_by_type && step.subtitle_by_type[type]) || step.subtitle || '';
             _renderWizardDots(idx);
             _renderWizardFields(step);
             document.getElementById('wizard-back').hidden = (idx === 0);
@@ -2149,11 +2194,12 @@ _json.dumps(_sfu(_json.loads(_wz_params), _ad()))
             const box = document.getElementById('wizard-fields');
             box.innerHTML = '';
             const params = getParams();
-            (step.toggles || []).forEach(t => {
-                if (t.show_for_types && !t.show_for_types.includes(params.staircase_type)) return;
-                box.appendChild(_wizardToggle(t, params[t.param]));
+            const applies = item => !item.show_for_types || item.show_for_types.includes(params.staircase_type);
+            (step.toggles || []).filter(applies).forEach(t => box.appendChild(_wizardToggle(t, params[t.param])));
+            (step.fields || []).filter(applies).forEach(f => box.appendChild(_wizardNumber(f)));
+            (step.widgets || []).filter(applies).forEach(w => {
+                if (w.id === 'flight_distribution') box.appendChild(_wizardFlightDist(w));
             });
-            (step.fields || []).forEach(f => box.appendChild(_wizardNumber(f)));
             if (step.ref_values) {
                 const refs = document.createElement('div');
                 refs.className = 'wizard-ref-values';
@@ -2186,22 +2232,100 @@ _json.dumps(_sfu(_json.loads(_wz_params), _ad()))
             return group;
         }
 
-        function _wizardSetToggle(param, value) {
+        // Set a toggle by pressing the sidebar's own control, so its handler runs
+        // exactly as if clicked there. Returns false if nothing changed.
+        function _wizardApplyToggle(param, value) {
             if (param === 'staircase_type') {
                 const sel = document.getElementById('staircase_type');
-                if (sel.value === value) return;
+                if (sel.value === value) return false;
                 sel.value = value;
                 sel.dispatchEvent(new Event('change'));
-                _wizardLoadSteps();
-            } else if (param === 'turn1_direction') {
-                const btn = document.getElementById('mirror-btn');
-                if (btn.classList.contains('active') === (value === 'right')) return;
-                btn.click();
-            } else {
-                console.warn('Wizard: no sidebar control for', param);
-                return;
+                return true;
             }
+            if (param === 'turn1_direction') {
+                const btn = document.getElementById('mirror-btn');
+                if (btn.classList.contains('active') === (value === 'right')) return false;
+                btn.click();
+                return true;
+            }
+            const groups = {
+                turn1_enabled: 'turn1-toggle', turn2_enabled: 'turn2-toggle',
+                left_condition: 'left-side-toggle', right_condition: 'right-side-toggle',
+            };
+            if (!groups[param]) {
+                console.warn('Wizard: no sidebar control for', param);
+                return false;
+            }
+            let dataValue = value;
+            if (param === 'turn1_enabled' || param === 'turn2_enabled') {
+                dataValue = (value === true || value === 'true') ? 'winder' : 'landing';
+            }
+            const btn = document.querySelector('#' + groups[param] + ' .turn-btn[data-value="' + dataValue + '"]');
+            if (!btn || btn.classList.contains('active')) return false;
+            btn.click();
+            return true;
+        }
+
+        function _wizardSetToggle(param, value) {
+            if (!_wizardApplyToggle(param, value)) return;
+            _wizardLoadSteps();   // a type or corner change can add or remove steps
             _renderWizard();
+        }
+
+        // Treads per flight as built, moved with the sidebar's transferStep().
+        function _wizardFlightDist(w) {
+            const wrap = document.createElement('div');
+            wrap.className = 'wizard-dist';
+            const label = document.createElement('div');
+            label.className = 'wizard-toggle-label';
+            label.textContent = w.label;
+            wrap.appendChild(label);
+            const track = document.createElement('div');
+            track.className = 'wizard-dist-track';
+            track.id = 'wizard-dist-track';
+            wrap.appendChild(track);
+            return wrap;
+        }
+
+        function _renderWizardFlightDist() {
+            const track = document.getElementById('wizard-dist-track');
+            if (!track) return;
+            const counts = JSON.parse(_wizardPy(`
+from stair_plan import flight_tread_counts as _ftc
+_json.dumps(_ftc(_json.loads(_wz_params)))
+`));
+            const n = document.getElementById('staircase_type').value === 'double_winder' ? 3 : 2;
+            track.innerHTML = '';
+            for (let k = 1; k <= n; k++) {
+                const f = document.createElement('div');
+                f.className = 'wizard-dist-flight';
+                const strong = document.createElement('strong');
+                strong.textContent = counts[k] || 0;
+                const span = document.createElement('span');
+                span.textContent = 'Flight ' + k;
+                f.appendChild(strong);
+                f.appendChild(span);
+                track.appendChild(f);
+                if (k < n) {
+                    const arrows = document.createElement('div');
+                    arrows.className = 'wizard-dist-arrows';
+                    [[k + 1, k, '◀'], [k, k + 1, '▶']].forEach(([from, to, glyph]) => {
+                        const b = document.createElement('button');
+                        b.type = 'button';
+                        b.className = 'wizard-dist-btn';
+                        b.textContent = glyph;
+                        b.setAttribute('aria-label', 'Move a tread from flight ' + from + ' to flight ' + to);
+                        const side = document.getElementById('btn-f' + from + '-to-f' + to);
+                        b.disabled = !!(side && side.disabled);
+                        b.onclick = () => {
+                            transferStep(from, to);
+                            _renderWizardLive();
+                        };
+                        arrows.appendChild(b);
+                    });
+                    track.appendChild(arrows);
+                }
+            }
         }
 
         function _wizardNumber(f) {
@@ -2275,6 +2399,7 @@ _json.dumps(_crv(_json.loads(_wz_params)))
                     refs.innerHTML = 'Rise <b>' + r.rise + ' mm</b> &middot; Treads <b>' + r.treads +
                         '</b> &middot; Pitch <b>' + r.pitch + '&deg;</b><span>For information only.</span>';
                 }
+                _renderWizardFlightDist();
             } catch (err) {
                 console.error('Wizard diagram error:', err);
             }
@@ -2310,6 +2435,8 @@ _json.dumps(_crv(_json.loads(_wz_params)))
                 const t1 = isTurnWinder('turn1-toggle') ? 3 : 0;
                 const t2 = isTurnWinder('turn2-toggle') ? 3 : 0;
                 return Math.max(0, numTreads - t1 - t2);
+            } else if (type === 'half_landing') {
+                return Math.max(0, numTreads - 1);   // the landing takes one tread level
             }
             return numTreads;
         }
@@ -2562,7 +2689,14 @@ _json.dumps(_crv(_json.loads(_wz_params)))
         function computeNewelToNewel() {
             const ns = parseFloat(document.getElementById('newel_size').value) || 90;
             const oversize = Math.max(0, parseFloat(document.getElementById('landing_oversize').value) || 0);
-            return ns + 50 + oversize;
+            return Math.max(ns + 50 + oversize, ns + halfLandingWellGap());
+        }
+        // Clear gap between the corner newels: 50mm, or 100mm so a wall fits
+        // between the flights when the inner side is a wall. Matches _parse().
+        function halfLandingWellGap() {
+            const mirrored = document.getElementById('mirror-btn').classList.contains('active');
+            const inner = getSideCondition(mirrored ? 'right-side-toggle' : 'left-side-toggle');
+            return (isHalfLanding() && inner === 'wall') ? 100 : 50;
         }
         function onLandingOversizeChange() {
             const input = document.getElementById('landing_oversize');
@@ -2587,6 +2721,7 @@ _json.dumps(_crv(_json.loads(_wz_params)))
             const btn = event.target;
             group.querySelectorAll('.turn-btn').forEach(b => b.classList.toggle('active', b === btn));
             updateToggleState();
+            if (isHalfLanding()) updateHalfLandingDerived();
             updatePreview();
         }
 
@@ -3648,6 +3783,7 @@ _to_dxf(_meshes, _p)
                     'stair_preview.py',
                     'dxf_generator.py',
                     'stair_wizard.py',
+                    'stair_plan.py',
                     'stair_diagrams.py',
                 ];
                 const v = Date.now();

@@ -5,8 +5,12 @@ Each step is a dict with:
   id        — short string key
   title     — heading shown in the wizard
   subtitle  — one plain line under the heading
-  fields    — list of number-field dicts (param, label, unit, default, min, max, step)
+  subtitle_by_type — optional {staircase_type: subtitle} overriding subtitle
+  fields    — list of number-field dicts (param, label, unit, default, min, max, step,
+              optional show_for_types)
   toggles   — list of toggle-group dicts (param, label, options, optional show_for_types)
+  widgets   — optional list of {id, label, show_for_types} for controls the UI provides
+              itself (flight_distribution: treads per flight)
   ref_values — optional list of reference values shown in grey (see compute_ref_values)
   show      — callable(params) -> bool; whether the step applies to the chosen stair
   diagram   — name of the diagram function in stair_diagrams.py
@@ -17,6 +21,10 @@ wizard UI from this definition.
 """
 
 from stair_constants import _parse, pitch_degrees
+
+# The wizard sets corners to flat landings when it first opens; winders are
+# chosen on the Corners step (the sidebar on its own defaults to winders).
+WIZARD_START = {"turn1_enabled": False, "turn2_enabled": False}
 
 TURNING_TYPES = ("single_winder", "double_winder", "half_landing")
 
@@ -30,9 +38,12 @@ def _is_turning(p):
 
 
 def _has_winders(p):
-    if not _is_turning(p):
-        return False
-    return bool(p.get("turn1_enabled")) or bool(p.get("turn2_enabled"))
+    t = p.get("staircase_type", "straight")
+    if t == "single_winder":
+        return bool(p.get("turn1_enabled"))     # an L has no second corner
+    if t == "double_winder":
+        return bool(p.get("turn1_enabled")) or bool(p.get("turn2_enabled"))
+    return False
 
 
 def _is_half_landing(p):
@@ -208,15 +219,55 @@ STEPS = [
         "id": "corners",
         "title": "Corners",
         "subtitle": "Winders or a flat landing at each corner, then treads per flight.",
-        "fields": [],
-        "toggles": [],
+        "subtitle_by_type": {
+            "half_landing": "Spacing of the newels either side of the well, and any extra landing width.",
+        },
+        "fields": [
+            {
+                "param": "landing_oversize",
+                "label": "Landing oversize",
+                "unit": "mm",
+                "default": 0,
+                "min": 0,
+                "max": 2000,
+                "step": 10,
+                "show_for_types": ["half_landing"],
+            },
+        ],
+        "toggles": [
+            {
+                # true means winders, as in getParams() and _parse()
+                "param": "turn1_enabled",
+                "label": "Corner 1",
+                "show_for_types": ["single_winder", "double_winder"],
+                "options": [
+                    {"value": True, "label": "Winder Treads"},
+                    {"value": False, "label": "Flat Landing"},
+                ],
+            },
+            {
+                "param": "turn2_enabled",
+                "label": "Corner 2",
+                "show_for_types": ["double_winder"],
+                "options": [
+                    {"value": True, "label": "Winder Treads"},
+                    {"value": False, "label": "Flat Landing"},
+                ],
+            },
+        ],
+        # Treads per flight, using the sidebar's transferStep() and its limits.
+        "widgets": [
+            {"id": "flight_distribution", "label": "Treads per flight",
+             "show_for_types": ["single_winder", "double_winder"]},
+        ],
         "show": _is_turning_or_half,
         "diagram": "step5_corners",
     },
     {
         "id": "winder_setout",
         "title": "Winder set-out",
-        "subtitle": "Where the winders meet the newel. Applies to every winder corner.",
+        "subtitle": "Measured down the newel face from its inside corner: winders start at X, "
+                    "the flights meet the newel at Y. Applies to every winder corner.",
         "fields": [
             {
                 "param": "winder_x",
@@ -266,6 +317,11 @@ def steps_for_ui(params, available_diagrams=None):
             continue
         out.append({k: v for k, v in s.items() if k != "show"})
     return out
+
+
+def wizard_start_values():
+    """Values the wizard applies when it first opens on page load."""
+    return dict(WIZARD_START)
 
 
 def compute_ref_values(params):

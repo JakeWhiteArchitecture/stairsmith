@@ -3,7 +3,8 @@ StairSmith wizard diagrams — SVG strings drawn from the current parameters.
 
 Each public stepN function takes a params dict and returns an SVG string.
 From step 2 onwards, values come from StairSmith's own parsing and geometry
-(stair_constants._parse) so the drawing and the 3D model agree.
+(stair_constants._parse, and stair_plan.plan_geometry for the plans) so the
+drawing and the 3D model agree.
 Drawing helpers and palette ported from the handoff make_sketches.py.
 """
 
@@ -332,6 +333,359 @@ def step3_treads_risers(params):
     return _svg(body, (110, 40, 580, 400))
 
 
+# ── Plan drawings (steps 4 to 6) ───────────────────────────────────
+# Everything below is drawn from stair_plan.plan_geometry(), i.e. from the
+# meshes StairSmith builds for the 3D model.
+
+_HATCH_DEPTH = 110.0   # mm of wall hatch shown outside a wall line
+
+
+def _lines_of(geom):
+    """Coordinate lists for every line in a shapely geometry."""
+    if geom is None or geom.is_empty:
+        return []
+    t = geom.geom_type
+    if t == "LineString":
+        return [list(geom.coords)]
+    if t == "LinearRing":
+        return [list(geom.coords)]
+    if t == "Polygon":
+        return [list(geom.exterior.coords)] + [list(r.coords) for r in geom.interiors]
+    out = []
+    for g in getattr(geom, "geoms", []):
+        out.extend(_lines_of(g))
+    return out
+
+
+def _polys_of(geom):
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "Polygon":
+        return [geom]
+    return [g for g in getattr(geom, "geoms", []) if g.geom_type == "Polygon"]
+
+
+def _path_d(poly, T):
+    d = ""
+    for ring in [poly.exterior] + list(poly.interiors):
+        pts = [T(x, y) for x, y in ring.coords]
+        d += "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts) + " Z "
+    return d
+
+
+def _plan_parts(g):
+    """Visible plan linework in model mm, split by what it belongs to."""
+    from shapely.geometry import LineString, box
+    from shapely.ops import unary_union
+
+    cover = None
+    edges_by_kind = {"corner": [], "other": []}
+    corner_names = set()
+    for e in g["elements"]:
+        if e["kind"] == "winder" or (e["kind"] == "landing" and e["name"] != "Half Landing"):
+            corner_names.add(e["name"])
+    # Top down: each surface shows only the outline not already hidden by a higher one.
+    for e in sorted(g["elements"], key=lambda e: -e["z"]):
+        ring = e["poly"].boundary
+        vis = ring if cover is None else ring.difference(cover)
+        edges_by_kind["corner" if e["name"] in corner_names else "other"].append(vis)
+        cover = e["poly"] if cover is None else cover.union(e["poly"])
+
+    newels = unary_union(g["newels"]) if g["newels"] else None
+    wall_lines, bands, cuts = [], [], []
+    for s in g["stringers"]:
+        if not s["wall"]:
+            continue
+        x0, y0, x1, y1 = s["rect"].bounds
+        nx, ny = s["outward"]
+        if s["axis"] == "y":
+            face, c = (x1 if nx > 0 else x0), (x0 + x1) / 2
+            wall_lines.append(LineString([(face, y0), (face, y1)]))
+            bands.append(box(min(face, face + nx * _HATCH_DEPTH), y0 - _HATCH_DEPTH,
+                             max(face, face + nx * _HATCH_DEPTH), y1 + _HATCH_DEPTH))
+            cuts.append(box(min(c, face + nx * 3), y0, max(c, face + nx * 3), y1))
+        else:
+            face, c = (y1 if ny > 0 else y0), (y0 + y1) / 2
+            wall_lines.append(LineString([(x0, face), (x1, face)]))
+            bands.append(box(x0 - _HATCH_DEPTH, min(face, face + ny * _HATCH_DEPTH),
+                             x1 + _HATCH_DEPTH, max(face, face + ny * _HATCH_DEPTH)))
+            cuts.append(box(x0, min(c, face + ny * 3), x1, max(c, face + ny * 3)))
+    # Nothing is drawn beyond the inner handrail line or the wall face, or inside a newel.
+    cut = unary_union(list(g["handrails"]) + cuts + ([newels] if newels is not None else []))
+    edges = {}
+    for k, parts in edges_by_kind.items():
+        geom = unary_union(parts) if parts else None
+        if geom is not None and not cut.is_empty:
+            geom = geom.difference(cut)
+        edges[k] = geom
+    hatch = unary_union(bands).difference(g["footprint"]) if bands else None
+    wall = unary_union(wall_lines) if wall_lines else None
+    if newels is not None:
+        if hatch is not None:
+            hatch = hatch.difference(newels)
+        if wall is not None:
+            wall = wall.difference(newels)
+    return {"edges": edges, "hatch": hatch, "wall": wall, "path": _travel_path(g)}
+
+
+def _travel_path(g):
+    """Line of travel along each flight's centreline, turning where centrelines meet."""
+    from shapely.geometry import LineString
+    runs = []   # consecutive treads of one flight, in walking order
+    for e in g["elements"]:
+        if e["kind"] != "tread":
+            continue
+        if runs and runs[-1]["flight"] == e["flight"]:
+            runs[-1]["treads"].append(e)
+        else:
+            runs.append({"flight": e["flight"], "treads": [e]})
+    if not runs:
+        return None
+    for r in runs:
+        a, b = r["treads"][0]["poly"], r["treads"][-1]["poly"]
+        x0, y0, x1, y1 = a.bounds
+        if len(r["treads"]) > 1:
+            along_y = abs(b.centroid.y - a.centroid.y) >= abs(b.centroid.x - a.centroid.x)
+        else:
+            along_y = (x1 - x0) >= (y1 - y0)       # a tread is wider than it is deep
+        r["along_y"] = along_y
+        r["lat"] = a.centroid.x if along_y else a.centroid.y
+        r["start"] = a.centroid.y if along_y else a.centroid.x
+        r["end"] = b.centroid.y if along_y else b.centroid.x
+
+    def pt(r, along):
+        return (r["lat"], along) if r["along_y"] else (along, r["lat"])
+
+    pts = [pt(runs[0], runs[0]["start"])]
+    for r, nxt in zip(runs, runs[1:]):
+        if r["along_y"] != nxt["along_y"]:
+            pts.append((r["lat"], nxt["lat"]) if r["along_y"] else (nxt["lat"], r["lat"]))
+        else:
+            # parallel flights either side of a half-landing: cross at the landing's middle
+            between = [e for e in g["elements"] if e["kind"] == "landing"
+                       and r["treads"][-1]["z"] < e["z"] < nxt["treads"][0]["z"]]
+            if between:
+                c = between[0]["poly"].centroid
+                mid = c.y if r["along_y"] else c.x
+                pts += [pt(r, mid), pt(nxt, mid)]
+    pts.append(pt(runs[-1], runs[-1]["end"]))
+    return LineString(pts) if len(pts) > 1 else None
+
+
+def _fit(bounds, x0, y0, w, h, max_scale=0.2):
+    """Uniform plan-to-SVG transform fitting model bounds into a box, y up."""
+    bx0, by0, bx1, by1 = bounds
+    s = min(w / max(bx1 - bx0, 1), h / max(by1 - by0, 1), max_scale)
+    ox = x0 + (w - (bx1 - bx0) * s) / 2 - bx0 * s
+    oy = y0 + (h - (by1 - by0) * s) / 2 + by1 * s
+
+    def T(x, y):
+        return (ox + x * s, oy - y * s)
+    return T, s
+
+
+def _plan_bounds(g, parts):
+    from shapely.ops import unary_union
+    geoms = [g["footprint"]] + list(g["newels"]) + list(g["handrails"])
+    if parts["hatch"] is not None and not parts["hatch"].is_empty:
+        geoms.append(parts["hatch"])
+    return unary_union(geoms).bounds
+
+
+def _draw_plan(g, parts, T, s, rail_c=ACC, corner_c=INK):
+    body = ""
+    for poly in _polys_of(parts["hatch"]):
+        body += f'<path d="{_path_d(poly, T)}" fill="url(#wz-hatch)" stroke="none" fill-rule="evenodd"/>\n'
+    for pts in _lines_of(parts["edges"]["other"]):
+        body += _poly([T(*p) for p in pts], INK, 1, close=False)
+    for pts in _lines_of(parts["edges"]["corner"]):
+        body += _poly([T(*p) for p in pts], corner_c, 1.4 if corner_c != INK else 1, close=False)
+    for pts in _lines_of(parts["wall"]):
+        body += _poly([T(*p) for p in pts], INK, 2.2, close=False)
+    for r in g["handrails"]:
+        body += f'<path d="{_path_d(r, T)}" fill="{PANEL}" stroke="{rail_c}" stroke-width="1.4"/>\n'
+    for n in g["newels"]:
+        body += f'<path d="{_path_d(n, T)}" fill="{PANEL}" stroke="{rail_c}" stroke-width="1.6"/>\n'
+    if parts["path"] is not None:
+        body += _poly([T(*p) for p in parts["path"].coords], DIM, 1.2, close=False, end="a")
+    return body
+
+
+def _first_flight_faces(g):
+    """Outside faces of the first tread across its width, and its direction of travel."""
+    t = g["first_tread"]
+    if t is None:
+        return None
+    x0, y0, x1, y1 = t["poly"].bounds
+    across_x = (x1 - x0) >= (y1 - y0)
+    st = g["stringer_thickness"] / 2
+    later = [e for e in g["elements"] if e["z"] > t["z"]]
+    c = t["poly"].centroid
+    n = later[0]["poly"].centroid if later else c
+    if across_x:
+        return {"across": "x", "a": x0 - st, "b": x1 + st, "dir": 1 if n.y >= c.y else -1}
+    return {"across": "y", "a": y0 - st, "b": y1 + st, "dir": 1 if n.x >= c.x else -1}
+
+
+def _plan_or_message(params, w, h):
+    try:
+        from stair_plan import plan_geometry
+        return plan_geometry(params), None
+    except Exception as err:   # the wizard keeps working if the plan can't be drawn
+        return None, _svg(_text(w / 2, h / 2, f"Plan unavailable: {type(err).__name__}", 13, DIM), (0, 0, w, h))
+
+
+# ── Step 4: Width, sides and newels ────────────────────────────────
+
+def step4_width_sides(params):
+    W, H = 720, 470
+    g, msg = _plan_or_message(params, W, H)
+    if msg:
+        return msg
+    parts = _plan_parts(g)
+    T, s = _fit(_plan_bounds(g, parts), 60, 20, W - 120, H - 110)
+    body = _draw_plan(g, parts, T, s)
+    f = _first_flight_faces(g)
+    if f and f["across"] == "x":
+        bx0, by0, bx1, by1 = _plan_bounds(g, parts)
+        start_y = g["first_tread"]["poly"].bounds[1]
+        xa, ya = T(f["a"], start_y)
+        xb, _ = T(f["b"], start_y)
+        dy = T(0, by0)[1] + 26
+        body += _proj(xa, ya, xa, dy + 4) + _proj(xb, ya, xb, dy + 4)
+        body += _hdim(xa, xb, dy, f"width {_mm(g['params']['stair_width'])}", active=True, above=False,
+                      note="outside to outside")
+        # flight 1 runs +Y in the model, so the walker's left is -X
+        left_x, right_x = (xa, xb) if f["dir"] > 0 else (xb, xa)
+        body += _text(left_x - 10, dy + 4, "left", 11, DIM, anchor="end")
+        body += _text(right_x + 10, dy + 4, "right", 11, DIM, anchor="start")
+    body += _text(W / 2, H - 8, "Left and right as you walk up. Treads stop at the inner handrail line.", 11, DIM)
+    return _svg(body, (0, 0, W, H))
+
+
+# ── Step 5: Corners ────────────────────────────────────────────────
+
+def _corner_label_pos(g, poly, T):
+    """A point just outside the plan, diagonally out from the corner's newel."""
+    c = poly.centroid
+    newel = min(g["newels"], key=lambda n: n.distance(poly)) if g["newels"] else None
+    ux, uy = (c.x - newel.centroid.x, c.y - newel.centroid.y) if newel is not None else (1.0, 1.0)
+    sx, sy = (1 if ux >= 0 else -1), (1 if uy >= 0 else -1)
+    x0, y0, x1, y1 = poly.bounds
+    px, py = T(x1 if sx > 0 else x0, y1 if sy > 0 else y0)
+    return px + sx * 22, py - sy * 22
+
+
+def _step5_half_landing(g, parts, W, H):
+    T, s = _fit(_plan_bounds(g, parts), 60, 60, W - 120, H - 150)
+    body = _draw_plan(g, parts, T, s)
+    hl = next((e for e in g["elements"] if e["name"] == "Half Landing"), None)
+    if hl is not None:
+        x0, y0, x1, y1 = hl["poly"].bounds
+        lx0, ly = T(x0, y1)
+        lx1, _ = T(x1, y1)
+        top = T(0, _plan_bounds(g, parts)[3])[1] - 18
+        body += _proj(lx0, ly, lx0, top - 4) + _proj(lx1, ly, lx1, top - 4)
+        body += _hdim(lx0, lx1, top, f"landing width {_mm(x1 - x0)}", active=True)
+        # the two newels either side of the well: same line, nearest pair
+        ns = sorted(g["newels"], key=lambda n: hl["poly"].distance(n))[:6]
+        pairs = [(a, b) for i, a in enumerate(ns) for b in ns[i + 1:]
+                 if abs(a.centroid.y - b.centroid.y) < 1.0]
+        if pairs:
+            a, b = min(pairs, key=lambda ab: abs(ab[0].centroid.x - ab[1].centroid.x))
+            ca, cb = sorted((a.centroid.x, b.centroid.x))
+            ntn = cb - ca
+            base = T(0, _plan_bounds(g, parts)[1])[1] + 24
+            xa, ya = T(ca, a.centroid.y)
+            xb, _ = T(cb, a.centroid.y)
+            body += _proj(xa, ya, xa, base + 4) + _proj(xb, ya, xb, base + 4)
+            body += _hdim(xa, xb, base, f"newel to newel {_mm(ntn)}", active=True,
+                          note="centre to centre", lx=xb + 14, anchor="start")
+    body += _text(W / 2, H - 8, "Half-landing: newel spacing and landing width, as built.", 11, DIM)
+    return _svg(body, (0, 0, W, H))
+
+
+def step5_corners(params):
+    W, H = 720, 470
+    g, msg = _plan_or_message(params, W, H)
+    if msg:
+        return msg
+    parts = _plan_parts(g)
+    if g["params"]["staircase_type"] == "half_landing":
+        return _step5_half_landing(g, parts, W, H)
+    T, s = _fit(_plan_bounds(g, parts), 70, 50, W - 140, H - 100)
+    body = _draw_plan(g, parts, T, s, corner_c=ACC)
+    for turn in sorted(g["corners"]):
+        c = g["corners"][turn]
+        hit = "".join(f'<path d="{_path_d(poly, T)}" fill="#000" fill-opacity="0" stroke="none"/>'
+                      for poly in _polys_of(c["poly"]))
+        lx, ly = _corner_label_pos(g, c["poly"], T)
+        mark = (f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="11" fill="{PANEL}" stroke="{ACC}" stroke-width="1.4"/>\n'
+                + _text(lx, ly + 4.5, str(turn), 12, ACC_T, bold=True))
+        flip = "false" if c["kind"] == "winders" else "true"
+        body += (f'<g data-param="turn{turn}_enabled" data-value="{flip}" style="cursor:pointer">'
+                 f'<title>Corner {turn}: click to switch to {"flat landing" if flip == "false" else "winders"}</title>\n'
+                 f'{hit}{mark}</g>\n')
+    body += _text(W / 2, H - 8, "Click a corner, or use the toggles. Corners are numbered in walking order.", 11, DIM)
+    return _svg(body, (0, 0, W, H))
+
+
+# ── Step 6: Winder set-out ─────────────────────────────────────────
+
+def step6_winder_setout(params):
+    from shapely.geometry import box
+    W, H = 720, 470
+    g, msg = _plan_or_message(params, W, H)
+    if msg:
+        return msg
+    winder_turns = sorted(t for t, c in g["corners"].items() if c["kind"] == "winders")
+    if not winder_turns or not g["newels"]:
+        return _svg(_text(W / 2, H / 2, "No winder corner to show.", 13, DIM), (0, 0, W, H))
+    corner = g["corners"][winder_turns[0]]["poly"]
+    newel = min(g["newels"], key=lambda n: n.distance(corner))
+    ncx, ncy = newel.centroid.x, newel.centroid.y
+    wc = corner.centroid
+    sx, sy = (1 if wc.x >= ncx else -1), (1 if wc.y >= ncy else -1)
+    nx0, ny0, nx1, ny1 = newel.bounds
+    icx, icy = (nx1 if sx > 0 else nx0), (ny1 if sy > 0 else ny0)    # inside corner
+    half = 430.0
+    cx, cy = ncx + sx * 40, ncy + sy * 40
+    win = (cx - half, cy - half, cx + half, cy + half)
+    parts = _plan_parts(g)
+    T, s = _fit(win, 60, 15, W - 120, H - 30, max_scale=1.0)
+    (ax, ay), (bx, by) = T(win[0], win[3]), T(win[2], win[1])
+    body = (f'<clipPath id="wz-crop"><rect x="{ax:.1f}" y="{ay:.1f}" width="{bx - ax:.1f}" '
+            f'height="{by - ay:.1f}"/></clipPath>\n')
+    body += f'<g clip-path="url(#wz-crop)">{_draw_plan(g, parts, T, s, corner_c=ACC)}</g>\n'
+    p = g["params"]
+    X, Y = p["winder_x"], p["winder_y"]
+    # X and Y down the newel face that meets flight 1 (flight 1 runs along Y)
+    fx = T(icx, 0)[0]
+    y0, y1, y2 = T(0, icy)[1], T(0, icy - sy * X)[1], T(0, icy - sy * (X + Y))[1]
+    dx = fx + sx * 36
+    for yy in (y0, y1, y2):
+        body += _proj(fx + sx * 4, yy, dx + sx * 4, yy)
+    body += _ticked(dx, y0, dx, y1, True) + _ticked(dx, y1, dx, y2, True)
+    anchor = "start" if sx > 0 else "end"
+    body += _text(dx + sx * 9, (y0 + y1) / 2 + 6, f"X {_mm(X)}", 18, ACC_T, bold=True, anchor=anchor)
+    body += _text(dx + sx * 9, (y1 + y2) / 2 + 12, f"Y {_mm(Y)}", 18, ACC_T, bold=True, anchor=anchor)
+    # flight labels where each flight leaves the crop window
+    for k, label in ((1, "flight 1"), (2 if winder_turns[0] == 1 else 3, f"flight {2 if winder_turns[0] == 1 else 3}")):
+        ts = [e for e in g["elements"] if e["flight"] == k]
+        if not ts:
+            continue
+        clip = box(*win)
+        inside = [e for e in ts if e["poly"].intersects(clip)]
+        if not inside:
+            continue
+        from shapely.ops import unary_union
+        visible = unary_union([e["poly"] for e in inside]).intersection(clip)
+        c = visible.centroid
+        tx, ty = T(c.x, c.y)
+        body += _text(tx, ty + 5, label, 15, DIM)
+    return _svg(body, (0, 0, W, H))
+
+
 # ── Dispatch ───────────────────────────────────────────────────────
 
 _DIAGRAM_FUNCTIONS = {
@@ -339,6 +693,9 @@ _DIAGRAM_FUNCTIONS = {
     "step1_height": step1_height,
     "step2_risers_going": step2_risers_going,
     "step3_treads_risers": step3_treads_risers,
+    "step4_width_sides": step4_width_sides,
+    "step5_corners": step5_corners,
+    "step6_winder_setout": step6_winder_setout,
 }
 
 
