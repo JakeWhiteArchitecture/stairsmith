@@ -84,9 +84,13 @@ def _parse(params):
     # half-landing and the two flights' separation is driven by a
     # centre-newel-to-centre-newel dimension.
     p["half_landing"] = bool(params.get("half_landing", False)) or p["staircase_type"] == "half_landing"
+    p["left_condition"] = params.get("left_condition", "balustrade")
+    p["right_condition"] = params.get("right_condition", "wall")
     # Clamp centre-to-centre so there is always a 50mm clear gap between the
-    # inner faces of the two corner newels, whatever the newel size.
-    _ntn_min = p["newel_size"] + 50.0
+    # inner faces of the two corner newels, whatever the newel size. With a wall
+    # on the inner side the gap must take a 100mm wall between the flights.
+    inner = p["left_condition"] if p["turn1_direction"] == "left" else p["right_condition"]
+    _ntn_min = p["newel_size"] + (100.0 if p["half_landing"] and inner == "wall" else 50.0)
     _ntn = params.get("newel_to_newel", _ntn_min)
     try:
         _ntn = float(_ntn) if _ntn is not None else _ntn_min
@@ -108,8 +112,6 @@ def _parse(params):
     p["baserail_width"] = float(params.get("baserail_width", 50))
     p["baserail_height"] = float(params.get("baserail_height", 30))
     p["spindle_width"] = float(params.get("spindle_width", 32))
-    p["left_condition"] = params.get("left_condition", "balustrade")
-    p["right_condition"] = params.get("right_condition", "wall")
     p["rise"] = p["floor_to_floor"] / p["num_risers"]
     p["num_treads"] = p["num_risers"] - 1
     p["num_risers_val"] = p["num_risers"]
