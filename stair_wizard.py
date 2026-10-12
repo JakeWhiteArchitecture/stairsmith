@@ -4,15 +4,21 @@ StairSmith setup wizard — step definitions as plain data.
 Each step is a dict with:
   id        — short string key
   title     — heading shown in the wizard
-  fields    — list of field dicts (param, label, unit, default, min, max, step)
-  toggles   — list of toggle-group dicts (param, label, options)
-  show      — callable(params) -> bool; whether the step is visible
+  subtitle  — one plain line under the heading
+  fields    — list of number-field dicts (param, label, unit, default, min, max, step)
+  toggles   — list of toggle-group dicts (param, label, options, optional show_for_types)
+  ref_values — optional list of reference values shown in grey (see compute_ref_values)
+  show      — callable(params) -> bool; whether the step applies to the chosen stair
   diagram   — name of the diagram function in stair_diagrams.py
 
-The JavaScript wizard reads these through Pyodide and builds the UI.
+Parameter names are those used by getParams() in app.html and _parse() in
+stair_constants.py. The browser and the IngeTrazo extension both build their
+wizard UI from this definition.
 """
 
-import math
+from stair_constants import _parse, pitch_degrees
+
+TURNING_TYPES = ("single_winder", "double_winder", "half_landing")
 
 
 def _always(_p):
@@ -20,8 +26,7 @@ def _always(_p):
 
 
 def _is_turning(p):
-    t = p.get("staircase_type", "straight")
-    return t in ("single_winder", "double_winder")
+    return p.get("staircase_type", "straight") in ("single_winder", "double_winder")
 
 
 def _has_winders(p):
@@ -42,6 +47,7 @@ STEPS = [
     {
         "id": "stair_type",
         "title": "Stair type",
+        "subtitle": "Choose the layout and, for turning stairs, the hand.",
         "fields": [],
         "toggles": [
             {
@@ -55,8 +61,10 @@ STEPS = [
                 ],
             },
             {
-                "param": "mirror",
+                # Sets turn1_direction and turn2_direction together (the sidebar mirror).
+                "param": "turn1_direction",
                 "label": "Hand",
+                "show_for_types": list(TURNING_TYPES),
                 "options": [
                     {"value": "left", "label": "Left turn"},
                     {"value": "right", "label": "Right turn"},
@@ -69,6 +77,7 @@ STEPS = [
     {
         "id": "height",
         "title": "Height",
+        "subtitle": "Finished floor to finished floor.",
         "fields": [
             {
                 "param": "floor_to_floor",
@@ -87,6 +96,7 @@ STEPS = [
     {
         "id": "risers_going",
         "title": "Risers and going",
+        "subtitle": "Rise, treads and pitch are worked out for you and shown for information.",
         "fields": [
             {
                 "param": "num_risers",
@@ -99,7 +109,7 @@ STEPS = [
             },
             {
                 "param": "going",
-                "label": "Individual going",
+                "label": "Going",
                 "unit": "mm",
                 "default": 227,
                 "min": 220,
@@ -108,7 +118,7 @@ STEPS = [
             },
             {
                 "param": "nosing",
-                "label": "Nosing overhang",
+                "label": "Nosing",
                 "unit": "mm",
                 "default": 16,
                 "min": 0,
@@ -124,6 +134,7 @@ STEPS = [
     {
         "id": "treads_risers",
         "title": "Treads and risers",
+        "subtitle": "Board thicknesses for the treads and risers.",
         "fields": [
             {
                 "param": "tread_thickness",
@@ -151,6 +162,7 @@ STEPS = [
     {
         "id": "width_sides",
         "title": "Width, sides and newels",
+        "subtitle": "Overall width, what is on each side, and the newel size.",
         "fields": [
             {
                 "param": "stair_width",
@@ -195,6 +207,7 @@ STEPS = [
     {
         "id": "corners",
         "title": "Corners",
+        "subtitle": "Winders or a flat landing at each corner, then treads per flight.",
         "fields": [],
         "toggles": [],
         "show": _is_turning_or_half,
@@ -203,6 +216,7 @@ STEPS = [
     {
         "id": "winder_setout",
         "title": "Winder set-out",
+        "subtitle": "Where the winders meet the newel. Applies to every winder corner.",
         "fields": [
             {
                 "param": "winder_x",
@@ -240,16 +254,25 @@ def get_step_ids_for_type(params):
     return [s["id"] for s in STEPS if s["show"](params)]
 
 
+def steps_for_ui(params, available_diagrams=None):
+    """Applicable steps as JSON-safe dicts (no callables).
+
+    available_diagrams limits the list to steps whose diagram exists, so the
+    wizard only offers steps that have been built.
+    """
+    out = []
+    for s in get_steps_for_type(params):
+        if available_diagrams is not None and s["diagram"] not in available_diagrams:
+            continue
+        out.append({k: v for k, v in s.items() if k != "show"})
+    return out
+
+
 def compute_ref_values(params):
-    """Compute the reference values shown in the wizard."""
-    ftf = float(params.get("floor_to_floor", 2700))
-    risers = int(params.get("num_risers", 14))
-    going = float(params.get("going", 227))
-    rise = ftf / risers
-    treads = risers - 1
-    pitch = math.degrees(math.atan2(rise, going))
+    """Reference values shown in grey on the risers and going step."""
+    p = _parse(params)
     return {
-        "rise": round(rise, 1),
-        "treads": treads,
-        "pitch": round(pitch, 1),
+        "rise": round(p["rise"], 1),
+        "treads": p["num_treads"],
+        "pitch": round(pitch_degrees(p["rise"], p["going"]), 1),
     }
