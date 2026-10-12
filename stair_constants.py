@@ -2,6 +2,8 @@
 Stair Preview Engine — shared constants, parameter parsing, and _box_mesh helper.
 """
 
+import math
+
 
 STRINGER_THICKNESS = 32.0        # mm
 STRINGER_HEIGHT = 275.0          # mm
@@ -24,6 +26,10 @@ _BOX_COLOR_TO_IFC = {
     "#d4a574": "winder_tread",
     "#8B7355": "newel",       # newel posts
 }
+
+
+def pitch_degrees(rise, going):
+    return math.degrees(math.atan2(rise, going))
 
 
 def _box_mesh(x, y, z, w, d, h, color, name="", ifc_type=""):

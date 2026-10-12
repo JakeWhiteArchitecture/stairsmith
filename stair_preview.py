@@ -8,7 +8,7 @@ Imports all sub-modules and exposes the public entry points:
 
 import math
 
-from stair_constants import _parse, _box_mesh, _BOX_COLOR_TO_IFC
+from stair_constants import _parse, _box_mesh, _BOX_COLOR_TO_IFC, pitch_degrees
 from stair_winder_geometry import compute_winder_geometry
 from stair_flights import (
     _preview_straight,
@@ -105,8 +105,7 @@ def check_building_regs(params):
     checks.append({"name": "Individual Going", "status": going_status, "message": going_msg, "value": round(going, 1)})
 
     # Pitch: max 42° for straight flights
-    pitch_rad = math.atan2(rise, going)
-    pitch_deg = math.degrees(pitch_rad)
+    pitch_deg = pitch_degrees(rise, going)
     pitch_status = "pass"
     pitch_msg = f"Pitch: {pitch_deg:.1f}°"
     if pitch_deg > 42:

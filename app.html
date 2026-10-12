@@ -1058,6 +1058,138 @@
         .reminder-btn:hover { opacity: 0.9; transform: translateY(-1px); }
         .reminder-btn:active { transform: translateY(0); }
 
+        /* ─── SETUP WIZARD ─── */
+        #wizard-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            background: rgba(10, 10, 26, 0.82);
+            justify-content: center;
+            align-items: flex-start;
+            padding: 28px 0;
+            overflow-y: auto;
+        }
+        #wizard-overlay.open { display: flex; }
+        .wizard-card {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 14px;
+            width: min(720px, calc(100% - 32px));
+            padding: 20px 28px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin: auto 0;
+        }
+        .wizard-logo { display: block; width: 150px; height: auto; margin: 0 auto; }
+        .wizard-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .wizard-dots { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .wizard-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #0f3460;
+            background: transparent;
+            padding: 0;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .wizard-dot:disabled { cursor: default; }
+        .wizard-dot.visited { background: #0f3460; border-color: #1a4a80; cursor: pointer; }
+        .wizard-dot.visited:hover { border-color: #00ccff; }
+        .wizard-dot.current { background: #00ccff; border-color: #00ccff; }
+        .wizard-count { font-size: 11px; color: #8a93ad; margin-left: 6px; }
+        .wizard-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        .wizard-close:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+        .wizard-title { font-size: 17px; font-weight: 600; color: #e0e0e0; margin: 0; }
+        .wizard-subtitle { font-size: 12.5px; color: #8a93ad; margin: -8px 0 0; }
+        .wizard-diagram { display: flex; justify-content: center; }
+        .wizard-diagram svg { display: block; width: 100%; height: auto; max-height: 44vh; }
+        .wizard-fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px 16px;
+        }
+        .wizard-toggle-group, .wizard-ref-values { grid-column: 1 / -1; }
+        .wizard-field-row { display: flex; flex-direction: column; gap: 4px; }
+        .wizard-field-row label, .wizard-toggle-label { font-size: 12px; color: #c9c9d4; font-weight: 500; }
+        .wizard-field-row .wiz-unit { color: #8a93ad; font-weight: 400; }
+        .wizard-field-row input[type="number"] {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            color: #4fdcff;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 8px 10px;
+            width: 100%;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .wizard-field-row input[type="number"]:focus { border-color: #00ccff; }
+        .wizard-ref-values { font-size: 12.5px; color: #8a93ad; line-height: 1.6; }
+        .wizard-ref-values b { color: #c9c9d4; font-weight: 600; }
+        .wizard-ref-values span { display: block; font-size: 11px; }
+        .wizard-toggle-group { display: flex; flex-direction: column; gap: 4px; }
+        .wizard-toggle-row {
+            display: flex;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #0f3460;
+        }
+        .wizard-toggle-btn {
+            flex: 1 1 0;
+            padding: 9px 6px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            background: #1a1a2e;
+            color: #aaa;
+            transition: background 0.15s, color 0.15s;
+        }
+        .wizard-toggle-btn + .wizard-toggle-btn { border-left: 1px solid #0f3460; }
+        .wizard-toggle-btn:hover:not(.active) { color: #e0e0e0; }
+        .wizard-toggle-btn.active { background: #e94560; color: #fff; }
+        .wizard-nav { display: flex; align-items: center; gap: 10px; padding-top: 2px; }
+        .wizard-btn-back, .wizard-btn-next {
+            padding: 10px 28px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .wizard-btn-back { background: #1a1a2e; color: #c9c9d4; border: 1px solid #0f3460; }
+        .wizard-btn-next { background: #e94560; color: #fff; border: none; margin-left: auto; }
+        .wizard-btn-back:hover, .wizard-btn-next:hover { opacity: 0.88; }
+        .wizard-btn-back[hidden] { display: none; }
+        #wizard-overlay button:focus-visible,
+        #wizard-overlay input:focus-visible { outline: 2px solid #00ccff; outline-offset: 2px; }
+
+        @media (max-width: 768px) {
+            #wizard-overlay { padding: 12px 0; }
+            .wizard-card { padding: 16px; gap: 12px; }
+            .wizard-logo { width: 120px; }
+            .wizard-toggle-row { flex-wrap: wrap; }
+            .wizard-toggle-btn { flex: 1 1 45%; border-top: 1px solid #0f3460; margin-top: -1px; }
+            .wizard-diagram svg { max-height: 36vh; }
+        }
+
         /* ─── HAMBURGER BUTTON (hidden on desktop) ─── */
         .hamburger-btn {
             display: none;
@@ -1514,6 +1646,7 @@
       </div>
         <!-- Actions (pinned to bottom) -->
         <div class="panel-actions">
+            <button class="btn btn-secondary" onclick="openWizard();" style="margin-bottom:8px;">Stair wizard</button>
             <button class="btn btn-primary" onclick="downloadIFC();">Download IFC File</button>
             <button class="btn btn-secondary" id="dxf-btn" onclick="downloadDXF();" style="margin-top:8px;">Download DXF Plan</button>
             <div style="display:flex; gap:6px; margin-top:8px; align-items:center;">
@@ -1582,6 +1715,25 @@
         </div>
     </div>
 
+    <!-- Setup Wizard -->
+    <div id="wizard-overlay">
+        <div class="wizard-card" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
+            <img src="StairSmith-Logo.png" alt="StairSmith" class="wizard-logo">
+            <div class="wizard-header">
+                <div class="wizard-dots" id="wizard-dots"></div>
+                <button class="wizard-close" onclick="closeWizard(true)" aria-label="Close">&#10005;</button>
+            </div>
+            <h3 class="wizard-title" id="wizard-title"></h3>
+            <p class="wizard-subtitle" id="wizard-subtitle"></p>
+            <div class="wizard-diagram" id="wizard-diagram"></div>
+            <div class="wizard-fields" id="wizard-fields"></div>
+            <div class="wizard-nav">
+                <button type="button" class="wizard-btn-back" id="wizard-back" onclick="wizardBack()">Back</button>
+                <button type="button" class="wizard-btn-next" id="wizard-next" onclick="wizardNext()">Next</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Pyodide -->
     <!-- Pyodide loader. SRI is intentionally omitted: this loader fetches the
          WASM runtime and package wheels at runtime (which SRI here would not
@@ -1634,6 +1786,8 @@
             if (window.innerWidth <= 768) {
                 setTimeout(function() { toggleDrawer(); }, 100);
             }
+            // Auto-open the setup wizard on first load
+            setTimeout(function() { openWizard(); }, 600);
         }
 
         // ─── PANEL COLLAPSE / DRAWER TOGGLE ───
@@ -1865,6 +2019,283 @@
                 if (e.target === this) closeShareModal();
             });
         });
+
+        // ─── SETUP WIZARD ───
+        // Steps, fields and diagrams come from stair_wizard.py and
+        // stair_diagrams.py. The wizard edits the sidebar controls directly
+        // (firing their own handlers), so the two always hold the same values.
+        let _wizardOpen = false;
+        let _wizardSteps = [];
+        let _wizardStepId = null;
+        let _wizardVisited = new Set();
+        let _wizardDiagramTimer = null;
+        let _sidebarDefaults = null;
+        const _WIZARD_INERT = ['panel', 'viewport', 'hamburger-btn', 'mobile-measure-btn'];
+
+        function _captureSidebarDefaults() {
+            const panel = document.getElementById('panel');
+            _sidebarDefaults = {
+                values: Array.from(panel.querySelectorAll('input[id], select[id]')).map(el => [el, el.value]),
+                active: Array.from(panel.querySelectorAll('.turn-btn, #mirror-btn')).map(el => [el, el.classList.contains('active')]),
+            };
+        }
+
+        function _restoreSidebarDefaults() {
+            _sidebarDefaults.values.forEach(([el, v]) => { el.value = v; });
+            _sidebarDefaults.active.forEach(([el, on]) => el.classList.toggle('active', on));
+            document.getElementById('staircase_type').value = 'straight';
+            onTypeChange();
+            updateDerived();
+            updatePreview();
+        }
+
+        // Synchronous so a call can never pick up another call's params.
+        function _wizardPy(code, extra) {
+            pyodide.globals.set('_wz_params', JSON.stringify(getParams()));
+            pyodide.globals.set('_wz_extra', extra === undefined ? '' : extra);
+            return pyodide.runPython('import json as _json\n' + code);
+        }
+
+        function _wizardLoadSteps() {
+            _wizardSteps = JSON.parse(_wizardPy(`
+from stair_wizard import steps_for_ui as _sfu
+from stair_diagrams import available_diagrams as _ad
+_json.dumps(_sfu(_json.loads(_wz_params), _ad()))
+`));
+            const ids = new Set(_wizardSteps.map(s => s.id));
+            _wizardVisited = new Set([..._wizardVisited].filter(id => ids.has(id)));
+            if (!ids.has(_wizardStepId)) _wizardStepId = _wizardSteps[0].id;
+            _wizardVisited.add(_wizardStepId);
+        }
+
+        function _wizardIndex() {
+            return _wizardSteps.findIndex(s => s.id === _wizardStepId);
+        }
+
+        function openWizard() {
+            if (!window.pyodideReady || _wizardOpen) return;
+            _wizardStepId = null;
+            _wizardVisited = new Set();
+            try {
+                _wizardLoadSteps();
+            } catch (err) {
+                console.error('Wizard failed to load:', err);
+                return;
+            }
+            _wizardOpen = true;
+            if (controls) controls.enabled = false;
+            _WIZARD_INERT.forEach(id => { const el = document.getElementById(id); if (el) el.inert = true; });
+            document.querySelector('.corner-stack').inert = true;
+            document.getElementById('wizard-overlay').classList.add('open');
+            _renderWizard();
+            document.getElementById('wizard-next').focus();
+        }
+
+        // reset=true is the X button and Escape: back to the default straight run.
+        function closeWizard(reset) {
+            if (!_wizardOpen) return;
+            _wizardOpen = false;
+            clearTimeout(_wizardDiagramTimer);
+            document.getElementById('wizard-overlay').classList.remove('open');
+            if (controls) controls.enabled = true;
+            _WIZARD_INERT.forEach(id => { const el = document.getElementById(id); if (el) el.inert = false; });
+            document.querySelector('.corner-stack').inert = false;
+            if (reset) _restoreSidebarDefaults();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (_wizardOpen && e.key === 'Escape') {
+                e.preventDefault();
+                closeWizard(true);
+            }
+        });
+
+        function _renderWizard() {
+            const idx = _wizardIndex();
+            const step = _wizardSteps[idx];
+            document.getElementById('wizard-title').textContent = step.title;
+            document.getElementById('wizard-subtitle').textContent = step.subtitle || '';
+            _renderWizardDots(idx);
+            _renderWizardFields(step);
+            document.getElementById('wizard-back').hidden = (idx === 0);
+            document.getElementById('wizard-next').textContent = (idx === _wizardSteps.length - 1) ? 'Finish' : 'Next';
+            _renderWizardLive();
+        }
+
+        function _renderWizardDots(idx) {
+            const box = document.getElementById('wizard-dots');
+            box.innerHTML = '';
+            _wizardSteps.forEach((s, i) => {
+                const dot = document.createElement('button');
+                dot.type = 'button';
+                dot.className = 'wizard-dot';
+                const visited = _wizardVisited.has(s.id);
+                if (i === idx) dot.classList.add('current');
+                else if (visited) dot.classList.add('visited');
+                dot.title = (i + 1) + '. ' + s.title;
+                dot.setAttribute('aria-label', 'Step ' + (i + 1) + ': ' + s.title);
+                if (i === idx) dot.setAttribute('aria-current', 'step');
+                dot.disabled = !visited || i === idx;
+                dot.onclick = () => _wizardGo(i);
+                box.appendChild(dot);
+            });
+            const count = document.createElement('span');
+            count.className = 'wizard-count';
+            count.textContent = 'Step ' + (idx + 1) + ' of ' + _wizardSteps.length;
+            box.appendChild(count);
+        }
+
+        function _renderWizardFields(step) {
+            const box = document.getElementById('wizard-fields');
+            box.innerHTML = '';
+            const params = getParams();
+            (step.toggles || []).forEach(t => {
+                if (t.show_for_types && !t.show_for_types.includes(params.staircase_type)) return;
+                box.appendChild(_wizardToggle(t, params[t.param]));
+            });
+            (step.fields || []).forEach(f => box.appendChild(_wizardNumber(f)));
+            if (step.ref_values) {
+                const refs = document.createElement('div');
+                refs.className = 'wizard-ref-values';
+                refs.id = 'wizard-refs';
+                box.appendChild(refs);
+            }
+        }
+
+        function _wizardToggle(t, current) {
+            const group = document.createElement('div');
+            group.className = 'wizard-toggle-group';
+            const label = document.createElement('div');
+            label.className = 'wizard-toggle-label';
+            label.textContent = t.label;
+            group.appendChild(label);
+            const row = document.createElement('div');
+            row.className = 'wizard-toggle-row';
+            row.setAttribute('role', 'group');
+            row.setAttribute('aria-label', t.label);
+            t.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'wizard-toggle-btn' + (opt.value === current ? ' active' : '');
+                btn.setAttribute('aria-pressed', opt.value === current ? 'true' : 'false');
+                btn.textContent = opt.label;
+                btn.onclick = () => _wizardSetToggle(t.param, opt.value);
+                row.appendChild(btn);
+            });
+            group.appendChild(row);
+            return group;
+        }
+
+        function _wizardSetToggle(param, value) {
+            if (param === 'staircase_type') {
+                const sel = document.getElementById('staircase_type');
+                if (sel.value === value) return;
+                sel.value = value;
+                sel.dispatchEvent(new Event('change'));
+                _wizardLoadSteps();
+            } else if (param === 'turn1_direction') {
+                const btn = document.getElementById('mirror-btn');
+                if (btn.classList.contains('active') === (value === 'right')) return;
+                btn.click();
+            } else {
+                console.warn('Wizard: no sidebar control for', param);
+                return;
+            }
+            _renderWizard();
+        }
+
+        function _wizardNumber(f) {
+            const src = document.getElementById(f.param);
+            const row = document.createElement('div');
+            row.className = 'wizard-field-row';
+            const id = 'wiz-' + f.param;
+            const lbl = document.createElement('label');
+            lbl.htmlFor = id;
+            lbl.textContent = f.label + ' ';
+            if (f.unit) {
+                const u = document.createElement('span');
+                u.className = 'wiz-unit';
+                u.textContent = f.unit;
+                lbl.appendChild(u);
+            }
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = id;
+            input.min = f.min;
+            input.max = f.max;
+            input.step = f.step;
+            input.value = src.value;
+            // Apply as you type once the value is complete and in range;
+            // clamp whatever is left when the field is committed.
+            input.addEventListener('input', () => {
+                const v = parseFloat(input.value);
+                if (!isNaN(v) && v >= f.min && v <= f.max) _wizardApplyNumber(f.param, v);
+            });
+            input.addEventListener('change', () => {
+                let v = parseFloat(input.value);
+                if (isNaN(v)) v = parseFloat(src.value);
+                v = Math.min(f.max, Math.max(f.min, v));
+                input.value = v;
+                _wizardApplyNumber(f.param, v);
+            });
+            row.appendChild(lbl);
+            row.appendChild(input);
+            return row;
+        }
+
+        function _wizardApplyNumber(param, v) {
+            const src = document.getElementById(param);
+            if (parseFloat(src.value) === v) return;
+            src.value = v;
+            src.dispatchEvent(new Event('input'));
+            src.dispatchEvent(new Event('change'));
+            clearTimeout(_wizardDiagramTimer);
+            _wizardDiagramTimer = setTimeout(_renderWizardLive, 60);
+        }
+
+        // Diagram and reference values, redrawn from the current parameters.
+        function _renderWizardLive() {
+            if (!_wizardOpen) return;
+            const step = _wizardSteps[_wizardIndex()];
+            const box = document.getElementById('wizard-diagram');
+            try {
+                box.innerHTML = _wizardPy(`
+from stair_diagrams import get_diagram as _gd
+_gd(_wz_extra, _json.loads(_wz_params))
+`, step.diagram);
+                box.querySelectorAll('[data-param]').forEach(el => {
+                    el.addEventListener('click', () => _wizardSetToggle(el.dataset.param, el.dataset.value));
+                });
+                const refs = document.getElementById('wizard-refs');
+                if (refs) {
+                    const r = JSON.parse(_wizardPy(`
+from stair_wizard import compute_ref_values as _crv
+_json.dumps(_crv(_json.loads(_wz_params)))
+`));
+                    refs.innerHTML = 'Rise <b>' + r.rise + ' mm</b> &middot; Treads <b>' + r.treads +
+                        '</b> &middot; Pitch <b>' + r.pitch + '&deg;</b><span>For information only.</span>';
+                }
+            } catch (err) {
+                console.error('Wizard diagram error:', err);
+            }
+        }
+
+        function wizardNext() {
+            const idx = _wizardIndex();
+            if (idx < _wizardSteps.length - 1) _wizardGo(idx + 1);
+            else closeWizard(false);
+        }
+
+        function wizardBack() {
+            const idx = _wizardIndex();
+            if (idx > 0) _wizardGo(idx - 1);
+        }
+
+        function _wizardGo(i) {
+            _wizardStepId = _wizardSteps[i].id;
+            _wizardVisited.add(_wizardStepId);
+            _renderWizard();
+        }
 
         // ─── FLIGHT DISTRIBUTION ───
         let flightDist = { f1: 0, f2: 0, f3: 0 };
@@ -3082,6 +3513,7 @@ function meshFingerprint(m) {
         // Attach measure click handler to the viewport
         document.getElementById('viewport').addEventListener('click', onMeasureClick);
         document.addEventListener('keydown', (e) => {
+            if (_wizardOpen) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
             if (e.key === 'm' || e.key === 'M') toggleMeasure();
             if (e.key === 'Escape' && measureActive) toggleMeasure();
@@ -3215,6 +3647,8 @@ _to_dxf(_meshes, _p)
                     'stair_flights.py',
                     'stair_preview.py',
                     'dxf_generator.py',
+                    'stair_wizard.py',
+                    'stair_diagrams.py',
                 ];
                 const v = Date.now();
                 for (const mod of stairModules) {
@@ -3238,6 +3672,7 @@ from stair_preview import generate_preview_geometry
         }
 
         // ─── INIT ───
+        _captureSidebarDefaults();
         initThree();
         onTypeChange();
         updateToggleState();
