@@ -338,11 +338,12 @@ def _preview_single_winder(p):
     # --- Landing threshold strip ---
     ftf = (num_treads + 1) * rise
     threshold_d = p["threshold_depth"]
+    # Front edge overhangs the top riser's walking face by the nosing, like a tread.
     if turn_dir == "left":
-        thresh_front = -(flight2_treads * going) - winder_offset + nosing
+        thresh_front = -(flight2_treads * going) - winder_offset
         thresh_back = thresh_front - threshold_d
     else:
-        thresh_front = width + flight2_treads * going + winder_offset - nosing
+        thresh_front = width + flight2_treads * going + winder_offset
         thresh_back = thresh_front + threshold_d
     meshes.append(_box_mesh(
         (thresh_front + thresh_back) / 2, flight2_y_center, ftf - tread_t / 2,
@@ -1266,16 +1267,18 @@ def _preview_double_winder(p):
         flight3_treads = straight_treads - flight1_treads - flight2_treads
 
     if half_landing:
-        # Flight 2 disappears into the half-landing; the single landing
-        # consumes one rise and the remaining straight treads split between
-        # flights 1 and 3 (respecting the F1/F3 overrides when they sum right).
+        # Flight 2 disappears into the half-landing; the landing takes one
+        # tread level and the rest split between flights 1 and 3 (respecting
+        # the F1/F3 overrides when they sum right). Flight 2 is already 0, so
+        # the landing's level can't come off it as it does for flat corners.
         flight2_treads = 0
-        if f1_ov >= 0 and f3_ov >= 0 and f1_ov + f3_ov == straight_treads:
+        hl_treads = straight_treads - 1
+        if f1_ov >= 0 and f3_ov >= 0 and f1_ov + f3_ov == hl_treads:
             flight1_treads = f1_ov
             flight3_treads = f3_ov
         else:
-            flight1_treads = straight_treads // 2
-            flight3_treads = straight_treads - flight1_treads
+            flight1_treads = hl_treads // 2
+            flight3_treads = hl_treads - flight1_treads
 
     # Step 3: Calculate offset and half-post
     ns = p["newel_size"]
@@ -1608,8 +1611,10 @@ def _preview_double_winder(p):
     # --- Landing threshold strip (flight 3 top) ---
     ftf = (num_treads + 1) * rise
     threshold_d = p["threshold_depth"]
+    # Top riser spans [thresh_riser_y - nosing, thresh_riser_y - nosing + riser_t];
+    # the threshold overhangs its walking (+Y) face by the nosing, like a tread.
     thresh_riser_y = flight3_start_y - flight3_treads * going + flight3_shift_y
-    thresh_front_y = thresh_riser_y + nosing
+    thresh_front_y = thresh_riser_y + riser_t
     thresh_back_y = thresh_front_y - threshold_d
     meshes.append(_box_mesh(
         flight3_start_x + width / 2,

@@ -2310,6 +2310,8 @@ _json.dumps(_crv(_json.loads(_wz_params)))
                 const t1 = isTurnWinder('turn1-toggle') ? 3 : 0;
                 const t2 = isTurnWinder('turn2-toggle') ? 3 : 0;
                 return Math.max(0, numTreads - t1 - t2);
+            } else if (type === 'half_landing') {
+                return Math.max(0, numTreads - 1);   // the landing takes one tread level
             }
             return numTreads;
         }
